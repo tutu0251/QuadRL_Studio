@@ -6,6 +6,15 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 |------------|--------|--------|
 | Geometry Editor | [`geometry-editor/`](geometry-editor/) | v2 — link/joint primitives, URDF/SDF export |
 | Physics Editor | [`physics-editor/`](physics-editor/) | v1 — inertials, friction, joint dynamics, phy URDF/SDF |
+| Control Editor | [`control-editor/`](control-editor/) | v1 — ProfileA position control, ros2_control export |
+
+## Quick start (Control Editor)
+
+```bash
+./start_control_editor.sh
+```
+
+Browser: `http://<ubuntu_ip>:5175` — import `phy_<project>.urdf` after exporting from the physics editor.
 
 ## Quick start (Physics Editor)
 
@@ -34,3 +43,5 @@ Browser: `http://<ubuntu_ip>:5173`
 ## Documentation
 
 See [`geometry-editor/README.md`](geometry-editor/README.md) for architecture, API, templates, and smoke tests.
+
+See [`control-editor/README.md`](control-editor/README.md) for the Geometry → Physics → Control pipeline and ros2_control export.
