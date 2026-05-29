@@ -1,0 +1,1 @@
+"""Insertable geometry templates."""

@@ -1,0 +1,8 @@
+apps/geometry-editor/node_modules/
+backend/.venv/
+*.pyc
+
+.env
+!.env.example
+**/dist/
+*.tsbuildinfo
