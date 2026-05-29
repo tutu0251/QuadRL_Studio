@@ -19,6 +19,12 @@ class TrainingProfile(str, Enum):
     PROFILE_C = "ProfileC"
 
 
+# Simulation low-level controller for ProfileA (ros2_control plugin type key).
+SIM_CONTROLLER_JOINT_TRAJECTORY = "joint_trajectory_controller"
+SIM_CONTROLLER_FORWARD_COMMAND = "forward_command_controller"
+DEFAULT_SIM_CONTROLLER = SIM_CONTROLLER_JOINT_TRAJECTORY
+
+
 class JointControlConfig(BaseModel):
     name: str
     type: str  # revolute | prismatic | continuous
@@ -47,7 +53,7 @@ class ControlModel(BaseModel):
     simPlugin: str = "gz_ros2_control"
     hardwarePlugin: str = "gz_ros2_control/GazeboSimSystem"
     ros2Distro: str = "humble"
-    controllerType: str = "forward_command_controller"
+    controllerType: str = DEFAULT_SIM_CONTROLLER
     updateRate: int = 100
     actuatedJoints: list[JointControlConfig] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -82,3 +88,13 @@ class AsyncTaskStatus(BaseModel):
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def normalize_sim_controller(model: ControlModel) -> bool:
+    """ProfileA uses joint_trajectory_controller for simulation. Returns True if updated."""
+    if model.trainingProfile != TrainingProfile.PROFILE_A:
+        return False
+    if model.controllerType == DEFAULT_SIM_CONTROLLER:
+        return False
+    model.controllerType = DEFAULT_SIM_CONTROLLER
+    return True

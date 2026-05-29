@@ -3,7 +3,13 @@ from __future__ import annotations
 
 import re
 
-from domain.models import ControlModel, JointControlConfig, TrainingProfile, utc_now_iso
+from domain.models import (
+    DEFAULT_SIM_CONTROLLER,
+    ControlModel,
+    JointControlConfig,
+    TrainingProfile,
+    utc_now_iso,
+)
 from importer.urdf_importer import ImportedJoint
 
 # Joint name segment order for quadruped / leg naming (hip before thigh before calf)
@@ -109,6 +115,7 @@ def apply_profile_a(
         build_joint_config(j, physics_by_joint.get(j.name)) for j in sorted_joints
     ]
     model.trainingProfile = TrainingProfile.PROFILE_A
+    model.controllerType = DEFAULT_SIM_CONTROLLER
     model.metadata["generatedAt"] = utc_now_iso()
     model.metadata["profileVersion"] = "ProfileA-1"
     return model

@@ -2,6 +2,14 @@
 
 export type TrainingProfile = "ProfileA" | "ProfileB" | "ProfileC";
 
+/** ros2_control simulation controller for ProfileA position control. */
+export const DEFAULT_SIM_CONTROLLER = "joint_trajectory_controller";
+
+export const SIM_CONTROLLER_LABELS: Record<string, string> = {
+  joint_trajectory_controller: "Joint Trajectory Controller",
+  forward_command_controller: "Forward Command Controller (legacy)",
+};
+
 export interface JointControlConfig {
   name: string;
   type: "revolute" | "prismatic" | "continuous";

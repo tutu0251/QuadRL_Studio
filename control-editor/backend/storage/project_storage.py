@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from domain.models import ControlModel
+from domain.models import ControlModel, normalize_sim_controller
 
 PROJECTS_ROOT = Path.home() / "quadruped_dev_tool" / "projects"
 CONTROL_FILE = "control_model.json"
@@ -72,7 +72,10 @@ def load_control(name: str) -> ControlModel:
     path = control_model_path(name)
     if not path.exists():
         raise FileNotFoundError(f"No control model for project: {name}. Import phy URDF first.")
-    return ControlModel.model_validate_json(path.read_text())
+    model = ControlModel.model_validate_json(path.read_text())
+    if normalize_sim_controller(model):
+        save_control(name, model)
+    return model
 
 
 def has_control(name: str) -> bool:

@@ -1,4 +1,9 @@
-import { PROFILE_IMPLEMENTED, PROFILE_LABELS } from "@control-model";
+import {
+  DEFAULT_SIM_CONTROLLER,
+  PROFILE_IMPLEMENTED,
+  PROFILE_LABELS,
+  SIM_CONTROLLER_LABELS,
+} from "@control-model";
 import { NumberField } from "../../components/NumberField";
 import { api } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
@@ -60,9 +65,16 @@ export function InspectorPanel() {
           <span className="field-value mono">{model.simPlugin}</span>
         </div>
         <div className="inspector-row">
-          <span className="field-label">Controller</span>
-          <span className="field-value mono">{model.controllerType}</span>
+          <span className="field-label">Sim controller</span>
+          <span className="field-value">
+            {SIM_CONTROLLER_LABELS[model.controllerType] ??
+              SIM_CONTROLLER_LABELS[DEFAULT_SIM_CONTROLLER]}
+          </span>
         </div>
+        <p className="inspector-hint">
+          Position commands via{" "}
+          <span className="mono">joint_trajectory_controller/JointTrajectoryController</span>
+        </p>
         <div className="inspector-row">
           <span className="field-label">Update rate</span>
           <span className="field-value">{model.updateRate} Hz</span>

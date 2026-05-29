@@ -1,4 +1,9 @@
-import { PROFILE_IMPLEMENTED, PROFILE_LABELS } from "@control-model";
+import {
+  PROFILE_IMPLEMENTED,
+  PROFILE_LABELS,
+  SIM_CONTROLLER_LABELS,
+  DEFAULT_SIM_CONTROLLER,
+} from "@control-model";
 import { useEditorStore } from "../../stores/editorStore";
 
 export function SummaryPanel() {
@@ -37,6 +42,13 @@ export function SummaryPanel() {
         <div>
           <span className="stat-value">{model.updateRate}</span>
           <span className="stat-label">Hz</span>
+        </div>
+        <div>
+          <span className="stat-value stat-value-sm">
+            {SIM_CONTROLLER_LABELS[model.controllerType] ??
+              SIM_CONTROLLER_LABELS[DEFAULT_SIM_CONTROLLER]}
+          </span>
+          <span className="stat-label">sim controller</span>
         </div>
       </div>
       <table className="joint-table">

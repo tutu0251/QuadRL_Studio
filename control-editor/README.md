@@ -43,7 +43,7 @@ Browser: `http://<host>:5175`
 
 | Profile   | Status        | Description                          |
 |-----------|---------------|--------------------------------------|
-| ProfileA  | Implemented   | Position control → ros2_control      |
+| ProfileA  | Implemented   | Position control → `joint_trajectory_controller` |
 | ProfileB  | Placeholder   | Reserved for future hybrid control   |
 | ProfileC  | Placeholder   | Reserved for future torque control   |
 

@@ -3,7 +3,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from domain.models import ControlModel, JointControlConfig, TrainingProfile, new_id, utc_now_iso
+from domain.models import (
+    DEFAULT_SIM_CONTROLLER,
+    ControlModel,
+    JointControlConfig,
+    TrainingProfile,
+    new_id,
+    normalize_sim_controller,
+    utc_now_iso,
+)
 from importer.urdf_importer import import_actuated_joints
 from profiles import apply_profile_a, apply_profile_b, apply_profile_c
 from storage import project_storage
@@ -41,6 +49,7 @@ class ControlCore:
             },
         )
         self._apply_profile(self._model.trainingProfile, imported, physics_map)
+        self._model.controllerType = DEFAULT_SIM_CONTROLLER
         return self._model
 
     def _apply_profile(
