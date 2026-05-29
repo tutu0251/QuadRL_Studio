@@ -55,7 +55,14 @@ def _attach_leg_to_base(model: RobotModel, base: Link, prefix: str, offset: Vec3
 
 
 _BODY_H = 0.08
-_HIP_MOUNT_Z = -_BODY_H / 2
+_BODY_HALF_X = 0.2
+_BODY_HALF_Y = 0.1
+_HIP_RADIUS = 0.025
+_HIP_HALF_LEN = 0.02
+# Mount hips outside body collision (template hip cylinder r=0.025, len=0.04).
+_HIP_MOUNT_Z = -_BODY_H / 2 - _HIP_HALF_LEN
+_HIP_MOUNT_X = _BODY_HALF_X + _HIP_RADIUS
+_HIP_MOUNT_Y = _BODY_HALF_Y + _HIP_RADIUS
 
 
 def template_body_box() -> list[Link]:
@@ -187,10 +194,10 @@ def build_quadruped(
         base.frame.position.z = stand_base_z
     model.links.extend(bodies)
     offsets = [
-        Vec3(x=0.18, y=0.1, z=_HIP_MOUNT_Z),
-        Vec3(x=0.18, y=-0.1, z=_HIP_MOUNT_Z),
-        Vec3(x=-0.18, y=0.1, z=_HIP_MOUNT_Z),
-        Vec3(x=-0.18, y=-0.1, z=_HIP_MOUNT_Z),
+        Vec3(x=_HIP_MOUNT_X, y=_HIP_MOUNT_Y, z=_HIP_MOUNT_Z),
+        Vec3(x=_HIP_MOUNT_X, y=-_HIP_MOUNT_Y, z=_HIP_MOUNT_Z),
+        Vec3(x=-_HIP_MOUNT_X, y=_HIP_MOUNT_Y, z=_HIP_MOUNT_Z),
+        Vec3(x=-_HIP_MOUNT_X, y=-_HIP_MOUNT_Y, z=_HIP_MOUNT_Z),
     ]
     prefixes = ["fl", "fr", "rl", "rr"]
     attach = attach_12dof_leg_to_base if use_12dof_attach else _attach_leg_to_base

@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@robot-model": path.resolve(__dirname, "../../packages/robot-model"),
+      "@robot-model": path.resolve(__dirname, "../packages/robot-model"),
     },
   },
   server: {

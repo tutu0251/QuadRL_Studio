@@ -8,7 +8,7 @@ PROJECTS_DIR="${QUADRL_PROJECTS_DIR:-$HOME/quadruped_dev_tool/projects}"
 PROJECT_NAME="${QUADRL_PROJECT:-my_robot}"
 WORLD_SDF="${GZ_WORLD:-/usr/share/ignition/ignition-gazebo6/worlds/empty.sdf}"
 WORLD_NAME="${GZ_WORLD_NAME:-empty}"
-SPAWN_Z="${GZ_SPAWN_Z:-0.3}"
+SPAWN_Z="${GZ_SPAWN_Z:-0}"
 SPAWN_TIMEOUT="${GZ_SPAWN_TIMEOUT:-30}"
 HEADLESS=0
 
@@ -33,7 +33,7 @@ Options:
   --name NAME           Spawned model name (default: project name or SDF basename)
   --world PATH          World SDF (default: ignition empty.sdf)
   --world-name NAME     World name for spawn service (default: empty)
-  --z METERS            Spawn height (default: 0.3)
+  --z METERS            Spawn height (default: 0; models are exported with feet at z=0)
   --headless            Server only (no GUI). Use on SSH without X11 forwarding.
   --no-spawn            Start Gazebo only; do not spawn a robot
   -h, --help            Show this help

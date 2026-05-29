@@ -1,5 +1,5 @@
-apps/geometry-editor/node_modules/
-backend/.venv/
+geometry-editor/frontend/node_modules/
+geometry-editor/backend/.venv/
 *.pyc
 
 .env

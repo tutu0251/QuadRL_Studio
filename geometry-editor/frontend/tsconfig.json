@@ -15,7 +15,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
-      "@robot-model": ["../../packages/robot-model/index.ts"]
+      "@robot-model": ["../packages/robot-model/index.ts"]
     }
   },
   "include": ["src"]

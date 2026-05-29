@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # End-to-end API smoke test for Geometry Editor v2
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT/backend"
+GE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$GE/backend"
 
 if [[ ! -d .venv ]]; then
   python3 -m venv .venv
   .venv/bin/pip install -q -r requirements.txt
 fi
 
-export PYTHONPATH="$ROOT/backend${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$GE/backend${PYTHONPATH:+:$PYTHONPATH}"
 
 # Start uvicorn in background
 .venv/bin/uvicorn main:app --host 127.0.0.1 --port 8765 &
