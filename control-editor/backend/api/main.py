@@ -92,6 +92,8 @@ class JointControlUpdate(BaseModel):
 class SimConfigUpdate(BaseModel):
     simPlugin: Optional[str] = None
     hardwarePlugin: Optional[str] = None
+    simPluginFilename: Optional[str] = None
+    simPluginClass: Optional[str] = None
     controllerType: Optional[str] = None
     updateRate: Optional[int] = None
 
@@ -183,6 +185,10 @@ def update_sim_config(name: str, body: SimConfigUpdate):
         m.simPlugin = body.simPlugin
     if body.hardwarePlugin is not None:
         m.hardwarePlugin = body.hardwarePlugin
+    if body.simPluginFilename is not None:
+        m.simPluginFilename = body.simPluginFilename
+    if body.simPluginClass is not None:
+        m.simPluginClass = body.simPluginClass
     if body.controllerType is not None:
         m.controllerType = body.controllerType
     if body.updateRate is not None:

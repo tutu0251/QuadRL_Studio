@@ -8,8 +8,8 @@ from domain.models import (
     ControlModel,
     JointControlConfig,
     TrainingProfile,
+    apply_fortress_gazebo_defaults,
     new_id,
-    normalize_sim_controller,
     utc_now_iso,
 )
 from importer.urdf_importer import import_actuated_joints
@@ -50,6 +50,7 @@ class ControlCore:
         )
         self._apply_profile(self._model.trainingProfile, imported, physics_map)
         self._model.controllerType = DEFAULT_SIM_CONTROLLER
+        apply_fortress_gazebo_defaults(self._model)
         return self._model
 
     def _apply_profile(

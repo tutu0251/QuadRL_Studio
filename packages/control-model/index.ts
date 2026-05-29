@@ -10,6 +10,13 @@ export const SIM_CONTROLLER_LABELS: Record<string, string> = {
   forward_command_controller: "Forward Command Controller (legacy)",
 };
 
+/** Gazebo Fortress + ROS 2 Humble gz_ros2_control defaults. */
+export const DEFAULT_SIM_PLUGIN = "gz_ros2_control";
+export const DEFAULT_HARDWARE_PLUGIN = "gz_ros2_control/GazeboSimSystem";
+export const DEFAULT_SIM_PLUGIN_FILENAME = "libgz_ros2_control-system.so";
+export const DEFAULT_SIM_PLUGIN_CLASS =
+  "gz_ros2_control::GazeboSimROS2ControlPlugin";
+
 export interface JointControlConfig {
   name: string;
   type: "revolute" | "prismatic" | "continuous";
@@ -37,6 +44,8 @@ export interface ControlModel {
   trainingProfile: TrainingProfile;
   simPlugin: string;
   hardwarePlugin: string;
+  simPluginFilename: string;
+  simPluginClass: string;
   ros2Distro: string;
   controllerType: string;
   updateRate: number;

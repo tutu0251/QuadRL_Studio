@@ -24,6 +24,19 @@ SIM_CONTROLLER_JOINT_TRAJECTORY = "joint_trajectory_controller"
 SIM_CONTROLLER_FORWARD_COMMAND = "forward_command_controller"
 DEFAULT_SIM_CONTROLLER = SIM_CONTROLLER_JOINT_TRAJECTORY
 
+# Gazebo Fortress + ROS 2 Humble (gz_ros2_control).
+DEFAULT_HARDWARE_PLUGIN = "gz_ros2_control/GazeboSimSystem"
+DEFAULT_SIM_PLUGIN = "gz_ros2_control"
+DEFAULT_SIM_PLUGIN_FILENAME = "libgz_ros2_control-system.so"
+DEFAULT_SIM_PLUGIN_CLASS = "gz_ros2_control::GazeboSimROS2ControlPlugin"
+
+LEGACY_GAZEBO_PLUGIN_FILENAMES = frozenset(
+    {
+        "gz_ros2_control/gz_ros2_control_system",
+        "gz_ros2_control/gz_ros2_control-system",
+    }
+)
+
 
 class JointControlConfig(BaseModel):
     name: str
@@ -50,8 +63,10 @@ class ControlModel(BaseModel):
     version: str = "1.0"
     sourceUrdf: str = ""
     trainingProfile: TrainingProfile = TrainingProfile.PROFILE_A
-    simPlugin: str = "gz_ros2_control"
-    hardwarePlugin: str = "gz_ros2_control/GazeboSimSystem"
+    simPlugin: str = DEFAULT_SIM_PLUGIN
+    hardwarePlugin: str = DEFAULT_HARDWARE_PLUGIN
+    simPluginFilename: str = DEFAULT_SIM_PLUGIN_FILENAME
+    simPluginClass: str = DEFAULT_SIM_PLUGIN_CLASS
     ros2Distro: str = "humble"
     controllerType: str = DEFAULT_SIM_CONTROLLER
     updateRate: int = 100
@@ -98,3 +113,42 @@ def normalize_sim_controller(model: ControlModel) -> bool:
         return False
     model.controllerType = DEFAULT_SIM_CONTROLLER
     return True
+
+
+def normalize_gazebo_plugin(model: ControlModel) -> bool:
+    """Upgrade legacy Gazebo plugin stanzas to official gz_ros2_control URDF format."""
+    changed = False
+
+    if model.hardwarePlugin != DEFAULT_HARDWARE_PLUGIN:
+        model.hardwarePlugin = DEFAULT_HARDWARE_PLUGIN
+        changed = True
+
+    if model.simPlugin != DEFAULT_SIM_PLUGIN:
+        model.simPlugin = DEFAULT_SIM_PLUGIN
+        changed = True
+
+    legacy_filename = f"{model.simPlugin}/{model.simPlugin}_system"
+    fn = model.simPluginFilename
+    if fn in LEGACY_GAZEBO_PLUGIN_FILENAMES or fn == legacy_filename or (
+        "/" in fn and not fn.endswith(".so")
+    ):
+        model.simPluginFilename = DEFAULT_SIM_PLUGIN_FILENAME
+        changed = True
+    elif fn != DEFAULT_SIM_PLUGIN_FILENAME and not fn.endswith(".so"):
+        model.simPluginFilename = DEFAULT_SIM_PLUGIN_FILENAME
+        changed = True
+
+    if model.simPluginClass != DEFAULT_SIM_PLUGIN_CLASS:
+        if model.simPluginClass in ("gz_ros2_control", ""):
+            model.simPluginClass = DEFAULT_SIM_PLUGIN_CLASS
+            changed = True
+
+    return changed
+
+
+def apply_fortress_gazebo_defaults(model: ControlModel) -> None:
+    """Set Fortress + Humble gz_ros2_control defaults (import / ProfileA regenerate)."""
+    model.simPlugin = DEFAULT_SIM_PLUGIN
+    model.hardwarePlugin = DEFAULT_HARDWARE_PLUGIN
+    model.simPluginFilename = DEFAULT_SIM_PLUGIN_FILENAME
+    model.simPluginClass = DEFAULT_SIM_PLUGIN_CLASS

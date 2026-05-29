@@ -1,5 +1,8 @@
 import {
   DEFAULT_SIM_CONTROLLER,
+  DEFAULT_SIM_PLUGIN,
+  DEFAULT_SIM_PLUGIN_CLASS,
+  DEFAULT_SIM_PLUGIN_FILENAME,
   PROFILE_IMPLEMENTED,
   PROFILE_LABELS,
   SIM_CONTROLLER_LABELS,
@@ -61,8 +64,24 @@ export function InspectorPanel() {
       <section className="inspector-section">
         <h3>Simulation</h3>
         <div className="inspector-row">
-          <span className="field-label">Plugin</span>
-          <span className="field-value mono">{model.simPlugin}</span>
+          <span className="field-label">Gazebo bridge</span>
+          <span className="field-value">{DEFAULT_SIM_PLUGIN}</span>
+        </div>
+        <div className="inspector-row">
+          <span className="field-label">Plugin file</span>
+          <span className="field-value mono">
+            {model.simPluginFilename ?? DEFAULT_SIM_PLUGIN_FILENAME}
+          </span>
+        </div>
+        <div className="inspector-row">
+          <span className="field-label">Plugin class</span>
+          <span className="field-value mono">
+            {model.simPluginClass ?? DEFAULT_SIM_PLUGIN_CLASS}
+          </span>
+        </div>
+        <div className="inspector-row">
+          <span className="field-label">Hardware</span>
+          <span className="field-value mono">{model.hardwarePlugin}</span>
         </div>
         <div className="inspector-row">
           <span className="field-label">Sim controller</span>

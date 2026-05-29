@@ -39,6 +39,35 @@ Browser: `http://<host>:5175`
   exports/ctrl_<name>_gains.yaml
 ```
 
+## Gazebo Fortress plugin (gz_ros2_control)
+
+ProfileA exports the official **Gazebo Fortress + ROS 2 Humble** plugin pair:
+
+| Layer | URDF / config value |
+|-------|---------------------|
+| ros2_control hardware | `gz_ros2_control/GazeboSimSystem` |
+| Gazebo system plugin file | `libgz_ros2_control-system.so` |
+| Gazebo system plugin class | `gz_ros2_control::GazeboSimROS2ControlPlugin` |
+| Controllers | `ctrl_<name>_controllers.yaml` (`joint_trajectory_controller`) |
+
+Do **not** use `ign_ros2_control` or `gazebo_ros2_control` (Classic) on this stack.
+
+### Required ROS packages
+
+```bash
+sudo apt install ros-humble-gz-ros2-control ros-humble-ros-gz-sim
+```
+
+If Gazebo reports it cannot load the plugin:
+
+```bash
+export GZ_SIM_SYSTEM_PLUGIN_PATH=/opt/ros/humble/lib:${GZ_SIM_SYSTEM_PLUGIN_PATH:-}
+```
+
+### Spawn note
+
+[`spawn_gazebo_gui.sh`](../spawn_gazebo_gui.sh) spawns `phy_*.sdf` (physics only, no ros2_control). For controlled simulation, spawn `ctrl_<name>_ros2_control.urdf` with `ros2 run ros_gz_sim create` and load the exported controller YAML (or use a launch file that sets `robot_description` + controller spawner).
+
 ## Training profiles
 
 | Profile   | Status        | Description                          |

@@ -11,6 +11,7 @@ from domain.models import (
     SIM_CONTROLLER_JOINT_TRAJECTORY,
     ControlModel,
     JointControlConfig,
+    apply_fortress_gazebo_defaults,
 )
 
 
@@ -143,9 +144,10 @@ def export_all(
     controllers_out: Path,
     gains_out: Path,
 ) -> dict[str, str]:
-    # ProfileA simulation always exports joint_trajectory_controller.
+    # ProfileA simulation always exports joint_trajectory_controller + Fortress plugin.
     if model.trainingProfile.value == "ProfileA":
         model.controllerType = DEFAULT_SIM_CONTROLLER
+        apply_fortress_gazebo_defaults(model)
 
     joints = [j for j in model.actuatedJoints if j.enabled]
     tree = ET.parse(phy_urdf_path)
@@ -156,19 +158,22 @@ def export_all(
 
     root.append(_build_ros2_control_block(model, joints))
 
-    gz_plugin_name = f"{model.simPlugin}_system"
     controllers_rel = controllers_out.name
     for gz in list(root.findall("gazebo")):
         plug = gz.find("plugin")
-        if plug is not None and "ros2_control" in (plug.get("filename") or ""):
+        fn = plug.get("filename") if plug is not None else ""
+        plug_name = plug.get("name") if plug is not None else ""
+        if plug is not None and (
+            "ros2_control" in fn or "ros2_control" in plug_name
+        ):
             root.remove(gz)
 
     gz = ET.SubElement(root, "gazebo")
     plugin_el = ET.SubElement(
         gz,
         "plugin",
-        filename=f"{model.simPlugin}/{gz_plugin_name}",
-        name="gz_ros2_control",
+        filename=model.simPluginFilename,
+        name=model.simPluginClass,
     )
     params = ET.SubElement(plugin_el, "parameters")
     params.text = controllers_rel

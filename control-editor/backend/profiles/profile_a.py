@@ -8,6 +8,7 @@ from domain.models import (
     ControlModel,
     JointControlConfig,
     TrainingProfile,
+    apply_fortress_gazebo_defaults,
     utc_now_iso,
 )
 from importer.urdf_importer import ImportedJoint
@@ -116,6 +117,7 @@ def apply_profile_a(
     ]
     model.trainingProfile = TrainingProfile.PROFILE_A
     model.controllerType = DEFAULT_SIM_CONTROLLER
+    apply_fortress_gazebo_defaults(model)
     model.metadata["generatedAt"] = utc_now_iso()
     model.metadata["profileVersion"] = "ProfileA-1"
     return model
