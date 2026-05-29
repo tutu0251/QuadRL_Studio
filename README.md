@@ -5,7 +5,15 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Subproject | Folder | Status |
 |------------|--------|--------|
 | Geometry Editor | [`geometry-editor/`](geometry-editor/) | v2 — link/joint primitives, URDF/SDF export |
-| Physics Editor | `physics-editor/` | planned |
+| Physics Editor | [`physics-editor/`](physics-editor/) | v1 — inertials, friction, joint dynamics, phy URDF/SDF |
+
+## Quick start (Physics Editor)
+
+```bash
+./start_physics_editor.sh
+```
+
+Browser: `http://<ubuntu_ip>:5174` — import `geo_<project>.urdf` after exporting from the geometry editor.
 
 ## Quick start (Geometry Editor)
 

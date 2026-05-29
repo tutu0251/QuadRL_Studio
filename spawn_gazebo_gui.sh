@@ -11,6 +11,7 @@ WORLD_NAME="${GZ_WORLD_NAME:-empty}"
 SPAWN_Z="${GZ_SPAWN_Z:-0}"
 SPAWN_TIMEOUT="${GZ_SPAWN_TIMEOUT:-30}"
 HEADLESS=0
+USE_PHYSICS=0
 
 SDF_PATH=""
 MODEL_NAME=""
@@ -36,6 +37,7 @@ Options:
   --z METERS            Spawn height (default: 0; models are exported with feet at z=0)
   --headless            Server only (no GUI). Use on SSH without X11 forwarding.
   --no-spawn            Start Gazebo only; do not spawn a robot
+  --physics             Use exports/phy_<name>.sdf (physics editor) instead of geo_
   -h, --help            Show this help
 
 Environment:
@@ -59,6 +61,7 @@ while [[ $# -gt 0 ]]; do
     --z) SPAWN_Z="${2:?--z requires a value}"; shift 2 ;;
     --headless) HEADLESS=1; shift ;;
     --no-spawn) DO_SPAWN=0; shift ;;
+    --physics) USE_PHYSICS=1; shift ;;
     -*) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     *)
       if [[ "$POSITIONAL_SET" -eq 1 ]]; then
@@ -73,13 +76,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SDF_PATH" ]]; then
-  SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/geo_${PROJECT_NAME}.sdf"
+  if [[ "$USE_PHYSICS" -eq 1 ]]; then
+    SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/phy_${PROJECT_NAME}.sdf"
+  else
+    SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/geo_${PROJECT_NAME}.sdf"
+  fi
 fi
 SDF_PATH="$(readlink -f "$SDF_PATH" 2>/dev/null || realpath "$SDF_PATH")"
 
 if [[ "$DO_SPAWN" -eq 1 && ! -f "$SDF_PATH" ]]; then
   echo "Robot SDF not found: $SDF_PATH" >&2
-  echo "Export from the geometry editor (Export SDF) or pass --sdf PATH." >&2
+  echo "Export from the geometry/physics editor (Export SDF) or pass --sdf PATH." >&2
   exit 1
 fi
 
