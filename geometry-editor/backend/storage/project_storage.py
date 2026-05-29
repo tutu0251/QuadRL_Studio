@@ -12,6 +12,20 @@ PROJECTS_ROOT = Path.home() / "quadruped_dev_tool" / "projects"
 ROBOT_FILE = "robot_model.json"
 SNAPSHOTS_DIR = "snapshots"
 EXPORTS_DIR = "exports"
+EXPORT_PREFIX = "geo_"
+
+
+def export_basename(project_name: str) -> str:
+    """Base filename for exported URDF/SDF (e.g. my_robot -> geo_my_robot)."""
+    return f"{EXPORT_PREFIX}{project_name}"
+
+
+def export_urdf_path(name: str) -> Path:
+    return export_path(name, f"{export_basename(name)}.urdf")
+
+
+def export_sdf_path(name: str) -> Path:
+    return export_path(name, f"{export_basename(name)}.sdf")
 
 
 def project_dir(name: str) -> Path:

@@ -54,8 +54,8 @@ cp geometry-editor/frontend/.env.example geometry-editor/frontend/.env
 ~/quadruped_dev_tool/projects/<project_name>/
   robot_model.json
   snapshots/
-  exports/<name>.urdf
-  exports/<name>.sdf
+  exports/geo_<name>.urdf
+  exports/geo_<name>.sdf
 ```
 
 ## UI layout (Unity-style)

@@ -29,7 +29,7 @@ Arguments:
   project_name          Project folder under ~/quadruped_dev_tool/projects (default: my_robot)
 
 Options:
-  --sdf PATH            Use this SDF file instead of project exports/<name>.sdf
+  --sdf PATH            Use this SDF file instead of project exports/geo_<name>.sdf
   --name NAME           Spawned model name (default: project name or SDF basename)
   --world PATH          World SDF (default: ignition empty.sdf)
   --world-name NAME     World name for spawn service (default: empty)
@@ -73,7 +73,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SDF_PATH" ]]; then
-  SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/${PROJECT_NAME}.sdf"
+  SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/geo_${PROJECT_NAME}.sdf"
 fi
 SDF_PATH="$(readlink -f "$SDF_PATH" 2>/dev/null || realpath "$SDF_PATH")"
 

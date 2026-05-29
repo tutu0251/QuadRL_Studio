@@ -41,8 +41,8 @@ sleep 1
 RESULT=$(curl -sf "$BASE/api/tasks/$TASK")
 echo "$RESULT" | grep -q completed
 
-URDF="$HOME/quadruped_dev_tool/projects/$PROJECT/exports/$PROJECT.urdf"
-SDF="$HOME/quadruped_dev_tool/projects/$PROJECT/exports/$PROJECT.sdf"
+URDF="$HOME/quadruped_dev_tool/projects/$PROJECT/exports/geo_${PROJECT}.urdf"
+SDF="$HOME/quadruped_dev_tool/projects/$PROJECT/exports/geo_${PROJECT}.sdf"
 test -f "$URDF"
 test -f "$SDF"
 grep -q '<robot' "$URDF"

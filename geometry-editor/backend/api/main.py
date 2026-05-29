@@ -534,7 +534,7 @@ async def export_urdf_api(name: str):
     async def run():
         task_manager.log(tid, "info", "Exporting URDF...")
         await asyncio.sleep(0.05)
-        out = project_storage.export_path(name, f"{name}.urdf")
+        out = project_storage.export_urdf_path(name)
         export_urdf(core.get_model(), out)
         task_manager.log(tid, "info", f"Exported URDF to {out}")
         task_manager.set_status(tid, "completed", {"path": str(out), "format": "urdf"})
@@ -555,8 +555,8 @@ async def export_gazebo(name: str):
     async def run():
         task_manager.log(tid, "info", "Exporting URDF...")
         await asyncio.sleep(0.05)
-        urdf_out = project_storage.export_path(name, f"{name}.urdf")
-        sdf_out = project_storage.export_path(name, f"{name}.sdf")
+        urdf_out = project_storage.export_urdf_path(name)
+        sdf_out = project_storage.export_sdf_path(name)
         try:
             export_urdf(core.get_model(), urdf_out)
             task_manager.log(tid, "info", f"Exported URDF to {urdf_out}")
@@ -588,8 +588,8 @@ async def export_both(name: str):
     async def run():
         task_manager.log(tid, "info", "Exporting URDF...")
         await asyncio.sleep(0.05)
-        urdf_out = project_storage.export_path(name, f"{name}.urdf")
-        sdf_out = project_storage.export_path(name, f"{name}.sdf")
+        urdf_out = project_storage.export_urdf_path(name)
+        sdf_out = project_storage.export_sdf_path(name)
         try:
             export_urdf(core.get_model(), urdf_out)
             task_manager.log(tid, "info", f"Exported URDF: {urdf_out}")
