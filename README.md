@@ -7,6 +7,15 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Geometry Editor | [`geometry-editor/`](geometry-editor/) | v2 — link/joint primitives, URDF/SDF export |
 | Physics Editor | [`physics-editor/`](physics-editor/) | v1 — inertials, friction, joint dynamics, phy URDF/SDF |
 | Control Editor | [`control-editor/`](control-editor/) | v1 — ProfileA position control, ros2_control export |
+| Sensor Editor | [`sensor-editor/`](sensor-editor/) | v1 — IMU/contact/lidar, sens_* RL export |
+
+## Quick start (Sensor Editor)
+
+```bash
+./start_sensor_editor.sh
+```
+
+Browser: `http://<ubuntu_ip>:5176` — import `ctrl_<project>_ros2_control.urdf` after exporting from the control editor.
 
 ## Quick start (Control Editor)
 
@@ -45,3 +54,5 @@ Browser: `http://<ubuntu_ip>:5173`
 See [`geometry-editor/README.md`](geometry-editor/README.md) for architecture, API, templates, and smoke tests.
 
 See [`control-editor/README.md`](control-editor/README.md) for the Geometry → Physics → Control pipeline and ros2_control export.
+
+See [`sensor-editor/README.md`](sensor-editor/README.md) for the full four-step pipeline and RL observation YAML.

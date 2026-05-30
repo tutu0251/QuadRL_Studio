@@ -12,6 +12,7 @@ SPAWN_Z="${GZ_SPAWN_Z:-0}"
 SPAWN_TIMEOUT="${GZ_SPAWN_TIMEOUT:-30}"
 HEADLESS=0
 USE_PHYSICS=0
+USE_RL=0
 
 SDF_PATH=""
 MODEL_NAME=""
@@ -38,6 +39,7 @@ Options:
   --headless            Server only (no GUI). Use on SSH without X11 forwarding.
   --no-spawn            Start Gazebo only; do not spawn a robot
   --physics             Use exports/phy_<name>.sdf (physics editor) instead of geo_
+  --rl                  Use exports/sens_<name>.sdf (sensor editor RL package)
   -h, --help            Show this help
 
 Environment:
@@ -62,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --headless) HEADLESS=1; shift ;;
     --no-spawn) DO_SPAWN=0; shift ;;
     --physics) USE_PHYSICS=1; shift ;;
+    --rl) USE_RL=1; USE_PHYSICS=0; shift ;;
     -*) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     *)
       if [[ "$POSITIONAL_SET" -eq 1 ]]; then
@@ -76,7 +79,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SDF_PATH" ]]; then
-  if [[ "$USE_PHYSICS" -eq 1 ]]; then
+  if [[ "$USE_RL" -eq 1 ]]; then
+    SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/sens_${PROJECT_NAME}.sdf"
+  elif [[ "$USE_PHYSICS" -eq 1 ]]; then
     SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/phy_${PROJECT_NAME}.sdf"
   else
     SDF_PATH="$PROJECTS_DIR/$PROJECT_NAME/exports/geo_${PROJECT_NAME}.sdf"
@@ -86,7 +91,7 @@ SDF_PATH="$(readlink -f "$SDF_PATH" 2>/dev/null || realpath "$SDF_PATH")"
 
 if [[ "$DO_SPAWN" -eq 1 && ! -f "$SDF_PATH" ]]; then
   echo "Robot SDF not found: $SDF_PATH" >&2
-  echo "Export from the geometry/physics editor (Export SDF) or pass --sdf PATH." >&2
+  echo "Export from the geometry/physics/sensor editor (Export SDF / RL package) or pass --sdf PATH." >&2
   exit 1
 fi
 
