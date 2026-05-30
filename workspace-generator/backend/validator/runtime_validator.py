@@ -92,7 +92,7 @@ def _wait_for_publishers(topic: str, setup: Path, timeout_s: float, env: dict[st
 def _topic_publishes(topic: str, setup: Path, timeout_s: float, env: dict[str, str]) -> tuple[bool, str]:
     quoted = shlex.quote(topic)
     # ros_gz_bridge publishes sensor topics with reliable QoS; best_effort echo won't match.
-    script = f"ros2 topic echo {quoted} --once --spin-time 12"
+    script = f"ros2 topic echo {quoted} --once --spin-time 12 --qos-reliability reliable"
     proc = _ros_cmd(script, setup, timeout=timeout_s, env=env)
     out = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode == 0 and out.strip() and "---" in out:
@@ -152,6 +152,7 @@ def validate_runtime(paths: ProjectPaths, *, on_log: LogFn | None = None) -> dic
     _cleanup_sim_processes(paths.bringup_pkg)
     cleanup_fastrtps_shm()
     env = load_ros_environ()
+    env.setdefault("LIBGL_ALWAYS_SOFTWARE", "1")
     domain_id = str(os.getpid() % 230)
     env["ROS_DOMAIN_ID"] = domain_id
     env["ROS_LOCALHOST_ONLY"] = "1"

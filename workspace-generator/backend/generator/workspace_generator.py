@@ -56,18 +56,32 @@ class WorkspaceGenerator:
         bringup.mkdir(parents=True, exist_ok=True)
 
         controllers_name = self._paths.controllers_yaml().name
+        controllers_install = (
+            ws
+            / "install"
+            / self._paths.description_pkg
+            / "share"
+            / self._paths.description_pkg
+            / "urdf"
+            / controllers_name
+        ).resolve()
         urdf_text = self._paths.sens_rl_urdf().read_text(encoding="utf-8")
-        urdf_text = patch_controllers_parameters(urdf_text, controllers_name)
         urdf_text = patch_contact_sensors(urdf_text)
+        urdf_text = patch_controllers_parameters(urdf_text, str(controllers_install))
 
         (desc / "urdf").mkdir(parents=True, exist_ok=True)
         (desc / "config").mkdir(parents=True, exist_ok=True)
-        (desc / "urdf" / "robot.urdf").write_text(urdf_text, encoding="utf-8")
-        export_robot_sdf(desc / "urdf" / "robot.urdf", desc / "urdf" / "robot.sdf")
-
-        # gz_ros2_control resolves <parameters> relative to the URDF directory.
         shutil.copy2(self._paths.controllers_yaml(), desc / "urdf" / controllers_name)
         shutil.copy2(self._paths.controllers_yaml(), desc / "config" / controllers_name)
+        (desc / "urdf" / "robot.urdf").write_text(urdf_text, encoding="utf-8")
+        export_robot_sdf(desc / "urdf" / "robot.urdf", desc / "urdf" / "robot.sdf")
+        sdf_text = (desc / "urdf" / "robot.sdf").read_text(encoding="utf-8")
+        (desc / "urdf" / "robot.sdf").write_text(
+            patch_controllers_parameters(sdf_text, str(controllers_install)),
+            encoding="utf-8",
+        )
+
+        # gz_ros2_control needs an absolute params path when loading from SDF.
         shutil.copy2(self._paths.gains_yaml(), desc / "config" / self._paths.gains_yaml().name)
         bridge_name = self._paths.bridge_yaml().name
         bridge_text = self._paths.bridge_yaml().read_text(encoding="utf-8")

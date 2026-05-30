@@ -8,29 +8,45 @@ from typing import Any
 import yaml
 
 
-def patch_controllers_parameters(urdf_text: str, controllers_basename: str) -> str:
-    """Rewrite Gazebo plugin <parameters> to a basename in config/."""
+def patch_controllers_parameters(urdf_text: str, controllers_path: str) -> str:
+    """Rewrite Gazebo/ros2_control plugin <parameters> to an absolute or basename path."""
     try:
         root = ET.fromstring(urdf_text)
     except ET.ParseError:
-        return _patch_controllers_regex(urdf_text, controllers_basename)
+        return _patch_controllers_regex(urdf_text, controllers_path)
 
-    for gz in root.findall("gazebo"):
-        plugin = gz.find("plugin")
-        if plugin is None:
-            continue
+    changed = False
+    for plugin in root.iter("plugin"):
         fn = plugin.get("filename", "")
         name = plugin.get("name", "")
-        if "gz_ros2_control" in fn or "GazeboSimROS2ControlPlugin" in name:
-            params = plugin.find("parameters")
-            if params is not None:
-                params.text = controllers_basename
-            else:
-                params = ET.SubElement(plugin, "parameters")
-                params.text = controllers_basename
+        if "gz_ros2_control" not in fn and "GazeboSimROS2ControlPlugin" not in name:
+            continue
+        params = plugin.find("parameters")
+        if params is None:
+            params = ET.SubElement(plugin, "parameters")
+        params.text = controllers_path
+        changed = True
 
-    ET.indent(root)
-    return ET.tostring(root, encoding="unicode", xml_declaration=True)
+    if not changed:
+        for gz in root.findall("gazebo"):
+            plugin = gz.find("plugin")
+            if plugin is None:
+                continue
+            fn = plugin.get("filename", "")
+            name = plugin.get("name", "")
+            if "gz_ros2_control" in fn or "GazeboSimROS2ControlPlugin" in name:
+                params = plugin.find("parameters")
+                if params is not None:
+                    params.text = controllers_path
+                else:
+                    params = ET.SubElement(plugin, "parameters")
+                    params.text = controllers_path
+                changed = True
+
+    if changed:
+        ET.indent(root)
+        return ET.tostring(root, encoding="unicode", xml_declaration=True)
+    return urdf_text
 
 
 def _patch_controllers_regex(urdf_text: str, controllers_basename: str) -> str:
@@ -45,8 +61,6 @@ def _patch_controllers_regex(urdf_text: str, controllers_basename: str) -> str:
     return pattern.sub(repl, urdf_text, count=1)
 
 
-<<<<<<< Updated upstream
-=======
 def _is_truthy(text: str | None) -> bool:
     return (text or "").strip().lower() in ("1", "true", "yes")
 
@@ -58,7 +72,6 @@ def _find_or_create_gazebo(root: ET.Element, reference: str) -> ET.Element:
     return ET.SubElement(root, "gazebo", reference=reference)
 
 
->>>>>>> Stashed changes
 def _fixed_joint_parent_map(urdf_root: ET.Element) -> dict[str, str]:
     parents: dict[str, str] = {}
     for joint in urdf_root.findall("joint"):
@@ -75,10 +88,6 @@ def _fixed_joint_parent_map(urdf_root: ET.Element) -> dict[str, str]:
     return parents
 
 
-<<<<<<< Updated upstream
-def gazebo_effective_link(link: str, fixed_parents: dict[str, str]) -> str:
-    """Resolve URDF link name to the link Gazebo uses after merging fixed joints."""
-=======
 def _preserved_fixed_joint_children(urdf_root: ET.Element) -> set[str]:
     """Child links whose fixed joint is marked preserveFixedJoint in URDF."""
     joint_by_name = {j.get("name"): j for j in urdf_root.findall("joint") if j.get("name")}
@@ -107,7 +116,6 @@ def gazebo_effective_link(
     """Resolve URDF link name to the link Gazebo uses after merging fixed joints."""
     if preserved_children and link in preserved_children:
         return link
->>>>>>> Stashed changes
     current = link
     seen: set[str] = set()
     while current in fixed_parents and current not in seen:
@@ -145,18 +153,12 @@ def patch_bridge_yaml(bridge_text: str, urdf_text: str, world_name: str = "flat"
         return patch_bridge_world(bridge_text, world_name)
 
     try:
-<<<<<<< Updated upstream
-        fixed_parents = _fixed_joint_parent_map(ET.fromstring(urdf_text))
-    except ET.ParseError:
-        fixed_parents = {}
-=======
         urdf_root = ET.fromstring(urdf_text)
         fixed_parents = _fixed_joint_parent_map(urdf_root)
         preserved = _preserved_fixed_joint_children(urdf_root)
     except ET.ParseError:
         fixed_parents = {}
         preserved = set()
->>>>>>> Stashed changes
 
     for entry in doc.get("bridge") or []:
         if not isinstance(entry, dict):
@@ -165,17 +167,14 @@ def patch_bridge_yaml(bridge_text: str, urdf_text: str, world_name: str = "flat"
         gz_topic = str(entry.get("gz_topic_name") or "")
         if not parent_link or not gz_topic:
             continue
-<<<<<<< Updated upstream
-        effective = gazebo_effective_link(str(parent_link), fixed_parents)
-=======
         effective = gazebo_effective_link(str(parent_link), fixed_parents, preserved)
->>>>>>> Stashed changes
-        if effective == parent_link:
-            continue
-        old_segment = f"/link/{parent_link}/"
-        new_segment = f"/link/{effective}/"
-        if old_segment in gz_topic:
-            entry["gz_topic_name"] = gz_topic.replace(old_segment, new_segment)
+        link_match = re.search(r"/link/([^/]+)/", gz_topic)
+        if link_match and link_match.group(1) != effective:
+            entry["gz_topic_name"] = gz_topic.replace(
+                f"/link/{link_match.group(1)}/",
+                f"/link/{effective}/",
+                1,
+            )
 
     dumped = yaml.dump(doc, default_flow_style=False, sort_keys=False)
     if header:
@@ -183,12 +182,6 @@ def patch_bridge_yaml(bridge_text: str, urdf_text: str, world_name: str = "flat"
     return dumped
 
 
-<<<<<<< Updated upstream
-def _collision_sdf_name(link: str, collision: ET.Element, index: int) -> str:
-    name = collision.get("name")
-    if name:
-        return name
-=======
 def _is_foot_link(link: str) -> bool:
     lower = link.lower()
     return "foot" in lower or lower.endswith("_foot")
@@ -198,14 +191,11 @@ def _collision_sdf_name(link: str, collision: ET.Element, index: int) -> str:
     name = collision.get("name")
     if name:
         return f"{name}_collision"
->>>>>>> Stashed changes
     if index == 0:
         return f"{link}_collision"
     return f"{link}_collision_{index + 1}"
 
 
-<<<<<<< Updated upstream
-=======
 def _preserve_foot_fixed_joints(root: ET.Element) -> None:
     """Keep foot links separate in SDF so contact sensors stay on the foot link."""
     for joint in root.findall("joint"):
@@ -227,7 +217,6 @@ def _preserve_foot_fixed_joints(root: ET.Element) -> None:
         pfj.text = "true"
 
 
->>>>>>> Stashed changes
 def gazebo_contact_collision_name(
     urdf_root: ET.Element,
     parent_link: str,
@@ -263,11 +252,8 @@ def patch_contact_sensors(urdf_text: str) -> str:
     except ET.ParseError:
         return urdf_text
 
-<<<<<<< Updated upstream
-=======
     _preserve_foot_fixed_joints(root)
 
->>>>>>> Stashed changes
     for gz in root.findall("gazebo"):
         ref = gz.get("reference")
         if not ref:

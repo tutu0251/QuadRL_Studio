@@ -14,8 +14,6 @@ def test_patch_bridge_fixed_joint_links():
     <parent link="calf"/>
     <child link="foot"/>
   </joint>
-<<<<<<< Updated upstream
-=======
   <gazebo reference="ankle"><preserveFixedJoint>true</preserveFixedJoint></gazebo>
 </robot>"""
     bridge = """bridge:
@@ -35,7 +33,6 @@ def test_patch_bridge_removes_lumped_foot_when_not_preserved():
     <parent link="calf"/>
     <child link="foot"/>
   </joint>
->>>>>>> Stashed changes
 </robot>"""
     bridge = """bridge:
 - ros_topic_name: /t/foot_imu
@@ -45,6 +42,25 @@ def test_patch_bridge_removes_lumped_foot_when_not_preserved():
     out = patch_bridge_yaml(bridge, urdf, "flat")
     assert "/link/calf/sensor/foot_imu/imu" in out
     assert "/link/foot/sensor/foot_imu/imu" not in out
+
+
+def test_patch_bridge_restores_foot_link_when_preserved():
+    urdf = """<?xml version='1.0'?>
+<robot name="t">
+  <joint name="ankle" type="fixed">
+    <parent link="calf"/>
+    <child link="foot"/>
+  </joint>
+  <gazebo reference="ankle"><preserveFixedJoint>true</preserveFixedJoint></gazebo>
+</robot>"""
+    bridge = """bridge:
+- ros_topic_name: /t/foot_contact
+  gz_topic_name: /world/empty/model/t/link/calf/sensor/foot_contact/contacts
+  parent_link: foot
+"""
+    out = patch_bridge_yaml(bridge, urdf, "flat")
+    assert "/link/foot/sensor/foot_contact/contacts" in out
+    assert "/link/calf/sensor/foot_contact/contacts" not in out
 
 
 def test_gazebo_effective_link_chain():
@@ -61,28 +77,11 @@ def test_patch_controllers_parameters_basename():
     </plugin>
   </gazebo>
 </robot>"""
-    out = patch_controllers_parameters(urdf, "ctrl_bot_controllers.yaml")
-    assert "<parameters>ctrl_bot_controllers.yaml</parameters>" in out
+    out = patch_controllers_parameters(urdf, "/opt/ctrl_bot_controllers.yaml")
+    assert "<parameters>/opt/ctrl_bot_controllers.yaml</parameters>" in out
     assert "/abs/path" not in out
 
 
-<<<<<<< Updated upstream
-def test_patch_contact_sensor_collision_after_fixed_joint():
-    urdf = """<?xml version='1.0'?>
-<robot name="t">
-  <link name="calf">
-    <collision/>
-  </link>
-  <link name="foot">
-    <collision/>
-  </link>
-  <joint name="ankle" type="fixed">
-    <parent link="calf"/>
-    <child link="foot"/>
-  </joint>
-  <gazebo reference="foot">
-    <sensor name="foot_contact" type="contact">
-=======
 def test_patch_contact_sensor_foot_link():
     urdf = """<?xml version='1.0'?>
 <robot name="t">
@@ -119,18 +118,12 @@ def test_patch_contact_sensor_collision_non_foot():
   </link>
   <gazebo reference="base_link">
     <sensor name="base_contact" type="contact">
->>>>>>> Stashed changes
       <contact><collision>collision</collision></contact>
     </sensor>
   </gazebo>
 </robot>"""
     out = patch_contact_sensors(urdf)
-<<<<<<< Updated upstream
-    assert "foot_collision" in out
-    assert out.count("foot_contact") == 1
-=======
     assert "base_link_collision" in out
->>>>>>> Stashed changes
     assert "<collision>collision</collision>" not in out
 
 
@@ -145,8 +138,6 @@ def test_patch_bridge_world_default_placeholder():
     out = patch_bridge_world(text, "flat")
     assert "/world/flat/model/x" in out
     assert "/world/default/" not in out
-<<<<<<< Updated upstream
-=======
 
 
 def test_foot_contact_sdf_avoids_fixed_joint_lump_names():
@@ -186,4 +177,3 @@ def test_foot_contact_sdf_avoids_fixed_joint_lump_names():
     assert "rr_foot_link_collision" in sdf
     contact_ref = re.search(r"<contact>\s*<collision>([^<]+)</collision>", sdf)
     assert contact_ref and contact_ref.group(1) == "rr_foot_link_collision"
->>>>>>> Stashed changes
