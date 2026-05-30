@@ -18,8 +18,14 @@ function logValidationResult(
   v: ValidationResult,
   focusConsole?: () => void
 ) {
+  const status = v.details?.status as string | undefined;
+  if (status === "skipped") {
+    const skipMsg = v.warnings.find((w) => w.code === "gazebo_validation_skipped")?.message;
+    log(skipMsg ?? `${label} skipped (not installed)`);
+    return;
+  }
   if (v.valid) {
-    log(`${label} passed — ${v.warnings.length} warning(s)`);
+    log(`${label} passed${v.warnings.length ? ` — ${v.warnings.length} warning(s)` : ""}`);
   } else {
     log(`${label} failed — ${v.errors.length} error(s)`);
     v.errors.forEach((e) => log(`  [${e.code}] ${e.message}`));
@@ -31,6 +37,9 @@ function logValidationResult(
       `  joints: model=${v.details.expectedJointCount} urdf=${v.details.urdfJointCount ?? "?"} ` +
         `controllers=${v.details.controllerJointCount ?? "?"} gains=${v.details.gainsJointCount ?? "?"}`
     );
+  }
+  if (v.details?.durationS != null) {
+    log(`  duration: ${v.details.durationS}s`);
   }
 }
 
@@ -88,6 +97,9 @@ export function Toolbar() {
         if (t.result?.exportValidation) {
           logValidationResult(log, "Export file validation", t.result.exportValidation);
         }
+        if (t.result?.gazeboValidation) {
+          logValidationResult(log, "Gazebo validation", t.result.gazeboValidation);
+        }
       } else if (t?.status === "failed") {
         log("Export failed — exported files did not pass validation");
         if (t.result) {
@@ -97,6 +109,9 @@ export function Toolbar() {
         }
         if (t.result?.exportValidation) {
           logValidationResult(log, "Export file validation", t.result.exportValidation, focusConsole);
+        }
+        if (t.result?.gazeboValidation) {
+          logValidationResult(log, "Gazebo validation", t.result.gazeboValidation, focusConsole);
         } else {
           focusConsole();
         }
@@ -168,6 +183,8 @@ export function Toolbar() {
               } else {
                 logValidationResult(log, "Export file validation", ev, ev.valid ? undefined : focusConsole);
               }
+              const gv = await api.validateGazebo(project);
+              logValidationResult(log, "Gazebo validation", gv, gv.valid ? undefined : focusConsole);
             } catch {
               /* export files optional */
             }

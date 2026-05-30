@@ -20,6 +20,7 @@ from domain.models import ControlModel, TrainingProfile, ValidationResult
 from exporter.ros2_control_exporter import export_all
 from storage import project_storage
 from validator.export_validator import validate_export_files
+from validator.gazebo_validator import validate_gazebo_export
 from validator.validator import ControlValidator
 
 _sessions: dict[str, ControlCore] = {}
@@ -232,6 +233,40 @@ def validate_export(name: str) -> ValidationResult:
     return validate_export_files(model, urdf_out, ctrl_out, gains_out)
 
 
+@app.post("/api/projects/{name}/validate/gazebo")
+def validate_gazebo(name: str) -> ValidationResult:
+    urdf_out = project_storage.export_ros2_urdf_path(name)
+    return validate_gazebo_export(urdf_out, name)
+
+
+def _log_gazebo_validation(tid: str, gazebo_validation: ValidationResult) -> None:
+    status = (gazebo_validation.details or {}).get("status", "unknown")
+    if status == "skipped":
+        msg = next(
+            (w.message for w in gazebo_validation.warnings if w.code == "gazebo_validation_skipped"),
+            "Gazebo validation skipped (not installed)",
+        )
+        task_manager.log(tid, "warning", msg)
+        return
+    if gazebo_validation.valid:
+        msg = "Gazebo validation passed"
+        if gazebo_validation.warnings:
+            msg += f" ({len(gazebo_validation.warnings)} warning(s))"
+        task_manager.log(tid, "info", msg)
+        for w in gazebo_validation.warnings[:5]:
+            task_manager.log(tid, "warning", w.message)
+        return
+    task_manager.log(
+        tid,
+        "warning",
+        f"Gazebo validation failed: {len(gazebo_validation.errors)} error(s)",
+    )
+    for err in gazebo_validation.errors[:10]:
+        task_manager.log(tid, "error", err.message)
+    for w in gazebo_validation.warnings[:3]:
+        task_manager.log(tid, "warning", w.message)
+
+
 async def _run_export(name: str, tid: str):
     try:
         core = _get_core(name)
@@ -274,6 +309,14 @@ async def _run_export(name: str, tid: str):
             task_manager.log(tid, "info", msg)
             for w in export_validation.warnings[:5]:
                 task_manager.log(tid, "warning", w.message)
+
+            gazebo_validation = await asyncio.to_thread(
+                validate_gazebo_export,
+                urdf_out,
+                name,
+            )
+            result["gazeboValidation"] = gazebo_validation.model_dump()
+            _log_gazebo_validation(tid, gazebo_validation)
             task_manager.set_status(tid, "completed", result)
         else:
             task_manager.log(

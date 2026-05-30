@@ -62,11 +62,27 @@ If Gazebo reports it cannot load the plugin:
 
 ```bash
 export GZ_SIM_SYSTEM_PLUGIN_PATH=/opt/ros/humble/lib:${GZ_SIM_SYSTEM_PLUGIN_PATH:-}
+export LD_LIBRARY_PATH=/opt/ros/humble/lib:${LD_LIBRARY_PATH:-}
 ```
+
+The Control Editor validator sets both automatically for headless checks.
 
 ### Spawn note
 
 [`spawn_gazebo_gui.sh`](../spawn_gazebo_gui.sh) spawns `phy_*.sdf` (physics only, no ros2_control). For controlled simulation, spawn `ctrl_<name>_ros2_control.urdf` with `ros2 run ros_gz_sim create` and load the exported controller YAML (or use a launch file that sets `robot_description` + controller spawner).
+
+### Gazebo export validation
+
+After **Export ros2_control**, the backend runs a headless check when Gazebo and ROS 2 are installed: it starts `ign gazebo -s empty.sdf`, spawns `ctrl_<name>_ros2_control.urdf`, and confirms `gz_ros2_control` loads. Results appear in the console as **Gazebo validation: passed / skipped / failed**. Skipped means Gazebo or `gz_ros2_control` is not on the machine — export still succeeds.
+
+Manual CLI:
+
+```bash
+chmod +x control-editor/scripts/validate_gazebo_export.sh
+./control-editor/scripts/validate_gazebo_export.sh my_robot
+```
+
+API: `POST /api/projects/{name}/validate/gazebo` (also runs automatically after export).
 
 ## Training profiles
 
@@ -84,4 +100,4 @@ export GZ_SIM_SYSTEM_PLUGIN_PATH=/opt/ros/humble/lib:${GZ_SIM_SYSTEM_PLUGIN_PATH
 
 Docs: `http://<host>:8002/docs`
 
-Key routes: project load/import, profile selection, joint overrides, validate, `POST .../export/ros2_control`, `/ws/logs`.
+Key routes: project load/import, profile selection, joint overrides, validate, `POST .../export/ros2_control`, `POST .../validate/gazebo`, `/ws/logs`.
