@@ -1,0 +1,117 @@
+"""Project storage — rl_trainer_model.json and training export YAML."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
+
+from domain.models import RlTrainerModel
+
+PROJECTS_ROOT = Path.home() / "quadruped_dev_tool" / "projects"
+TRAINER_FILE = "rl_trainer_model.json"
+SENSOR_FILE = "sensor_model.json"
+EXPORTS_DIR = "exports"
+RL_PREFIX = "rl_"
+SENS_PREFIX = "sens_"
+CTRL_PREFIX = "ctrl_"
+
+
+def project_dir(name: str) -> Path:
+    return PROJECTS_ROOT / name
+
+
+def trainer_model_path(name: str) -> Path:
+    return project_dir(name) / TRAINER_FILE
+
+
+def export_rl_yaml_path(name: str) -> Path:
+    return project_dir(name) / EXPORTS_DIR / f"{RL_PREFIX}{name}_config.yaml"
+
+
+def observations_yaml_path(name: str) -> Path:
+    return project_dir(name) / EXPORTS_DIR / f"{SENS_PREFIX}{name}_observations.yaml"
+
+
+def gains_yaml_path(name: str) -> Path:
+    return project_dir(name) / EXPORTS_DIR / f"{CTRL_PREFIX}{name}_gains.yaml"
+
+
+def sensor_model_path(name: str) -> Path:
+    return project_dir(name) / SENSOR_FILE
+
+
+def ensure_project_dirs(name: str) -> Path:
+    root = project_dir(name)
+    (root / EXPORTS_DIR).mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def list_projects() -> list[str]:
+    if not PROJECTS_ROOT.exists():
+        return []
+    out: set[str] = set()
+    for p in PROJECTS_ROOT.iterdir():
+        if p.is_dir() and not p.name.startswith("."):
+            out.add(p.name)
+    return sorted(out)
+
+
+def save_trainer(name: str, model: RlTrainerModel) -> Path:
+    root = ensure_project_dirs(name)
+    path = root / TRAINER_FILE
+    path.write_text(model.model_dump_json(indent=2))
+    return path
+
+
+def load_trainer(name: str) -> RlTrainerModel:
+    path = trainer_model_path(name)
+    if not path.exists():
+        raise FileNotFoundError(f"No RL trainer model for project: {name}")
+    return RlTrainerModel.model_validate_json(path.read_text())
+
+
+def has_trainer(name: str) -> bool:
+    return trainer_model_path(name).exists()
+
+
+def has_sensor_pipeline(name: str) -> bool:
+    return sensor_model_path(name).exists()
+
+
+def load_robot_name(name: str) -> Optional[str]:
+    path = sensor_model_path(name)
+    if path.exists():
+        data = json.loads(path.read_text())
+        return data.get("robotName")
+    return None
+
+
+def load_observations_keys(name: str) -> list[str]:
+    path = observations_yaml_path(name)
+    if not path.exists():
+        return []
+    try:
+        doc = yaml.safe_load(path.read_text()) or {}
+        obs = doc.get("observations") or {}
+        return list(obs.keys()) if isinstance(obs, dict) else []
+    except (yaml.YAMLError, OSError):
+        return []
+
+
+def load_observation_kinds(name: str) -> set[str]:
+    path = observations_yaml_path(name)
+    if not path.exists():
+        return set()
+    try:
+        doc = yaml.safe_load(path.read_text()) or {}
+        obs = doc.get("observations") or {}
+        kinds: set[str] = set()
+        if isinstance(obs, dict):
+            for entry in obs.values():
+                if isinstance(entry, dict) and entry.get("kind"):
+                    kinds.add(str(entry["kind"]).lower())
+        return kinds
+    except (yaml.YAMLError, OSError):
+        return set()

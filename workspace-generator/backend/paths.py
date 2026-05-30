@@ -87,6 +87,9 @@ class ProjectPaths:
     def observations_yaml(self) -> Path:
         return self.exports_dir / f"sens_{self.project_name}_observations.yaml"
 
+    def rl_config_yaml(self) -> Path:
+        return self.exports_dir / f"rl_{self.project_name}_config.yaml"
+
     def description_src(self) -> Path:
         return self.workspace_dir / "src" / self.description_pkg
 

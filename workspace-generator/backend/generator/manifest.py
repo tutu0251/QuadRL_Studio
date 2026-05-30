@@ -59,6 +59,7 @@ def build_manifest(paths: ProjectPaths) -> ManifestResult:
         ManifestEntry("sensor", paths.bridge_yaml()),
         ManifestEntry("sensor", paths.observations_yaml()),
         ManifestEntry("sensor", paths.sens_sdf(), required=False),
+        ManifestEntry("trainer", paths.rl_config_yaml(), required=False),
     ]
     errors: list[str] = []
     for entry in entries:

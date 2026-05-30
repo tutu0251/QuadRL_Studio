@@ -10,6 +10,7 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Sensor Editor | [`sensor-editor/`](sensor-editor/) | v1 — IMU/contact/lidar, sens_* RL export |
 | Workspace Generator | [`workspace-generator/`](workspace-generator/) | v1 — colcon workspace + RL training readiness validation |
 | PPO Planner | [`ppo-planner/`](ppo-planner/) | v1 — PPO hyperparameters + machine-based defaults |
+| RL Trainer Editor | [`rl-trainer-editor/`](rl-trainer-editor/) | v1 — rewards, termination, PPO + parallel training config |
 
 ## Quick start (Sensor Editor)
 
@@ -79,3 +80,13 @@ See [`workspace-generator/README.md`](workspace-generator/README.md) for sensor 
 Browser: `http://<ubuntu_ip>:5177` — configure PPO params and export `ppo_<project>_config.yaml` after the sensor pipeline.
 
 See [`ppo-planner/README.md`](ppo-planner/README.md) for machine profiling and recommendation rules.
+
+## Quick start (RL Trainer Editor)
+
+```bash
+./start_rl_trainer_editor.sh
+```
+
+Browser: `http://<ubuntu_ip>:5178` — configure rewards, thresholds, and PPO settings; export `rl_<project>_config.yaml` after the sensor pipeline.
+
+See [`rl-trainer-editor/README.md`](rl-trainer-editor/README.md) for presets, custom params, and SB3 export contract.
