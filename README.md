@@ -9,6 +9,7 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Control Editor | [`control-editor/`](control-editor/) | v1 — ProfileA position control, ros2_control export |
 | Sensor Editor | [`sensor-editor/`](sensor-editor/) | v1 — IMU/contact/lidar, sens_* RL export |
 | Workspace Generator | [`workspace-generator/`](workspace-generator/) | v1 — colcon workspace + RL training readiness validation |
+| PPO Planner | [`ppo-planner/`](ppo-planner/) | v1 — PPO hyperparameters + machine-based defaults |
 
 ## Quick start (Sensor Editor)
 
@@ -68,3 +69,13 @@ chmod +x workspace-generator/scripts/*.sh
 ```
 
 See [`workspace-generator/README.md`](workspace-generator/README.md) for sensor export validation, build, and runtime readiness checks.
+
+## Quick start (PPO Planner)
+
+```bash
+./start_ppo_planner.sh
+```
+
+Browser: `http://<ubuntu_ip>:5177` — configure PPO params and export `ppo_<project>_config.yaml` after the sensor pipeline.
+
+See [`ppo-planner/README.md`](ppo-planner/README.md) for machine profiling and recommendation rules.
