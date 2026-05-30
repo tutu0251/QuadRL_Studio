@@ -8,6 +8,7 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Physics Editor | [`physics-editor/`](physics-editor/) | v1 — inertials, friction, joint dynamics, phy URDF/SDF |
 | Control Editor | [`control-editor/`](control-editor/) | v1 — ProfileA position control, ros2_control export |
 | Sensor Editor | [`sensor-editor/`](sensor-editor/) | v1 — IMU/contact/lidar, sens_* RL export |
+| Workspace Generator | [`workspace-generator/`](workspace-generator/) | v1 — colcon workspace + RL training readiness validation |
 
 ## Quick start (Sensor Editor)
 
@@ -56,3 +57,14 @@ See [`geometry-editor/README.md`](geometry-editor/README.md) for architecture, A
 See [`control-editor/README.md`](control-editor/README.md) for the Geometry → Physics → Control pipeline and ros2_control export.
 
 See [`sensor-editor/README.md`](sensor-editor/README.md) for the full four-step pipeline and RL observation YAML.
+
+## Quick start (Workspace Generator)
+
+After exporting from all four editors:
+
+```bash
+chmod +x workspace-generator/scripts/*.sh
+./workspace-generator/scripts/setup_robot.sh my_robot
+```
+
+See [`workspace-generator/README.md`](workspace-generator/README.md) for sensor export validation, build, and runtime readiness checks.

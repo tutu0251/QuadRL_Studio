@@ -1,0 +1,85 @@
+"""Headless launch for RL training readiness validation."""
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, TimerAction
+from launch.event_handlers import OnProcessExit
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+
+
+def generate_launch_description():
+    description_pkg = '{{ description_pkg }}'
+    robot_name = LaunchConfiguration('robot_name')
+
+    robot_description = Command([
+        'cat ',
+        PathJoinSubstitution([FindPackageShare(description_pkg), 'urdf', 'robot.urdf']),
+    ])
+
+    jsb_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager'],
+        output='screen',
+    )
+
+    jtc_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_trajectory_controller', '--controller-manager', '/controller_manager'],
+        output='screen',
+    )
+
+    return LaunchDescription([
+        DeclareLaunchArgument('robot_name', default_value='{{ project_name }}'),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([
+                PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
+            ]),
+            launch_arguments={'gz_args': '-s -r -v 1 flat.world'}.items(),
+        ),
+        Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            parameters=[{'robot_description': robot_description, 'use_sim_time': True}],
+        ),
+        TimerAction(
+            period=3.0,
+            actions=[
+                Node(
+                    package='ros_gz_sim',
+                    executable='create',
+                    output='screen',
+                    arguments=[
+                        '-world', 'flat',
+                        '-name', robot_name,
+                        '-file', PathJoinSubstitution([FindPackageShare(description_pkg), 'urdf', 'robot.sdf']),
+                        '-z', '0.5',
+                        '-allow_renaming', 'true',
+                    ],
+                ),
+            ],
+        ),
+        TimerAction(
+            period=5.0,
+            actions=[
+                Node(
+                    package='ros_gz_bridge',
+                    executable='parameter_bridge',
+                    parameters=[{
+                        'config_file': PathJoinSubstitution([
+                            FindPackageShare(description_pkg),
+                            '{{ bridge_config_relpath }}',
+                        ]),
+                        'use_sim_time': True,
+                    }],
+                    output='screen',
+                ),
+            ],
+        ),
+        TimerAction(period=8.0, actions=[jsb_spawner]),
+        RegisterEventHandler(
+            event_handler=OnProcessExit(target_action=jsb_spawner, on_exit=[jtc_spawner]),
+        ),
+    ])
