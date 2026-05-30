@@ -56,6 +56,11 @@ export default function App() {
       });
   }, [refreshProjects, log]);
 
+  const consoleFocus = useEditorStore((s) => s.consoleFocus);
+  useEffect(() => {
+    if (consoleFocus > 0) setConsoleOpen(true);
+  }, [consoleFocus]);
+
   useEffect(() => {
     let ws: WebSocket | null = null;
     try {

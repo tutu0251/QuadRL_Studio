@@ -19,6 +19,7 @@ from domain.control_core import ControlCore
 from domain.models import ControlModel, TrainingProfile, ValidationResult
 from exporter.ros2_control_exporter import export_all
 from storage import project_storage
+from validator.export_validator import validate_export_files
 from validator.validator import ControlValidator
 
 _sessions: dict[str, ControlCore] = {}
@@ -221,6 +222,16 @@ def validate(name: str) -> ValidationResult:
     return ControlValidator(_get_core(name).get_model()).validate()
 
 
+@app.post("/api/projects/{name}/validate/export")
+def validate_export(name: str) -> ValidationResult:
+    core = _get_core(name)
+    model = core.get_model()
+    urdf_out = project_storage.export_ros2_urdf_path(name)
+    ctrl_out = project_storage.export_controllers_yaml_path(name)
+    gains_out = project_storage.export_gains_yaml_path(name)
+    return validate_export_files(model, urdf_out, ctrl_out, gains_out)
+
+
 async def _run_export(name: str, tid: str):
     try:
         core = _get_core(name)
@@ -252,7 +263,29 @@ async def _run_export(name: str, tid: str):
         payload = export_all(model, phy_path, urdf_out, ctrl_out, gains_out)
         for k, v in payload.items():
             task_manager.log(tid, "info", f"Wrote {v}")
-        task_manager.set_status(tid, "completed", payload)
+
+        export_validation = validate_export_files(model, urdf_out, ctrl_out, gains_out)
+        result = {**payload, "exportValidation": export_validation.model_dump()}
+
+        if export_validation.valid:
+            msg = "Export file validation passed"
+            if export_validation.warnings:
+                msg += f" ({len(export_validation.warnings)} warning(s))"
+            task_manager.log(tid, "info", msg)
+            for w in export_validation.warnings[:5]:
+                task_manager.log(tid, "warning", w.message)
+            task_manager.set_status(tid, "completed", result)
+        else:
+            task_manager.log(
+                tid,
+                "error",
+                f"Export file validation failed: {len(export_validation.errors)} error(s)",
+            )
+            for err in export_validation.errors[:10]:
+                task_manager.log(tid, "error", err.message)
+            for w in export_validation.warnings[:3]:
+                task_manager.log(tid, "warning", w.message)
+            task_manager.set_status(tid, "failed", result)
     except Exception as e:
         task_manager.log(tid, "error", str(e))
         task_manager.set_status(tid, "failed", {"error": str(e)})

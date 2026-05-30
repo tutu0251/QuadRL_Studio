@@ -65,6 +65,7 @@ export interface ValidationResult {
   valid: boolean;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
+  details?: Record<string, unknown>;
 }
 
 export type Selection = { kind: "joint"; name: string } | null;

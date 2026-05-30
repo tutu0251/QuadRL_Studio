@@ -2,6 +2,13 @@ import type { ControlModel, TrainingProfile, ValidationResult } from "@control-m
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8002";
 
+export type ExportTaskResult = {
+  urdf?: string;
+  controllers?: string;
+  gains?: string;
+  exportValidation?: ValidationResult;
+};
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...init?.headers },
@@ -52,10 +59,12 @@ export const api = {
     req<ControlModel>(`/api/projects/${name}/regenerate`, { method: "POST" }),
   validate: (name: string) =>
     req<ValidationResult>(`/api/projects/${name}/validate`, { method: "POST" }),
+  validateExport: (name: string) =>
+    req<ValidationResult>(`/api/projects/${name}/validate/export`, { method: "POST" }),
   exportRos2Control: (name: string) =>
     req<{ task_id: string }>(`/api/projects/${name}/export/ros2_control`, { method: "POST" }),
   getTask: (taskId: string) =>
-    req<{ task_id: string; status: string; result?: Record<string, string> }>(
+    req<{ task_id: string; status: string; result?: ExportTaskResult }>(
       `/api/tasks/${taskId}`
     ),
 };
