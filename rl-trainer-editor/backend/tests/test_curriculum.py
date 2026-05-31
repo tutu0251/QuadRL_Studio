@@ -30,7 +30,8 @@ def test_apply_curriculum_sets_rewards():
     assert m.curriculum.curriculumId == "stand_sprint"
     assert len(m.rewardTerms) > 0
     assert len(m.gaitTypes) == 4
-    assert m.rewardTerms[0].id in ("base_height", "lin_vel_tracking")
+    ids = {t.id for t in m.rewardTerms}
+    assert "height" in ids or "forward_tracking" in ids
 
 
 def test_curriculum_validates():

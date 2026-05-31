@@ -124,7 +124,7 @@ export function Toolbar() {
       {busy && <span className="toolbar-busy">Working…</span>}
       {model && project && (
         <span className="toolbar-context mono">
-          {enabledTerms(model)} rewards
+          {enabledTerms(model)} reward/penalty
           {model.curriculum.enabled ? " · curriculum" : ""}
         </span>
       )}

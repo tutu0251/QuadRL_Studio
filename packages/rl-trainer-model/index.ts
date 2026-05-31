@@ -220,13 +220,13 @@ export const PRESET_CATALOG: PresetInfo[] = [
   {
     id: "velocity_tracking",
     name: "Velocity tracking",
-    description: "Track commanded linear/angular velocity with orientation and torque penalties.",
+    description: "Track commanded velocity with posture and energy penalties.",
     difficulty: "beginner",
   },
   {
     id: "stand_still",
     name: "Stand still",
-    description: "Balance in place with height/orientation rewards and low velocity penalty.",
+    description: "Balance in place with survival, height, and velocity penalties.",
     difficulty: "beginner",
   },
   {
@@ -238,10 +238,12 @@ export const PRESET_CATALOG: PresetInfo[] = [
   {
     id: "custom_blank",
     name: "Custom (blank)",
-    description: "Empty reward list — configure manually or via custom params.",
+    description: "Full reward/penalty catalog — enable terms manually.",
     difficulty: "advanced",
   },
 ];
+
+export * from "./rewardCatalog";
 
 export const REWARD_CATEGORY_HINTS: Record<string, string> = {
   velocity: "Requires base linear/angular velocity observations",
@@ -250,6 +252,11 @@ export const REWARD_CATEGORY_HINTS: Record<string, string> = {
   contact: "Requires foot contact sensors",
   action_smoothness: "Penalizes action deltas",
   height: "Base height tracking",
+  posture: "Body orientation / joint pose relative to nominal",
+  gait: "Footfall timing, clearance, and diagonal pairing",
+  survival: "Per-step alive bonus",
+  tracking: "Deviation from commanded reference trajectories",
+  stability: "ZMP / support polygon margins",
 };
 
 export const GAIT_PARAM_HINTS: Record<string, string> = {
@@ -287,27 +294,44 @@ export const STAGE_PARAM_HINTS: Record<string, string> = {
 };
 
 export const REWARD_PARAM_HINTS: Record<string, string> = {
-  weight: "Scale this term in the total reward sum.",
-  target_lin_vel_x: "Velocity reward target for forward speed (m/s).",
-  target_ang_vel_z: "Velocity reward target for yaw rate (rad/s).",
-  target_height: "Desired base height (m) for height tracking rewards.",
+  weight: "Scale this term in the total reward sum (recommended value shown in catalog).",
+  target_height: "Desired base height (m); auto-synced from stage command on recommend.",
   sigma: "Tracking tolerance — smaller = stricter, larger = more forgiving.",
   min_contacts: "Minimum feet on ground required for contact rewards.",
-  max_impulse: "Foot impact threshold (N·s) for impact penalties.",
+  target_air_time: "Desired swing-phase duration (s) per foot.",
+  min_clearance: "Minimum foot height during swing (m).",
+  max_switches_per_step: "Max allowed contact state changes per step.",
+  threshold: "Impact or slip magnitude threshold before penalty applies.",
+  margin: "ZMP margin inside support polygon (m).",
 };
 
 export const REWARD_TERM_HINTS: Record<string, string> = {
-  lin_vel_tracking: "Reward matching commanded forward velocity.",
-  ang_vel_tracking: "Reward matching commanded yaw rate.",
-  base_height: "Reward maintaining target body height.",
-  orientation_upright: "Reward keeping the body upright.",
-  orientation_penalty: "Penalty for excessive body tilt.",
-  velocity_penalty: "Penalty for unwanted base velocity (used in stand stages).",
-  foot_contact: "Reward maintaining sufficient foot contacts.",
-  torque_penalty: "Penalty for high joint torques (energy efficiency).",
-  gait_symmetry: "Reward symmetric footfall timing across legs.",
-  action_smoothness: "Penalty for abrupt action changes between steps.",
-  impact_penalty: "Penalty for hard foot impacts.",
+  alive: "Per-step survival bonus while the episode continues.",
+  upright: "Reward keeping the body upright (roll/pitch near zero).",
+  height: "Reward maintaining target body height.",
+  posture: "Reward matching nominal standing posture.",
+  contact: "Reward maintaining sufficient foot contacts.",
+  forward_tracking: "Reward matching commanded forward velocity.",
+  lateral_tracking: "Reward matching commanded lateral velocity.",
+  yaw_tracking: "Reward matching commanded yaw rate.",
+  diagonal_balance: "Reward symmetric diagonal footfall timing (trot-like gait).",
+  air_time: "Reward swing-phase duration near target.",
+  foot_clearance: "Reward lifting feet above minimum clearance in swing.",
+  angular_velocity: "Penalty for excessive base angular velocity.",
+  linear_velocity: "Penalty for unwanted horizontal base velocity (stand stages).",
+  z_velocity: "Penalty for vertical base velocity / bouncing.",
+  joint_velocity: "Penalty for high joint velocities (energy).",
+  action_velocity: "Penalty for large action magnitudes.",
+  action_rate: "Penalty for rapid action changes between steps.",
+  posture_penalty: "Penalty for deviating from upright nominal pose.",
+  target_posture: "Penalty for deviating from commanded reference posture.",
+  smoothness: "Penalty for non-smooth action trajectories.",
+  contact_balance: "Penalty for uneven load across feet.",
+  contact_switch: "Penalty for excessive foot contact toggling.",
+  target_like: "Penalty for deviating from target-like reference motion.",
+  stumble: "Penalty for hard foot impacts / tripping.",
+  slip: "Penalty for foot slip relative to ground.",
+  zmp: "Penalty when ZMP approaches support polygon edge.",
 };
 
 export function stageParamKey(section: string, name: string): string {

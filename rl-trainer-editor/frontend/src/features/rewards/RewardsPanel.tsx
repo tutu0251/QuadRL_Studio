@@ -36,7 +36,7 @@ export function RewardsPanel() {
   if (model.rewardTerms.length === 0) {
     return (
       <div className="tab-panel">
-        <p className="empty-desc">No reward terms. Apply a preset or add terms via custom params.</p>
+        <p className="empty-desc">No reward/penalty terms. Apply a preset or curriculum stage.</p>
       </div>
     );
   }

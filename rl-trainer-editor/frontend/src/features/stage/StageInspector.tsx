@@ -13,7 +13,7 @@ import { paramEnabled, patchStageParamEnabled } from "./stageParamUtils";
 const INSPECTOR_TABS = [
   { id: "identity", label: "Identity" },
   { id: "command", label: "Command" },
-  { id: "rewards", label: "Rewards" },
+  { id: "rewards", label: "Reward/Penalty" },
   { id: "disturbance", label: "Disturbance" },
   { id: "termination", label: "Termination" },
   { id: "advance", label: "Advance" },
@@ -45,7 +45,7 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
   const gaitOptions = model.gaitTypes ?? [];
   const selectedGaitIds = stageGaitTypeIds(stage);
   const gaitTypesLabel = formatStageGaitTypes(stage);
-  const activeRewards = stage.rewardTerms.filter((t) => t.enabled).length;
+  const activeRewardPenalty = stage.rewardTerms.filter((t) => t.enabled).length;
 
   const updateStages = async (next: CurriculumStage[]) => {
     try {
@@ -133,8 +133,8 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
             onClick={() => setActiveTab(t.id)}
           >
             {t.label}
-            {t.id === "rewards" && activeRewards > 0 ? (
-              <span className="stage-tab-badge">{activeRewards}</span>
+            {t.id === "rewards" && activeRewardPenalty > 0 ? (
+              <span className="stage-tab-badge">{activeRewardPenalty}</span>
             ) : null}
           </button>
         ))}

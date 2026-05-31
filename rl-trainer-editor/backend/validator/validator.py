@@ -16,6 +16,11 @@ _CATEGORY_OBS: dict[str, set[str]] = {
     "energy": set(),
     "height": set(),
     "action_smoothness": set(),
+    "posture": {"imu"},
+    "gait": {"contact"},
+    "survival": set(),
+    "tracking": set(),
+    "stability": set(),
 }
 
 _GAIT_IDS = {"none", "walk", "trot", "gallop"}

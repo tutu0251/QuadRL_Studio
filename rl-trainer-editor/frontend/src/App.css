@@ -816,6 +816,50 @@ body {
   gap: 10px;
 }
 
+.reward-penalty-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.reward-penalty-section-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa3ad;
+}
+
+.reward-penalty-section-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-content: flex-start;
+}
+
+.reward-reset-btn {
+  background: transparent;
+  border: 1px solid #555;
+  color: #aaa;
+  border-radius: 3px;
+  padding: 0 5px;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.reward-reset-btn:hover:not(:disabled) {
+  border-color: var(--ppo-accent, #2e7d6e);
+  color: #ddd;
+}
+
+.reward-reset-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .reward-term-card-head,
 .inspector-param-card-head {
   display: flex;

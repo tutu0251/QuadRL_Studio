@@ -98,6 +98,13 @@ def get_curricula():
     return {"curricula": list_curricula()}
 
 
+@app.get("/api/reward-catalog")
+def get_reward_catalog():
+    from planner.reward_catalog import list_catalog_export
+
+    return {"catalog": list_catalog_export()}
+
+
 @app.get("/api/projects")
 def list_projects():
     projects = project_storage.list_projects()

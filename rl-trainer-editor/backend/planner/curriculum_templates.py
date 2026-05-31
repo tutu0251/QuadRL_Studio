@@ -13,6 +13,7 @@ from domain.models import (
     new_id,
 )
 from planner.recommender import recommend_stage_params
+from planner.reward_catalog import locomotion_reward_terms, stand_reward_terms
 
 _STAGE_DEFS = [
     ("none", "None", "Learn stable balance before any commanded motion.", 400_000, 0.0),
@@ -22,41 +23,12 @@ _STAGE_DEFS = [
 ]
 
 
-def _term(
-    tid: str,
-    category: str,
-    weight: float,
-    term_type: str = "reward",
-    **params: float,
-) -> RewardTerm:
-    return RewardTerm(
-        id=tid,
-        type=term_type,  # type: ignore[arg-type]
-        category=category,
-        weight=weight,
-        enabled=True,
-        params=dict(params),
-    )
-
-
 def _stand_terms() -> list[RewardTerm]:
-    return [
-        _term("base_height", "height", 1.0, target_height=0.35, sigma=0.05),
-        _term("orientation_upright", "orientation", 0.8, sigma=0.1),
-        _term("foot_contact", "contact", 0.3, min_contacts=2),
-        _term("velocity_penalty", "velocity", -0.4, sigma=0.08),
-    ]
+    return stand_reward_terms()
 
 
 def _locomotion_terms(lin_x: float, ang_z: float = 0.0) -> list[RewardTerm]:
-    return [
-        _term("lin_vel_tracking", "velocity", 1.0, target_lin_vel_x=lin_x, sigma=0.2),
-        _term("ang_vel_tracking", "velocity", 0.5, target_ang_vel_z=ang_z, sigma=0.2),
-        _term("orientation_penalty", "orientation", -0.4, sigma=0.1),
-        _term("torque_penalty", "energy", -0.0002),
-        _term("base_height", "height", 0.3, target_height=0.35, sigma=0.08),
-        _term("gait_symmetry", "contact", 0.2, sigma=0.15),
-    ]
+    return locomotion_reward_terms(lin_x, ang_z)
 
 
 def _disturbance_for_gait(gait_id: str, rough: bool) -> DisturbanceConfig:

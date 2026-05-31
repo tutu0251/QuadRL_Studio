@@ -15,6 +15,7 @@ from domain.models import (
 )
 from domain.stage_gait import stage_gait_type_ids, stage_is_stand_only, stage_primary_gait_for_command
 from planner.gait_defaults import build_gait
+from planner.reward_catalog import merge_reward_terms, recommend_reward_terms_for_stage
 
 
 @dataclass
@@ -27,21 +28,6 @@ class StageRecommendation:
     paramEnabled: dict[str, bool]
     rewardTerms: list[RewardTerm]
     notes: list[str]
-
-
-_STAND_REWARD_IDS = frozenset(
-    {"base_height", "orientation_upright", "foot_contact", "velocity_penalty"}
-)
-_LOCO_REWARD_IDS = frozenset(
-    {
-        "lin_vel_tracking",
-        "ang_vel_tracking",
-        "orientation_penalty",
-        "torque_penalty",
-        "base_height",
-        "gait_symmetry",
-    }
-)
 
 
 _VEL_BY_GAIT = {
@@ -79,15 +65,14 @@ def recommend_gait(gait_id: str) -> tuple[GaitType, list[str]]:
 
 def _recommend_reward_terms(stage: CurriculumStage) -> list[RewardTerm]:
     is_stand = stage_is_stand_only(stage)
-    out: list[RewardTerm] = []
-    for term in stage.rewardTerms:
-        t = term.model_copy(deep=True)
-        if is_stand:
-            t.enabled = term.id in _STAND_REWARD_IDS
-        else:
-            t.enabled = term.id in _LOCO_REWARD_IDS
-        out.append(t)
-    return out
+    merged = merge_reward_terms(stage.rewardTerms)
+    vel = stage.command.targetLinVelX
+    return recommend_reward_terms_for_stage(
+        merged,
+        stage.command,
+        is_stand=is_stand,
+        lin_vel_scale=abs(vel),
+    )
 
 
 def recommend_param_enabled(

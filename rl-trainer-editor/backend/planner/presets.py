@@ -4,6 +4,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from domain.models import RewardTerm, RlTrainerModel, TerminationConfig
+from domain.models import StageCommand
+from planner.reward_catalog import (
+    build_full_reward_catalog,
+    locomotion_reward_terms,
+    recommend_term_params,
+    stand_reward_terms,
+)
 
 
 @dataclass(frozen=True)
@@ -16,35 +23,44 @@ class PresetDefinition:
     termination: TerminationConfig
 
 
-def _term(
-    tid: str,
-    category: str,
-    weight: float,
-    term_type: str = "reward",
-    **params: float,
-) -> RewardTerm:
-    return RewardTerm(
-        id=tid,
-        type=term_type,  # type: ignore[arg-type]
-        category=category,
-        weight=weight,
-        enabled=True,
-        params=dict(params),
-    )
+def _velocity_tracking_terms() -> list[RewardTerm]:
+    cmd = StageCommand(targetLinVelX=1.0, targetBodyHeight=0.35)
+    terms = build_full_reward_catalog()
+    enabled = {
+        "forward_tracking",
+        "yaw_tracking",
+        "upright",
+        "posture_penalty",
+        "joint_velocity",
+        "action_rate",
+    }
+    out: list[RewardTerm] = []
+    for t in terms:
+        term = t.model_copy(deep=True)
+        term.enabled = t.id in enabled
+        if term.enabled:
+            term = recommend_term_params(term, cmd, lin_vel_scale=1.0)
+        out.append(term)
+    return out
+
+
+def _efficient_locomotion_terms() -> list[RewardTerm]:
+    cmd = StageCommand(targetLinVelX=1.0, targetBodyHeight=0.35, gaitSpeedScale=1.1)
+    terms = locomotion_reward_terms(1.0, cmd=cmd)
+    extra_on = {"stumble", "slip", "smoothness", "zmp", "contact_balance"}
+    for i, t in enumerate(terms):
+        if t.id in extra_on:
+            terms[i] = t.model_copy(update={"enabled": True})
+    return terms
 
 
 PRESET_CATALOG: list[PresetDefinition] = [
     PresetDefinition(
         id="velocity_tracking",
         name="Velocity tracking",
-        description="Track commanded linear/angular velocity with orientation and torque penalties.",
+        description="Track commanded velocity with posture and energy penalties.",
         difficulty="beginner",
-        reward_terms=[
-            _term("lin_vel_tracking", "velocity", 1.0, target_lin_vel_x=1.0, sigma=0.25),
-            _term("ang_vel_tracking", "velocity", 0.5, target_ang_vel_z=0.0, sigma=0.25),
-            _term("orientation_penalty", "orientation", -0.5, sigma=0.1),
-            _term("torque_penalty", "energy", -0.0002),
-        ],
+        reward_terms=_velocity_tracking_terms(),
         termination=TerminationConfig(
             maxEpisodeSteps=1000,
             fallBaseHeightThreshold=0.15,
@@ -54,14 +70,9 @@ PRESET_CATALOG: list[PresetDefinition] = [
     PresetDefinition(
         id="stand_still",
         name="Stand still",
-        description="Balance in place with height/orientation rewards and low velocity penalty.",
+        description="Balance in place with survival, height, and velocity penalties.",
         difficulty="beginner",
-        reward_terms=[
-            _term("base_height", "height", 1.0, target_height=0.35, sigma=0.05),
-            _term("orientation_upright", "orientation", 0.8, sigma=0.1),
-            _term("foot_contact", "contact", 0.3, min_contacts=2),
-            _term("velocity_penalty", "velocity", -0.3, sigma=0.1),
-        ],
+        reward_terms=stand_reward_terms(),
         termination=TerminationConfig(
             maxEpisodeSteps=500,
             fallBaseHeightThreshold=0.12,
@@ -71,15 +82,9 @@ PRESET_CATALOG: list[PresetDefinition] = [
     PresetDefinition(
         id="efficient_locomotion",
         name="Efficient locomotion",
-        description="Velocity tracking with stronger energy and impact penalties.",
+        description="Full locomotion rewards with stronger energy, slip, and ZMP penalties.",
         difficulty="intermediate",
-        reward_terms=[
-            _term("lin_vel_tracking", "velocity", 1.2, target_lin_vel_x=1.0, sigma=0.2),
-            _term("ang_vel_tracking", "velocity", 0.6, target_ang_vel_z=0.0, sigma=0.2),
-            _term("torque_penalty", "energy", -0.0005),
-            _term("action_smoothness", "action_smoothness", -0.05, sigma=0.1),
-            _term("impact_penalty", "contact", -0.1, max_impulse=50.0),
-        ],
+        reward_terms=_efficient_locomotion_terms(),
         termination=TerminationConfig(
             maxEpisodeSteps=1500,
             fallBaseHeightThreshold=0.14,
@@ -89,9 +94,9 @@ PRESET_CATALOG: list[PresetDefinition] = [
     PresetDefinition(
         id="custom_blank",
         name="Custom (blank)",
-        description="Empty reward list — configure manually or via custom params.",
+        description="Full reward/penalty catalog — enable terms manually.",
         difficulty="advanced",
-        reward_terms=[],
+        reward_terms=build_full_reward_catalog(),
         termination=TerminationConfig(),
     ),
 ]
