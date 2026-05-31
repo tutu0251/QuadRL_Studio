@@ -218,10 +218,17 @@ async def _run_export(name: str, tid: str):
         for k, v in payload.items():
             task_manager.log(tid, "info", f"{k}: {v}")
 
-        from storage import project_storage
         from validator.runtime_validator import validate_sensor_export
 
-        runtime_validation = await asyncio.to_thread(validate_sensor_export, name)
+        def _runtime_log(message: str) -> None:
+            task_manager.log(tid, "info", message.strip())
+
+        task_manager.log(tid, "info", "Running sensor runtime validation (may take 2–3 minutes)…")
+        runtime_validation = await asyncio.to_thread(
+            validate_sensor_export,
+            name,
+            on_log=_runtime_log,
+        )
         out = {**payload, "sensorValidation": runtime_validation.model_dump()}
         status = (runtime_validation.details or {}).get("status", "unknown")
         if status == "skipped":

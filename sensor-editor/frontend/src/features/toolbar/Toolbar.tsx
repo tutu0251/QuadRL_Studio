@@ -1,15 +1,60 @@
 import { useState } from "react";
 import type { SensorKind, ValidationResult } from "@sensor-model";
-import { api } from "../../api/client";
+import { api, wsLogsUrl } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
 
-async function pollTask(taskId: string) {
-  for (let i = 0; i < 120; i++) {
-    await new Promise((r) => setTimeout(r, 500));
-    const t = await api.getTask(taskId);
-    if (t.status === "completed" || t.status === "failed") return t;
-  }
-  return null;
+/** Runtime validation (Gazebo + topic checks) often exceeds 2 minutes. */
+const POLL_INTERVAL_MS = 500;
+const POLL_TIMEOUT_MS = 20 * 60 * 1000;
+
+type TaskStatus = Awaited<ReturnType<typeof api.getTask>>;
+
+function waitForTask(taskId: string): Promise<TaskStatus | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let ws: WebSocket | null = null;
+
+    const finish = (task: TaskStatus | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(pollTimer);
+      ws?.close();
+      resolve(task);
+    };
+
+    const pollTimer = window.setInterval(async () => {
+      try {
+        const t = await api.getTask(taskId);
+        if (t.status === "completed" || t.status === "failed") {
+          finish(t);
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, POLL_INTERVAL_MS);
+
+    window.setTimeout(() => {
+      void api.getTask(taskId).then(finish).catch(() => finish(null));
+    }, POLL_TIMEOUT_MS);
+
+    try {
+      ws = new WebSocket(wsLogsUrl());
+      ws.onmessage = (ev) => {
+        const data = JSON.parse(ev.data) as {
+          type?: string;
+          task_id?: string;
+          status?: string;
+        };
+        if (data.type === "status" && data.task_id === taskId) {
+          if (data.status === "completed" || data.status === "failed") {
+            void api.getTask(taskId).then(finish).catch(() => finish(null));
+          }
+        }
+      };
+    } catch {
+      /* polling-only fallback */
+    }
+  });
 }
 
 function logValidationResult(
@@ -36,6 +81,10 @@ function logValidationResult(
   if (topics) {
     const ok = Object.values(topics).filter((t) => t === "ok").length;
     log(`  topics: ${ok}/${Object.keys(topics).length} publishing`);
+  }
+  const duration = v.details?.durationS as number | undefined;
+  if (duration != null) {
+    log(`  duration: ${duration}s`);
   }
 }
 
@@ -102,10 +151,9 @@ export function Toolbar() {
       v.warnings.slice(0, 3).forEach((w) => log(`  ⚠ ${w.message}`));
       const { task_id } = await api.exportRl(project);
       log("Exporting RL package…");
-      const t = await pollTask(task_id);
+      const t = await waitForTask(task_id);
       if (t?.status === "completed") {
         log("Export complete");
-        if (t.result) Object.entries(t.result).forEach(([k, v]) => log(`  ${k}: ${v}`));
         if (t.result?.sensorValidation) {
           logValidationResult(log, "Sensor runtime validation", t.result.sensorValidation as ValidationResult);
         }
@@ -117,9 +165,11 @@ export function Toolbar() {
             "Sensor runtime validation",
             t.result.sensorValidation as ValidationResult
           );
+        } else if (t.result && "error" in t.result) {
+          log(String(t.result.error));
         }
       } else {
-        log("Export failed");
+        log("Export timed out waiting for backend — see console for progress");
       }
     } catch (e) {
       log(String(e));
