@@ -6,12 +6,15 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any, IO, Optional
 
 from domain.models import ValidationIssue, ValidationResult
+
+EXPORT_VALIDATOR_BACKEND = Path(__file__).resolve().parents[3] / "export-validator" / "backend"
 
 DEFAULT_WORLD_SDF = Path("/usr/share/ignition/ignition-gazebo6/worlds/empty.sdf")
 DEFAULT_WORLD_NAME = "empty"
@@ -393,10 +396,94 @@ class GazeboExportValidator:
         )
 
 
+def _try_workspace_validation(urdf_path: Path, model_name: str) -> ValidationResult | None:
+    """Run workspace-based control validation when export-validator is available."""
+    backend = EXPORT_VALIDATOR_BACKEND
+    if not (backend / "control_runtime.py").is_file():
+        return None
+
+    exports_dir = urdf_path.parent
+    expected_urdf = exports_dir / f"ctrl_{model_name}_ros2_control.urdf"
+    controllers = exports_dir / f"ctrl_{model_name}_controllers.yaml"
+    gains = exports_dir / f"ctrl_{model_name}_gains.yaml"
+    if not (expected_urdf.is_file() and controllers.is_file() and gains.is_file()):
+        return None
+
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    try:
+        from control_runtime import validate_control_runtime
+    except ImportError:
+        return None
+
+    result = validate_control_runtime(
+        exports_dir,
+        model_name,
+        auto_build=True,
+        auto_generate=True,
+    )
+    status = (result.details or {}).get("status")
+    if status == "skipped" and any(w.code == "control_runtime_no_workspace" for w in result.warnings):
+        return None
+    return _map_export_validator_result(result)
+
+
+def _map_export_validator_result(result: Any) -> ValidationResult:
+    """Convert export-validator ValidationResult to control-editor models."""
+    status = (result.details or {}).get("status", "unknown")
+    details = dict(result.details or {})
+    if status == "skipped":
+        details["status"] = "skipped"
+        warnings = [
+            ValidationIssue(
+                severity=w.severity,
+                code="gazebo_validation_skipped" if w.code.endswith("_skipped") else w.code,
+                message=w.message,
+                entityType=w.entityType,
+                entityId=w.entityId,
+            )
+            for w in result.warnings
+        ]
+        return ValidationResult(valid=True, warnings=warnings, details=details)
+
+    if status == "passed":
+        details["status"] = "passed"
+    else:
+        details.setdefault("status", "failed")
+
+    return ValidationResult(
+        valid=result.valid,
+        errors=[
+            ValidationIssue(
+                severity=e.severity,
+                code=e.code,
+                message=e.message,
+                entityType=e.entityType,
+                entityId=e.entityId,
+            )
+            for e in result.errors
+        ],
+        warnings=[
+            ValidationIssue(
+                severity=w.severity,
+                code=w.code,
+                message=w.message,
+                entityType=w.entityType,
+                entityId=w.entityId,
+            )
+            for w in result.warnings
+        ],
+        details=details,
+    )
+
+
 def validate_gazebo_export(
     urdf_path: Path,
     model_name: str,
     *,
     timeout_s: float = DEFAULT_TIMEOUT_S,
 ) -> ValidationResult:
+    workspace_result = _try_workspace_validation(urdf_path, model_name)
+    if workspace_result is not None:
+        return workspace_result
     return GazeboExportValidator(urdf_path, model_name, timeout_s=timeout_s).validate()

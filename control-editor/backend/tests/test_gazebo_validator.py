@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from domain.models import ValidationResult
 from validator.gazebo_validator import (
     GazeboExportValidator,
     _analyze_logs,
@@ -56,7 +57,10 @@ def test_analyze_logs_fails_on_spawn_error():
 def test_validate_skipped_when_stack_unavailable(tmp_path: Path):
     urdf = tmp_path / "ctrl_test_ros2_control.urdf"
     urdf.write_text("<robot name='t'/>")
-    with patch("validator.gazebo_validator.check_gazebo_stack", return_value={"available": False, "missing": ["ign"]}):
+    with (
+        patch("validator.gazebo_validator._try_workspace_validation", return_value=None),
+        patch("validator.gazebo_validator.check_gazebo_stack", return_value={"available": False, "missing": ["ign"]}),
+    ):
         result = validate_gazebo_export(urdf, "test")
     assert result.valid
     assert result.details is not None
@@ -66,10 +70,26 @@ def test_validate_skipped_when_stack_unavailable(tmp_path: Path):
 
 def test_validate_fails_when_urdf_missing(tmp_path: Path):
     urdf = tmp_path / "missing.urdf"
-    with patch("validator.gazebo_validator.check_gazebo_stack", return_value={"available": True, "createPackage": "ros_gz_sim"}):
+    with (
+        patch("validator.gazebo_validator._try_workspace_validation", return_value=None),
+        patch("validator.gazebo_validator.check_gazebo_stack", return_value={"available": True, "createPackage": "ros_gz_sim"}),
+    ):
         result = validate_gazebo_export(urdf, "test")
     assert not result.valid
     assert any(e.code == "missing_urdf_file" for e in result.errors)
+
+
+def test_gazebo_validator_delegates_to_runtime(tmp_path: Path):
+    urdf = tmp_path / "ctrl_bot_ros2_control.urdf"
+    urdf.write_text("<robot name='bot'/>")
+    runtime_result = ValidationResult(valid=True, details={"status": "passed"})
+
+    with patch("validator.gazebo_validator._try_workspace_validation", return_value=runtime_result):
+        result = validate_gazebo_export(urdf, "bot")
+
+    assert result.valid
+    assert result.details is not None
+    assert result.details["status"] == "passed"
 
 
 def test_gazebo_validator_end_to_end_mocked(tmp_path: Path):

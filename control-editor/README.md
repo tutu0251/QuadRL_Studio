@@ -73,9 +73,23 @@ The Control Editor validator sets both automatically for headless checks.
 
 ### Gazebo export validation
 
-After **Export ros2_control**, the backend runs a headless check when Gazebo and ROS 2 are installed: it starts `ign gazebo -s empty.sdf`, spawns `ctrl_<name>_ros2_control.urdf`, and confirms `gz_ros2_control` loads. Results appear in the console as **Gazebo validation: passed / skipped / failed**. Skipped means Gazebo or `gz_ros2_control` is not on the machine — export still succeeds.
+After **Export ros2_control**, the backend runs a headless workspace validation when Gazebo and ROS 2 are installed:
+
+1. Generates a minimal colcon workspace under `workspace_control/`
+2. Launches headless Gazebo via `control_readiness.launch.py`
+3. Spawns controllers and sends a small joint trajectory probe
+4. Confirms `/joint_states` updates and the joint moves
+
+Results appear in the console as **Gazebo validation: passed / skipped / failed**. Skipped means Gazebo or `gz_ros2_control` is not on the machine — export still succeeds.
 
 Manual CLI:
+
+```bash
+chmod +x export-validator/scripts/validate_control_runtime.sh
+./export-validator/scripts/validate_control_runtime.sh my_robot
+```
+
+Legacy direct URDF spawn (fallback when control exports are incomplete):
 
 ```bash
 chmod +x control-editor/scripts/validate_gazebo_export.sh

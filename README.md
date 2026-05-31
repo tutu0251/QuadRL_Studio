@@ -7,6 +7,7 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Geometry Editor | [`geometry-editor/`](geometry-editor/) | v2 — link/joint primitives, URDF/SDF export |
 | Physics Editor | [`physics-editor/`](physics-editor/) | v1 — inertials, friction, joint dynamics, phy URDF/SDF |
 | Control Editor | [`control-editor/`](control-editor/) | v1 — ProfileA position control, ros2_control export |
+| Export Validator | [`export-validator/`](export-validator/) | v1 — workspace-based Gazebo control runtime checks |
 | Sensor Editor | [`sensor-editor/`](sensor-editor/) | v1 — IMU/contact/lidar, sens_* RL export |
 | Workspace Generator | [`workspace-generator/`](workspace-generator/) | v1 — colcon workspace + RL training readiness validation |
 | PPO Planner | [`ppo-planner/`](ppo-planner/) | v1 — PPO hyperparameters + machine-based defaults |
