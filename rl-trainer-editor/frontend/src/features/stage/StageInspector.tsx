@@ -3,15 +3,14 @@ import type { CurriculumAdvanceCriteria, CurriculumStage, DisturbanceConfig, Sta
 import { STAGE_PARAM_HINTS, stageParamKey } from "@rl-trainer-model";
 import { api } from "../../api/client";
 import { InspectorParamGrid } from "../../components/InspectorParamGrid";
-import { ParamBoolField, ParamMultiSelectField, ParamNumberField, ParamTextField } from "../../components/ParamField";
-import { formatStageGaitTypes, stageGaitTypeIds } from "./stageGaitUtils";
+import { ParamBoolField, ParamNumberField } from "../../components/ParamField";
+import { stageGaitTypeIds } from "./stageGaitUtils";
 import { RewardTermList } from "../shared/RewardTermList";
 import { TerminationFields } from "../shared/TerminationFields";
 import { useTrainerStore } from "../../stores/trainerStore";
 import { paramEnabled, patchStageParamEnabled } from "./stageParamUtils";
 
 const INSPECTOR_TABS = [
-  { id: "identity", label: "Identity" },
   { id: "command", label: "Command" },
   { id: "rewards", label: "Reward/Penalty" },
   { id: "disturbance", label: "Disturbance" },
@@ -21,13 +20,61 @@ const INSPECTOR_TABS = [
 
 type InspectorTabId = (typeof INSPECTOR_TABS)[number]["id"];
 
+function InlineGaitChips({
+  options,
+  value,
+  disabled,
+  onChange,
+  hint,
+}: {
+  options: { id: string; name: string }[];
+  value: string[];
+  disabled?: boolean;
+  onChange: (ids: string[]) => void;
+  hint?: string;
+}) {
+  const toggle = (id: string) => {
+    if (value.includes(id)) {
+      if (value.length <= 1) return;
+      onChange(value.filter((x) => x !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
+  return (
+    <div
+      className="chip-row inspector-inline-gait"
+      role="group"
+      aria-label="gate type"
+      title={hint}
+    >
+      {options.map((o) => {
+        const selected = value.includes(o.id);
+        return (
+          <button
+            key={o.id}
+            type="button"
+            className={`chip-btn ${selected ? "active" : ""}`}
+            disabled={disabled}
+            aria-pressed={selected}
+            onClick={() => toggle(o.id)}
+          >
+            {o.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function StageInspector({ compact = false }: { compact?: boolean }) {
   const project = useTrainerStore((s) => s.project);
   const model = useTrainerStore((s) => s.model);
   const setModel = useTrainerStore((s) => s.setModel);
   const selectedStageId = useTrainerStore((s) => s.selectedStageId);
   const log = useTrainerStore((s) => s.log);
-  const [activeTab, setActiveTab] = useState<InspectorTabId>("identity");
+  const [activeTab, setActiveTab] = useState<InspectorTabId>("command");
 
   if (!model || !project) return null;
 
@@ -44,8 +91,11 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
 
   const gaitOptions = model.gaitTypes ?? [];
   const selectedGaitIds = stageGaitTypeIds(stage);
-  const gaitTypesLabel = formatStageGaitTypes(stage);
   const activeRewardPenalty = stage.rewardTerms.filter((t) => t.enabled).length;
+  const gaitEnabled = paramEnabled(stage, "identity.gait_type");
+  const timestepsEnabled = paramEnabled(stage, "identity.timesteps");
+  const titleTooltip =
+    stage.description.trim() || STAGE_PARAM_HINTS["identity.description"] || "Stage description";
 
   const updateStages = async (next: CurriculumStage[]) => {
     try {
@@ -98,29 +148,44 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={`stage-inspector ${compact ? "compact" : ""}`}>
-      {!compact && (
-        <div className="stage-panel-header">
-          <div>
-            <h3>{stage.name}</h3>
-            <span className="stage-inspector-meta mono">
-              Stage {(stage.order ?? 0) + 1} · {gaitTypesLabel}
-            </span>
-          </div>
-          <button type="button" className="header-btn primary" onClick={() => void recommend()}>
-            Auto-recommend
-          </button>
+      <div className="inspector-inline-bar">
+        <input
+          type="text"
+          className="inspector-inline-title-input"
+          value={stage.name}
+          title={titleTooltip}
+          aria-label="Stage name"
+          onChange={(e) => patchStage({ name: e.target.value })}
+        />
+        <div className="inspector-inline-group" title={hint("identity.gait_type")}>
+          <span className="inspector-inline-label">gate</span>
+          <InlineGaitChips
+            options={gaitOptions}
+            value={selectedGaitIds}
+            disabled={!gaitEnabled}
+            hint={hint("identity.gait_type")}
+            onChange={(gaitTypeIds) => patchStage({ gaitTypeIds })}
+          />
         </div>
-      )}
-
-      {compact && (
-        <div className="inspector-inline-bar">
-          <span className="inspector-inline-title">{stage.name}</span>
-          <span className="inspector-inline-meta mono">{gaitTypesLabel}</span>
-          <button type="button" className="header-btn" onClick={() => void recommend()}>
-            Recommend
-          </button>
+        <div className="inspector-inline-group" title={hint("identity.timesteps")}>
+          <span className="inspector-inline-label">steps</span>
+          <input
+            type="number"
+            className="inspector-inline-steps-input mono"
+            value={stage.timesteps}
+            disabled={!timestepsEnabled}
+            step={10_000}
+            min={10_000}
+            aria-label="Timesteps"
+            onChange={(e) =>
+              patchStage({ timesteps: Math.max(10_000, Math.round(parseFloat(e.target.value) || 0)) })
+            }
+          />
         </div>
-      )}
+        <button type="button" className="header-btn inspector-inline-recommend" onClick={() => void recommend()}>
+          {compact ? "Recommend" : "Auto-recommend"}
+        </button>
+      </div>
 
       <div className="stage-inspector-tabs tab-bar tab-bar-segmented stage-category-tabs" role="tablist">
         {INSPECTOR_TABS.map((t) => (
@@ -141,49 +206,6 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
       </div>
 
       <div className="stage-inspector-scroll stage-inspector-tab-panel">
-        {activeTab === "identity" && (
-          <InspectorParamGrid>
-            <ParamTextField
-              paramKey={stageParamKey("identity", "name")}
-              label="name"
-              hint={hint("identity.name")}
-              enabled={paramEnabled(stage, "identity.name")}
-              onEnabledChange={(v) => setParamFlag("identity.name", v)}
-              value={stage.name}
-              onChange={(v) => patchStage({ name: v })}
-            />
-            <ParamTextField
-              paramKey={stageParamKey("identity", "description")}
-              label="description"
-              hint={hint("identity.description")}
-              enabled={paramEnabled(stage, "identity.description")}
-              onEnabledChange={(v) => setParamFlag("identity.description", v)}
-              value={stage.description}
-              onChange={(v) => patchStage({ description: v })}
-            />
-            <ParamMultiSelectField
-              paramKey={stageParamKey("identity", "gait_type")}
-              label="gate_type"
-              hint={hint("identity.gait_type")}
-              enabled={paramEnabled(stage, "identity.gait_type")}
-              onEnabledChange={(v) => setParamFlag("identity.gait_type", v)}
-              value={selectedGaitIds}
-              onChange={(gaitTypeIds) => patchStage({ gaitTypeIds })}
-              options={gaitOptions}
-            />
-            <ParamNumberField
-              paramKey={stageParamKey("identity", "timesteps")}
-              label="timesteps"
-              hint={hint("identity.timesteps")}
-              enabled={paramEnabled(stage, "identity.timesteps")}
-              onEnabledChange={(v) => setParamFlag("identity.timesteps", v)}
-              value={stage.timesteps}
-              step={10_000}
-              onChange={(v) => patchStage({ timesteps: Math.max(10_000, Math.round(v)) })}
-            />
-          </InspectorParamGrid>
-        )}
-
         {activeTab === "command" && (
           <InspectorParamGrid>
             <ParamNumberField

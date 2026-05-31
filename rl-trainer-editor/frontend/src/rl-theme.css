@@ -1636,23 +1636,75 @@
 .inspector-inline-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--ppo-border);
   background: rgba(0, 0, 0, 0.12);
   flex-shrink: 0;
 }
 
-.inspector-inline-title {
+.inspector-inline-title-input {
   font-size: 12px;
   font-weight: 600;
   color: #eee;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 6px;
+  min-width: 5rem;
+  max-width: 10rem;
+  field-sizing: content;
 }
 
-.inspector-inline-meta {
+.inspector-inline-title-input:hover,
+.inspector-inline-title-input:focus {
+  border-color: var(--ppo-border, #444);
+  background: rgba(255, 255, 255, 0.04);
+  outline: none;
+}
+
+.inspector-inline-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspector-inline-label {
   font-size: 10px;
-  color: #666;
-  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #777;
+  flex-shrink: 0;
+}
+
+.inspector-inline-gait {
+  flex-wrap: nowrap;
+}
+
+.inspector-inline-gait .chip-btn {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+
+.inspector-inline-steps-input {
+  width: auto;
+  min-width: 5.5rem;
+  max-width: 7rem;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--ppo-border, #444);
+  border-radius: 3px;
+  color: #ccc;
+}
+
+.inspector-inline-steps-input:disabled {
+  opacity: 0.45;
+}
+
+.inspector-inline-recommend {
+  margin-left: auto;
 }
 
 .editor-scroll {
