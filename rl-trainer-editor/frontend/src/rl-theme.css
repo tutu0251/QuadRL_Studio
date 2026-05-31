@@ -1724,6 +1724,23 @@
 .tab-panel.gait-panel {
   padding: 0 !important;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.gait-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.gait-type-card {
+  border-color: var(--ppo-border, #383838);
+}
+
+.gait-type-card-add {
+  border-color: var(--ppo-border, #444);
 }
 
 .gait-panel .editor-main-pane {
