@@ -35,7 +35,7 @@ export function OverviewPanel() {
             </li>
             <li>
               <span className="step-num">3</span>
-              <span>Pick preset → Recommend → Validate → Export YAML</span>
+              <span>Recommend → Validate → Export YAML</span>
             </li>
           </ol>
         </div>

@@ -1,5 +1,4 @@
 import { useTrainerStore } from "../../stores/trainerStore";
-import { PresetsPanel } from "../presets/PresetsPanel";
 import { RewardsPanel } from "../rewards/RewardsPanel";
 import { TerminationPanel } from "../termination/TerminationPanel";
 import { HyperparamsPanel } from "../params/HyperparamsPanel";
@@ -8,7 +7,6 @@ import { CustomPanel } from "../custom/CustomPanel";
 import { CurriculumPanel } from "../curriculum/CurriculumPanel";
 
 const TABS = [
-  { id: "presets", label: "Presets" },
   { id: "curriculum", label: "Curriculum" },
   { id: "rewards", label: "Rewards" },
   { id: "termination", label: "Termination" },
@@ -48,7 +46,6 @@ export function InspectorTabs() {
         ))}
       </div>
       <div className="tab-content">
-        {activeTab === "presets" && <PresetsPanel />}
         {activeTab === "curriculum" && <CurriculumPanel />}
         {activeTab === "rewards" && <RewardsPanel />}
         {activeTab === "termination" && <TerminationPanel />}

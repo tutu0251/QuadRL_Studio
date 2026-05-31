@@ -43,7 +43,7 @@ export function ConsolePanel() {
       <div className="console-body">
         {logs.length === 0 && (
           <div className="console-line muted">
-            Presets, validation, and export events appear here.
+            Validation and export events appear here.
           </div>
         )}
         {logs.map((line, i) => (

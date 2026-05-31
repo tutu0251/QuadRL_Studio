@@ -730,12 +730,6 @@ body {
   padding: 10px 12px;
 }
 
-.preset-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-}
-
 .preset-card {
   text-align: left;
   padding: 10px;
@@ -759,12 +753,6 @@ body {
   margin: 0;
   font-size: 11px;
   color: #888;
-}
-
-.preset-diff {
-  font-size: 10px;
-  text-transform: uppercase;
-  color: #7eb8da;
 }
 
 .reward-term-card {
@@ -938,33 +926,5 @@ body {
   color: #7eb8da;
   display: block;
   margin-top: 4px;
-}
-
-.toolbar-btn.train-start {
-  background: linear-gradient(180deg, #2e7d32 0%, #1b5e20 100%);
-  color: #fff;
-  font-weight: 600;
-  padding: 6px 14px;
-}
-
-.toolbar-btn.train-start:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-
-.toolbar-btn.train-stop {
-  background: #8b2e2e;
-  color: #fff;
-}
-
-.toolbar-chip.train-running {
-  background: #1b4332;
-  color: #81c784;
-  animation: pulse-train 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-train {
-  50% {
-    opacity: 0.7;
-  }
 }
 

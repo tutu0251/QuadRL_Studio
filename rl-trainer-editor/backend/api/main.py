@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -24,18 +24,8 @@ from domain.models import (
 from domain.trainer_core import TrainerCore
 from exporter.rl_yaml_exporter import export_rl_yaml
 from planner.curriculum import list_curricula
-from planner.presets import list_presets
 from profiler.machine_profiler import profile_machine
 from storage import project_storage
-from training.train_manager import (
-    is_training,
-    start_tensorboard,
-    start_training,
-    stop_tensorboard,
-    stop_training,
-    tensorboard_info,
-    training_status,
-)
 from validator.validator import RlTrainerValidator
 
 _sessions: dict[str, TrainerCore] = {}
@@ -73,21 +63,6 @@ def _save(name: str, core: TrainerCore) -> None:
     project_storage.save_trainer(name, core.get_model())
 
 
-def _tensorboard_url_host(request: Request) -> str:
-    """Hostname for TensorBoard links shown in the UI (remote browser, not bind address)."""
-    if public := os.environ.get("TB_PUBLIC_HOST"):
-        return public.split(":")[0]
-    forwarded = request.headers.get("x-forwarded-host")
-    if forwarded:
-        return forwarded.split(",")[0].strip().split(":")[0]
-    host_header = request.headers.get("host")
-    if host_header:
-        return host_header.split(":")[0]
-    if request.client and request.client.host not in ("127.0.0.1", "::1"):
-        return request.client.host
-    return "localhost"
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(DEV_WARNING)
@@ -116,11 +91,6 @@ def health():
 @app.get("/api/machine")
 def get_machine_profile() -> dict:
     return profile_machine().model_dump()
-
-
-@app.get("/api/presets")
-def get_presets():
-    return {"presets": list_presets()}
 
 
 @app.get("/api/curricula")
@@ -215,17 +185,6 @@ def patch_parallel(name: str, body: ParallelPatch):
     return core.get_model()
 
 
-@app.post("/api/projects/{name}/preset/{preset_id}")
-def apply_preset(name: str, preset_id: str):
-    core = _get_core(name)
-    try:
-        core.apply_preset(preset_id)
-    except KeyError:
-        raise HTTPException(404, f"Unknown preset: {preset_id}")
-    _save(name, core)
-    return core.get_model()
-
-
 @app.post("/api/projects/{name}/curriculum/{curriculum_id}")
 def apply_curriculum(name: str, curriculum_id: str):
     core = _get_core(name)
@@ -281,79 +240,6 @@ async def _run_export(name: str, tid: str):
     except Exception as e:
         task_manager.log(tid, "error", str(e))
         task_manager.set_status(tid, "failed", {"error": str(e)})
-
-
-@app.get("/api/train/status")
-def get_train_status():
-    return training_status()
-
-
-@app.post("/api/projects/{name}/train/start")
-async def train_start(name: str, dry_run: bool = False):
-    if is_training(name):
-        raise HTTPException(409, "Training already running for this project")
-    if is_training():
-        raise HTTPException(
-            409,
-            detail=f"Training already running for project '{training_status().get('project')}'",
-        )
-    core = _get_core(name)
-    try:
-        tid = await start_training(name, core.get_model(), dry_run=dry_run)
-    except ValueError as e:
-        raise HTTPException(400, detail=str(e))
-    except FileNotFoundError as e:
-        raise HTTPException(500, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(409, detail=str(e))
-    return {"task_id": tid, "status": "running"}
-
-
-@app.post("/api/projects/{name}/train/stop")
-async def train_stop(name: str):
-    st = training_status()
-    if not st["running"]:
-        raise HTTPException(404, "No training process running")
-    if st["project"] != name:
-        raise HTTPException(
-            409,
-            detail=f"Training is running for '{st['project']}', not '{name}'",
-        )
-    return await stop_training()
-
-
-@app.post("/api/train/stop")
-async def train_stop_any():
-    st = training_status()
-    if not st["running"]:
-        raise HTTPException(404, "No training process running")
-    return await stop_training()
-
-
-@app.get("/api/projects/{name}/train/tensorboard")
-def get_tensorboard(name: str, request: Request):
-    _get_core(name)
-    return tensorboard_info(name, url_host=_tensorboard_url_host(request))
-
-
-@app.post("/api/projects/{name}/train/tensorboard/start")
-async def tensorboard_start(name: str, request: Request, port: int = 6006):
-    _get_core(name)
-    url_host = _tensorboard_url_host(request)
-    try:
-        return await start_tensorboard(name, port=port, url_host=url_host)
-    except FileNotFoundError:
-        raise HTTPException(
-            500,
-            detail="tensorboard not found — pip install tensorboard in training/.venv",
-        )
-    except RuntimeError as e:
-        raise HTTPException(500, detail=str(e))
-
-
-@app.post("/api/train/tensorboard/stop")
-async def tensorboard_stop():
-    return await stop_tensorboard()
 
 
 @app.post("/api/projects/{name}/export/rl")
