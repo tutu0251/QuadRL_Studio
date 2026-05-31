@@ -22,7 +22,7 @@ def _map_export_validator_result(result: Any) -> ValidationResult:
         warnings = [
             ValidationIssue(
                 severity=w.severity,
-                code="sensor_validation_skipped" if w.code.endswith("_skipped") else w.code,
+                code="export_validation_skipped" if w.code.endswith("_skipped") else w.code,
                 message=w.message,
                 entityType=w.entityType,
                 entityId=w.entityId,
@@ -71,8 +71,8 @@ def validate_sensor_export(project_name: str, *, on_log: LogFn | None = None) ->
             warnings=[
                 ValidationIssue(
                     severity="warning",
-                    code="sensor_validation_skipped",
-                    message="Sensor runtime validation skipped (export-validator not available)",
+                    code="export_validation_skipped",
+                    message="Export validation skipped (export-validator not available)",
                 )
             ],
             details={"status": "skipped"},
@@ -96,17 +96,17 @@ def validate_sensor_export(project_name: str, *, on_log: LogFn | None = None) ->
         sys.path.insert(0, str(backend))
     try:
         from sensor_runtime import validate_sensor_runtime
-    except ImportError:
+    except ImportError as exc:
         return ValidationResult(
             valid=True,
             warnings=[
                 ValidationIssue(
                     severity="warning",
-                    code="sensor_validation_skipped",
-                    message="Sensor runtime validation skipped (export-validator import failed)",
+                    code="export_validation_skipped",
+                    message=f"Export validation skipped (export-validator import failed: {exc})",
                 )
             ],
-            details={"status": "skipped"},
+            details={"status": "skipped", "importError": str(exc)},
         )
 
     result = validate_sensor_runtime(

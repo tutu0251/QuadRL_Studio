@@ -7,7 +7,6 @@ export type ExportTaskResult = {
   controllers?: string;
   gains?: string;
   exportValidation?: ValidationResult;
-  gazeboValidation?: ValidationResult;
 };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -61,9 +60,7 @@ export const api = {
   validate: (name: string) =>
     req<ValidationResult>(`/api/projects/${name}/validate`, { method: "POST" }),
   validateExport: (name: string) =>
-    req<ValidationResult>(`/api/projects/${name}/validate/export`, { method: "POST" }),
-  validateGazebo: (name: string) =>
-    req<ValidationResult>(`/api/projects/${name}/validate/gazebo`, { method: "POST" }),
+    req<{ task_id: string }>(`/api/projects/${name}/validate/export`, { method: "POST" }),
   validateGazeboAsync: (name: string) =>
     req<{ task_id: string }>(`/api/projects/${name}/validate/gazebo/async`, { method: "POST" }),
   exportRos2Control: (name: string) =>

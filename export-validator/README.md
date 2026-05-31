@@ -2,6 +2,18 @@
 
 Headless runtime validation for QuadRL editor exports using colcon workspaces and Gazebo Fortress.
 
+## Geometry editor validation
+
+Validates `geo_*` exports by spawning the model in headless Gazebo Fortress (prefers SDF, falls back to URDF).
+
+The Geometry Editor runs this automatically after **Export URDF**, **Export SDF**, or **Export Both**.
+
+## Physics editor validation
+
+Validates `phy_*` exports by spawning the model in headless Gazebo Fortress (prefers SDF, falls back to URDF).
+
+The Physics Editor runs this automatically after **phy URDF** or **phy SDF** export.
+
 ## Control editor validation
 
 Validates `ctrl_*_ros2_control.urdf`, controllers YAML, and gains by:

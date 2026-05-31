@@ -87,7 +87,7 @@ export const api = {
     req<{
       task_id: string;
       status: string;
-      result?: Record<string, unknown> & { sensorValidation?: ValidationResult };
+      result?: Record<string, unknown> & { exportValidation?: ValidationResult };
     }>(`/api/tasks/${taskId}`),
 };
 

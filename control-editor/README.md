@@ -65,7 +65,7 @@ export GZ_SIM_SYSTEM_PLUGIN_PATH=/opt/ros/humble/lib:${GZ_SIM_SYSTEM_PLUGIN_PATH
 export LD_LIBRARY_PATH=/opt/ros/humble/lib:${LD_LIBRARY_PATH:-}
 ```
 
-The Control Editor validator sets both automatically for headless checks.
+The export-validator sets plugin paths automatically for headless checks.
 
 ### Spawn note
 
@@ -80,7 +80,7 @@ After **Export ros2_control**, the backend runs a headless workspace validation 
 3. Spawns controllers and sends a small joint trajectory probe
 4. Confirms `/joint_states` updates and the joint moves
 
-Results appear in the console as **Gazebo validation: passed / skipped / failed**. Skipped means Gazebo or `gz_ros2_control` is not on the machine — export still succeeds.
+Results appear in the console as **Export validation: passed / skipped / failed**. Skipped means Gazebo or `gz_ros2_control` is not on the machine — export still succeeds.
 
 Manual CLI:
 
@@ -89,14 +89,14 @@ chmod +x export-validator/scripts/validate_control_runtime.sh
 ./export-validator/scripts/validate_control_runtime.sh my_robot
 ```
 
-Legacy direct URDF spawn (fallback when control exports are incomplete):
+Or via the control editor script (delegates to export-validator):
 
 ```bash
 chmod +x control-editor/scripts/validate_gazebo_export.sh
 ./control-editor/scripts/validate_gazebo_export.sh my_robot
 ```
 
-API: `POST /api/projects/{name}/validate/gazebo` (also runs automatically after export).
+API: `POST /api/projects/{name}/validate/export` (async; also runs automatically after export).
 
 ## Training profiles
 

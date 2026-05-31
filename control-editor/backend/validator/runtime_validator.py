@@ -1,28 +1,20 @@
-"""Headless Gazebo validation for exported geometry package."""
+"""Headless export validation for control-editor via export-validator."""
 from __future__ import annotations
 
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
-
-from domain.models import ValidationIssue
+from domain.models import ValidationIssue, ValidationResult
+from storage import project_storage
 
 LogFn = Callable[[str], None]
 
 EXPORT_VALIDATOR_BACKEND = Path(__file__).resolve().parents[3] / "export-validator" / "backend"
 
 
-class ExportValidationResult(BaseModel):
-    valid: bool
-    errors: list[ValidationIssue] = Field(default_factory=list)
-    warnings: list[ValidationIssue] = Field(default_factory=list)
-    details: Optional[dict[str, Any]] = None
-
-
-def _map_export_validator_result(result: Any) -> ExportValidationResult:
+def _map_export_validator_result(result: Any) -> ValidationResult:
     status = (result.details or {}).get("status", "unknown")
     details = dict(result.details or {})
     if status == "skipped":
@@ -37,14 +29,14 @@ def _map_export_validator_result(result: Any) -> ExportValidationResult:
             )
             for w in result.warnings
         ]
-        return ExportValidationResult(valid=True, warnings=warnings, details=details)
+        return ValidationResult(valid=True, warnings=warnings, details=details)
 
     if status == "passed":
         details["status"] = "passed"
     else:
         details.setdefault("status", "failed")
 
-    return ExportValidationResult(
+    return ValidationResult(
         valid=result.valid,
         errors=[
             ValidationIssue(
@@ -70,11 +62,11 @@ def _map_export_validator_result(result: Any) -> ExportValidationResult:
     )
 
 
-def validate_geometry_export(exports_dir: Path, *, on_log: LogFn | None = None) -> ExportValidationResult:
-    """Validate geometry exports via export-validator spawn runtime."""
+def validate_control_export(project_name: str, *, on_log: LogFn | None = None) -> ValidationResult:
+    """Validate control exports via export-validator control runtime."""
     backend = EXPORT_VALIDATOR_BACKEND
-    if not (backend / "geometry_runtime.py").is_file():
-        return ExportValidationResult(
+    if not (backend / "control_runtime.py").is_file():
+        return ValidationResult(
             valid=True,
             warnings=[
                 ValidationIssue(
@@ -86,8 +78,9 @@ def validate_geometry_export(exports_dir: Path, *, on_log: LogFn | None = None) 
             details={"status": "skipped"},
         )
 
+    exports_dir = project_storage.project_dir(project_name) / "exports"
     if not exports_dir.is_dir():
-        return ExportValidationResult(
+        return ValidationResult(
             valid=False,
             errors=[
                 ValidationIssue(
@@ -99,13 +92,12 @@ def validate_geometry_export(exports_dir: Path, *, on_log: LogFn | None = None) 
             details={"status": "failed"},
         )
 
-    project_name = exports_dir.parent.name
     if str(backend) not in sys.path:
         sys.path.insert(0, str(backend))
     try:
-        from geometry_runtime import validate_geometry_runtime
+        from control_runtime import validate_control_runtime
     except ImportError as exc:
-        return ExportValidationResult(
+        return ValidationResult(
             valid=True,
             warnings=[
                 ValidationIssue(
@@ -117,5 +109,11 @@ def validate_geometry_export(exports_dir: Path, *, on_log: LogFn | None = None) 
             details={"status": "skipped", "importError": str(exc)},
         )
 
-    result = validate_geometry_runtime(exports_dir, project_name, on_log=on_log)
+    result = validate_control_runtime(
+        exports_dir,
+        project_name,
+        auto_build=True,
+        auto_generate=True,
+        on_log=on_log,
+    )
     return _map_export_validator_result(result)

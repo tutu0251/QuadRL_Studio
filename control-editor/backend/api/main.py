@@ -19,8 +19,7 @@ from domain.control_core import ControlCore
 from domain.models import ControlModel, TrainingProfile, ValidationResult
 from exporter.ros2_control_exporter import export_all
 from storage import project_storage
-from validator.export_validator import validate_export_files
-from validator.gazebo_validator import validate_gazebo_export
+from validator.runtime_validator import validate_control_export
 from validator.validator import ControlValidator
 
 _sessions: dict[str, ControlCore] = {}
@@ -224,22 +223,13 @@ def validate(name: str) -> ValidationResult:
 
 
 @app.post("/api/projects/{name}/validate/export")
-def validate_export(name: str) -> ValidationResult:
-    core = _get_core(name)
-    model = core.get_model()
-    urdf_out = project_storage.export_ros2_urdf_path(name)
-    ctrl_out = project_storage.export_controllers_yaml_path(name)
-    gains_out = project_storage.export_gains_yaml_path(name)
-    return validate_export_files(model, urdf_out, ctrl_out, gains_out)
+async def validate_export(name: str):
+    tid = task_manager.create_task()
+    asyncio.create_task(_run_export_validation(name, tid))
+    return {"task_id": tid}
 
 
-@app.post("/api/projects/{name}/validate/gazebo")
-def validate_gazebo(name: str) -> ValidationResult:
-    urdf_out = project_storage.export_ros2_urdf_path(name)
-    return validate_gazebo_export(urdf_out, name)
-
-
-async def _run_gazebo_validate(name: str, tid: str) -> None:
+async def _run_export_validation(name: str, tid: str) -> None:
     try:
         urdf_out = project_storage.export_ros2_urdf_path(name)
         if not urdf_out.is_file():
@@ -250,56 +240,66 @@ async def _run_gazebo_validate(name: str, tid: str) -> None:
         def _runtime_log(message: str) -> None:
             task_manager.log(tid, "info", message.strip())
 
-        task_manager.log(tid, "info", "Running control runtime validation (may take 2–3 minutes)…")
-        gazebo_validation = await asyncio.to_thread(
-            validate_gazebo_export,
-            urdf_out,
+        task_manager.log(tid, "info", "Running export validation (may take 2–3 minutes)…")
+        export_validation = await asyncio.to_thread(
+            validate_control_export,
             name,
             on_log=_runtime_log,
         )
-        _log_gazebo_validation(tid, gazebo_validation)
-        task_manager.set_status(
-            tid,
-            "completed",
-            {"gazeboValidation": gazebo_validation.model_dump()},
-        )
+        _log_export_validation(tid, export_validation)
+        status = (export_validation.details or {}).get("status", "unknown")
+        if status == "skipped" or export_validation.valid:
+            task_manager.set_status(
+                tid,
+                "completed",
+                {"exportValidation": export_validation.model_dump()},
+            )
+        else:
+            task_manager.set_status(
+                tid,
+                "failed",
+                {"exportValidation": export_validation.model_dump()},
+            )
     except Exception as e:
         task_manager.log(tid, "error", str(e))
         task_manager.set_status(tid, "failed", {"error": str(e)})
 
 
+@app.post("/api/projects/{name}/validate/gazebo")
+async def validate_gazebo(name: str):
+    return await validate_export(name)
+
+
 @app.post("/api/projects/{name}/validate/gazebo/async")
 async def validate_gazebo_async(name: str):
-    tid = task_manager.create_task()
-    asyncio.create_task(_run_gazebo_validate(name, tid))
-    return {"task_id": tid}
+    return await validate_export(name)
 
 
-def _log_gazebo_validation(tid: str, gazebo_validation: ValidationResult) -> None:
-    status = (gazebo_validation.details or {}).get("status", "unknown")
+def _log_export_validation(tid: str, export_validation: ValidationResult) -> None:
+    status = (export_validation.details or {}).get("status", "unknown")
     if status == "skipped":
         msg = next(
-            (w.message for w in gazebo_validation.warnings if w.code == "gazebo_validation_skipped"),
-            "Gazebo validation skipped (not installed)",
+            (w.message for w in export_validation.warnings if "skipped" in w.code),
+            "Export validation skipped (not installed)",
         )
         task_manager.log(tid, "warning", msg)
         return
-    if gazebo_validation.valid:
-        msg = "Gazebo validation passed"
-        if gazebo_validation.warnings:
-            msg += f" ({len(gazebo_validation.warnings)} warning(s))"
+    if export_validation.valid:
+        msg = "Export validation passed"
+        if export_validation.warnings:
+            msg += f" ({len(export_validation.warnings)} warning(s))"
         task_manager.log(tid, "info", msg)
-        for w in gazebo_validation.warnings[:5]:
+        for w in export_validation.warnings[:5]:
             task_manager.log(tid, "warning", w.message)
         return
     task_manager.log(
         tid,
         "warning",
-        f"Gazebo validation failed: {len(gazebo_validation.errors)} error(s)",
+        f"Export validation failed: {len(export_validation.errors)} error(s)",
     )
-    for err in gazebo_validation.errors[:10]:
+    for err in export_validation.errors[:10]:
         task_manager.log(tid, "error", err.message)
-    for w in gazebo_validation.warnings[:3]:
+    for w in export_validation.warnings[:3]:
         task_manager.log(tid, "warning", w.message)
 
 
@@ -335,42 +335,22 @@ async def _run_export(name: str, tid: str):
         for k, v in payload.items():
             task_manager.log(tid, "info", f"Wrote {v}")
 
-        task_manager.log(tid, "info", "Validating export files…")
-        export_validation = validate_export_files(model, urdf_out, ctrl_out, gains_out)
-        result = {**payload, "exportValidation": export_validation.model_dump()}
+        def _runtime_log(message: str) -> None:
+            task_manager.log(tid, "info", message.strip())
 
-        if export_validation.valid:
-            msg = "Export file validation passed"
-            if export_validation.warnings:
-                msg += f" ({len(export_validation.warnings)} warning(s))"
-            task_manager.log(tid, "info", msg)
-            for w in export_validation.warnings[:5]:
-                task_manager.log(tid, "warning", w.message)
-
-            def _runtime_log(message: str) -> None:
-                task_manager.log(tid, "info", message.strip())
-
-            task_manager.log(tid, "info", "Running control runtime validation (may take 2–3 minutes)…")
-            gazebo_validation = await asyncio.to_thread(
-                validate_gazebo_export,
-                urdf_out,
-                name,
-                on_log=_runtime_log,
-            )
-            result["gazeboValidation"] = gazebo_validation.model_dump()
-            _log_gazebo_validation(tid, gazebo_validation)
-            task_manager.set_status(tid, "completed", result)
+        task_manager.log(tid, "info", "Running export validation (may take 2–3 minutes)…")
+        export_validation = await asyncio.to_thread(
+            validate_control_export,
+            name,
+            on_log=_runtime_log,
+        )
+        out = {**payload, "exportValidation": export_validation.model_dump()}
+        _log_export_validation(tid, export_validation)
+        status = (export_validation.details or {}).get("status", "unknown")
+        if status == "skipped" or export_validation.valid:
+            task_manager.set_status(tid, "completed", out)
         else:
-            task_manager.log(
-                tid,
-                "error",
-                f"Export file validation failed: {len(export_validation.errors)} error(s)",
-            )
-            for err in export_validation.errors[:10]:
-                task_manager.log(tid, "error", err.message)
-            for w in export_validation.warnings[:3]:
-                task_manager.log(tid, "warning", w.message)
-            task_manager.set_status(tid, "failed", result)
+            task_manager.set_status(tid, "failed", out)
     except Exception as e:
         task_manager.log(tid, "error", str(e))
         task_manager.set_status(tid, "failed", {"error": str(e)})

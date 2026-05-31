@@ -154,16 +154,16 @@ export function Toolbar() {
       const t = await waitForTask(task_id);
       if (t?.status === "completed") {
         log("Export complete");
-        if (t.result?.sensorValidation) {
-          logValidationResult(log, "Sensor runtime validation", t.result.sensorValidation as ValidationResult);
+        if (t.result?.exportValidation) {
+          logValidationResult(log, "Export validation", t.result.exportValidation as ValidationResult);
         }
       } else if (t?.status === "failed") {
         log("Export failed");
-        if (t.result?.sensorValidation) {
+        if (t.result?.exportValidation) {
           logValidationResult(
             log,
-            "Sensor runtime validation",
-            t.result.sensorValidation as ValidationResult
+            "Export validation",
+            t.result.exportValidation as ValidationResult
           );
         } else if (t.result && "error" in t.result) {
           log(String(t.result.error));

@@ -145,3 +145,42 @@ def check_sensor_runtime_stack() -> dict[str, Any]:
     details["missing"] = missing
     details["available"] = len(missing) == 0
     return details
+
+
+def check_spawn_stack() -> dict[str, Any]:
+    """Minimal stack for headless URDF/SDF spawn validation."""
+    details: dict[str, Any] = {
+        "rosSetup": ROS_SETUP.is_file(),
+        "ign": shutil.which("ign") is not None,
+        "worldSdf": Path("/usr/share/ignition/ignition-gazebo6/worlds/empty.sdf").is_file(),
+        "rosGzSim": False,
+        "rosIgnGazebo": False,
+        "createPackage": None,
+    }
+    missing: list[str] = []
+
+    if not details["rosSetup"]:
+        missing.append(f"ROS 2 setup ({ROS_SETUP})")
+    if not details["ign"]:
+        missing.append("ign (Gazebo Fortress CLI)")
+    if not details["worldSdf"]:
+        missing.append("empty.sdf world")
+
+    if details["rosSetup"]:
+        for pkg, key in (("ros_gz_sim", "rosGzSim"), ("ros_ign_gazebo", "rosIgnGazebo")):
+            try:
+                proc = bash_ros_cmd(f"ros2 pkg prefix {pkg}", timeout=10)
+                details[key] = proc.returncode == 0
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                details[key] = False
+
+    if details["rosGzSim"]:
+        details["createPackage"] = "ros_gz_sim"
+    elif details["rosIgnGazebo"]:
+        details["createPackage"] = "ros_ign_gazebo"
+    else:
+        missing.append("ros_gz_sim or ros_ign_gazebo")
+
+    details["missing"] = missing
+    details["available"] = len(missing) == 0
+    return details

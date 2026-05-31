@@ -65,7 +65,7 @@ function logValidationResult(
 ) {
   const status = v.details?.status as string | undefined;
   if (status === "skipped") {
-    const skipMsg = v.warnings.find((w) => w.code === "gazebo_validation_skipped")?.message;
+    const skipMsg = v.warnings.find((w) => w.code.includes("skipped"))?.message;
     log(skipMsg ?? `${label} skipped (not installed)`);
     return;
   }
@@ -141,18 +141,12 @@ export function Toolbar() {
       if (t?.status === "completed") {
         log("Export complete");
         if (t.result?.exportValidation) {
-          logValidationResult(log, "Export file validation", t.result.exportValidation);
-        }
-        if (t.result?.gazeboValidation) {
-          logValidationResult(log, "Gazebo validation", t.result.gazeboValidation);
+          logValidationResult(log, "Export validation", t.result.exportValidation);
         }
       } else if (t?.status === "failed") {
-        log("Export failed — exported files did not pass validation");
+        log("Export failed");
         if (t.result?.exportValidation) {
-          logValidationResult(log, "Export file validation", t.result.exportValidation, focusConsole);
-        }
-        if (t.result?.gazeboValidation) {
-          logValidationResult(log, "Gazebo validation", t.result.gazeboValidation, focusConsole);
+          logValidationResult(log, "Export validation", t.result.exportValidation, focusConsole);
         } else if (t.result && "error" in t.result) {
           log(String(t.result.error));
           focusConsole();
@@ -223,27 +217,21 @@ export function Toolbar() {
               const v = await api.validate(project);
               logValidationResult(log, "Model validation", v, v.valid ? undefined : focusConsole);
               try {
-                const ev = await api.validateExport(project);
-                if (ev.errors.some((e) => e.code.startsWith("missing_"))) {
-                  log("No export files on disk — run Export first");
-                } else {
-                  logValidationResult(log, "Export file validation", ev, ev.valid ? undefined : focusConsole);
-                }
-                const { task_id } = await api.validateGazeboAsync(project);
-                log("Running Gazebo validation…");
+                const { task_id } = await api.validateExport(project);
+                log("Running export validation…");
                 const t = await waitForTask(task_id);
-                if (t?.result?.gazeboValidation) {
+                if (t?.result?.exportValidation) {
                   logValidationResult(
                     log,
-                    "Gazebo validation",
-                    t.result.gazeboValidation,
-                    t.result.gazeboValidation.valid ? undefined : focusConsole
+                    "Export validation",
+                    t.result.exportValidation,
+                    t.result.exportValidation.valid ? undefined : focusConsole
                   );
                 } else if (t?.status === "failed" && t.result && "error" in t.result) {
                   log(String(t.result.error));
                   focusConsole();
                 } else if (!t) {
-                  log("Gazebo validation timed out — see console for progress");
+                  log("Export validation timed out — see console for progress");
                   focusConsole();
                 }
               } catch {

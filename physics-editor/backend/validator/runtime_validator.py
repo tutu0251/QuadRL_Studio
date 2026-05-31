@@ -96,17 +96,17 @@ def validate_physics_export(project_name: str, *, on_log: LogFn | None = None) -
         sys.path.insert(0, str(backend))
     try:
         from physics_runtime import validate_physics_runtime
-    except ImportError:
+    except ImportError as exc:
         return ValidationResult(
             valid=True,
             warnings=[
                 ValidationIssue(
                     severity="warning",
                     code="export_validation_skipped",
-                    message="Export validation skipped (export-validator import failed)",
+                    message=f"Export validation skipped (export-validator import failed: {exc})",
                 )
             ],
-            details={"status": "skipped"},
+            details={"status": "skipped", "importError": str(exc)},
         )
 
     result = validate_physics_runtime(exports_dir, project_name, on_log=on_log)

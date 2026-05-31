@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Headless Gazebo validation for exported ctrl_*_ros2_control.urdf
+# Export validation for ctrl_* exports via export-validator.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,8 +11,7 @@ usage() {
   cat <<'EOF'
 Usage: validate_gazebo_export.sh <project_name>
 
-Spawn the exported ros2_control URDF in headless Gazebo Fortress and verify
-gz_ros2_control loads. Uses the Control Editor backend validator.
+Validate exported ros2_control files via export-validator (colcon workspace + Gazebo).
 
 Environment:
   QUADRL_PROJECTS_DIR   Projects root (default: ~/quadruped_dev_tool/projects)
@@ -51,12 +50,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, "${BACKEND}")
-from validator.gazebo_validator import validate_gazebo_export
+from validator.runtime_validator import validate_control_export
 
-urdf = Path("${URDF}")
-result = validate_gazebo_export(urdf, "${PROJECT_NAME}")
+result = validate_control_export("${PROJECT_NAME}")
 status = (result.details or {}).get("status", "unknown")
-print(f"Gazebo validation: {status}")
+print(f"Export validation: {status}")
 if result.warnings:
     for w in result.warnings:
         print(f"  [warning] {w.message}")
