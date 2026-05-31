@@ -20,9 +20,7 @@ export function MachinePanel() {
   const refreshProfile = async () => {
     if (!project) return;
     try {
-      await api.recommend(project);
-      const updated = await api.getModel(project);
-      setModel(updated);
+      setModel(await api.refreshMachineProfile(project));
       log("Machine profile refreshed");
     } catch (e) {
       log(String(e));
@@ -37,7 +35,7 @@ export function MachinePanel() {
         </div>
         <div className="panel-empty-state">
           <p className="empty-desc">
-            Load a project and run <strong>Recommend</strong> to detect CPU, RAM, and GPU.
+            Load a project and run <strong>Profile machine</strong> to detect CPU, RAM, and GPU.
           </p>
         </div>
       </div>
@@ -83,6 +81,9 @@ export function MachinePanel() {
           <div className="resource-bar-fill" style={{ width: `${ramPct}%` }} />
         </div>
       </div>
+      <p className="machine-hint">
+        PPO hyperparameters and parallel envs are configured in PPO Planner.
+      </p>
     </div>
   );
 }

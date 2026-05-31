@@ -6,16 +6,9 @@ type Props = {
   projectDetails: { name: string; hasSensor: boolean; hasTrainer: boolean }[];
   onLoadProject: (name: string) => void;
   onBootstrap: () => void;
-  onResetBaseline: () => void;
 };
 
-export function MenuBar({
-  projects,
-  projectDetails,
-  onLoadProject,
-  onBootstrap,
-  onResetBaseline,
-}: Props) {
+export function MenuBar({ projects, projectDetails, onLoadProject, onBootstrap }: Props) {
   const project = useTrainerStore((s) => s.project);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -83,17 +76,6 @@ export function MenuBar({
               }}
             >
               Bootstrap RL config
-            </button>
-            <button
-              type="button"
-              className="menu-entry"
-              disabled={!project}
-              onClick={() => {
-                onResetBaseline();
-                setOpenMenu(null);
-              }}
-            >
-              Reset hyperparams to SB3 baseline
             </button>
           </div>
         )}

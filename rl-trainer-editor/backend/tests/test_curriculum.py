@@ -20,7 +20,7 @@ def test_stand_to_sprint_has_five_stages():
     assert curriculum_total_timesteps(cur) == 2_100_000
 
 
-def test_apply_curriculum_sets_rewards_and_timesteps():
+def test_apply_curriculum_sets_rewards():
     model = RlTrainerModel(projectName="bot", robotName="bot")
     core = TrainerCore(model)
     core.apply_curriculum("stand_to_sprint")
@@ -28,7 +28,7 @@ def test_apply_curriculum_sets_rewards_and_timesteps():
     assert m.curriculum.enabled
     assert m.curriculum.curriculumId == "stand_to_sprint"
     assert len(m.rewardTerms) > 0
-    assert m.hyperparams.totalTimesteps == 2_100_000
+    assert curriculum_total_timesteps(m.curriculum) == 2_100_000
     assert m.rewardTerms[0].id in ("base_height", "lin_vel_tracking")
 
 

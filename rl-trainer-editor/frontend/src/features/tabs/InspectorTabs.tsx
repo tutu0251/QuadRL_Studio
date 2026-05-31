@@ -1,8 +1,6 @@
 import { useTrainerStore } from "../../stores/trainerStore";
 import { RewardsPanel } from "../rewards/RewardsPanel";
 import { TerminationPanel } from "../termination/TerminationPanel";
-import { HyperparamsPanel } from "../params/HyperparamsPanel";
-import { ParallelPanel } from "../parallel/ParallelPanel";
 import { CustomPanel } from "../custom/CustomPanel";
 import { CurriculumPanel } from "../curriculum/CurriculumPanel";
 
@@ -10,8 +8,6 @@ const TABS = [
   { id: "curriculum", label: "Curriculum" },
   { id: "rewards", label: "Rewards" },
   { id: "termination", label: "Termination" },
-  { id: "hyperparams", label: "Hyperparams" },
-  { id: "parallel", label: "Parallel" },
   { id: "custom", label: "Custom" },
 ] as const;
 
@@ -49,8 +45,6 @@ export function InspectorTabs() {
         {activeTab === "curriculum" && <CurriculumPanel />}
         {activeTab === "rewards" && <RewardsPanel />}
         {activeTab === "termination" && <TerminationPanel />}
-        {activeTab === "hyperparams" && <HyperparamsPanel />}
-        {activeTab === "parallel" && <ParallelPanel />}
         {activeTab === "custom" && <CustomPanel />}
       </div>
     </div>

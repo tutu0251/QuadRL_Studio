@@ -20,6 +20,27 @@ def _load_config(config_path: Path) -> dict:
     return yaml.safe_load(body) or {}
 
 
+def _merge_ppo_config(config: dict, project_dir: Path) -> dict:
+    """Overlay PPO hyperparameters and parallel settings from PPO Planner export."""
+    ppo_file = config.get("ppo_config_file")
+    if not ppo_file:
+        return config
+
+    ppo_path = Path(ppo_file)
+    if not ppo_path.is_absolute():
+        ppo_path = project_dir / "exports" / ppo_file
+    if not ppo_path.is_file():
+        _log(f"[warn] PPO config not found: {ppo_path}")
+        return config
+
+    ppo = _load_config(ppo_path)
+    merged = dict(config)
+    for key in ("hyperparameters", "parallel", "device", "checkpoint", "best_model"):
+        if key in ppo:
+            merged[key] = ppo[key]
+    return merged
+
+
 def _log(msg: str) -> None:
     print(msg, flush=True)
 
@@ -239,7 +260,7 @@ def main() -> int:
         _log(f"[error] Missing config: {config_path}")
         return 1
 
-    config = _load_config(config_path)
+    config = _merge_ppo_config(_load_config(config_path), project_dir)
     checkpoint_dir = _checkpoint_dir(project_dir, config)
 
     run_root = project_dir / "runs" / _run_timestamp()

@@ -92,17 +92,6 @@ export default function App() {
     }
   };
 
-  const resetBaseline = async () => {
-    if (!project) return;
-    try {
-      setModel(await api.resetBaseline(project));
-      setValidation(null);
-      log("Reset hyperparams to SB3 baseline");
-    } catch (e) {
-      log(String(e));
-    }
-  };
-
   return (
     <div className="app unity-layout rl-app">
       <div className="top-bar">
@@ -111,7 +100,6 @@ export default function App() {
           projectDetails={projectDetails}
           onLoadProject={loadProject}
           onBootstrap={bootstrap}
-          onResetBaseline={resetBaseline}
         />
         <Toolbar />
       </div>

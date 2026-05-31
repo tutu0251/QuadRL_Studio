@@ -13,14 +13,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from api.task_manager import task_manager
-from domain.models import (
-    HyperparamsPatch,
-    ParallelPatch,
-    RecommendationResponse,
-    RlTrainerModel,
-    RlTrainerPatch,
-    ValidationResult,
-)
+from domain.models import RlTrainerModel, RlTrainerPatch, ValidationResult
 from domain.trainer_core import TrainerCore
 from exporter.rl_yaml_exporter import export_rl_yaml
 from planner.curriculum import list_curricula
@@ -169,18 +162,10 @@ def patch_model(name: str, body: RlTrainerPatch):
     return core.get_model()
 
 
-@app.patch("/api/projects/{name}/hyperparams")
-def patch_hyperparams(name: str, body: HyperparamsPatch):
+@app.post("/api/projects/{name}/machine-profile")
+def refresh_machine_profile(name: str):
     core = _get_core(name)
-    core.patch_hyperparams(body)
-    _save(name, core)
-    return core.get_model()
-
-
-@app.patch("/api/projects/{name}/parallel")
-def patch_parallel(name: str, body: ParallelPatch):
-    core = _get_core(name)
-    core.patch_parallel(body)
+    core.refresh_machine_profile()
     _save(name, core)
     return core.get_model()
 
@@ -200,22 +185,6 @@ def apply_curriculum(name: str, curriculum_id: str):
 def set_curriculum_stage(name: str, stage_index: int):
     core = _get_core(name)
     core.set_curriculum_stage(stage_index)
-    _save(name, core)
-    return core.get_model()
-
-
-@app.post("/api/projects/{name}/recommend")
-def recommend(name: str) -> RecommendationResponse:
-    core = _get_core(name)
-    resp = core.apply_recommendation()
-    _save(name, core)
-    return resp
-
-
-@app.post("/api/projects/{name}/reset-baseline")
-def reset_baseline(name: str):
-    core = _get_core(name)
-    core.reset_to_baseline()
     _save(name, core)
     return core.get_model()
 

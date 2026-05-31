@@ -1,8 +1,6 @@
 /** RL Trainer types — SB3 + ROS2/Gazebo training config. */
 
-export type ComputeDevice = "auto" | "cpu" | "cuda";
 export type RewardTermType = "reward" | "penalty";
-export type VecEnvType = "dummy" | "subproc";
 export type CustomParamValue = number | string | boolean;
 
 export interface MachineProfile {
@@ -32,27 +30,6 @@ export interface TerminationConfig {
   maxTiltRad: number;
   maxJointTorque: number | null;
   timeoutTruncation: boolean;
-}
-
-export interface PpoHyperparams {
-  learningRate: number;
-  nSteps: number;
-  batchSize: number;
-  nEpochs: number;
-  gamma: number;
-  gaeLambda: number;
-  clipRange: number;
-  entCoef: number;
-  vfCoef: number;
-  maxGradNorm: number;
-  totalTimesteps: number;
-  device: ComputeDevice;
-}
-
-export interface ParallelConfig {
-  numEnvs: number;
-  vecEnvType: VecEnvType;
-  nProc: number | null;
 }
 
 export interface CurriculumAdvanceCriteria {
@@ -100,13 +77,10 @@ export interface RlTrainerModel {
   robotName: string;
   version: string;
   selectedPresetId: string | null;
-  useRecommended: boolean;
   recommendationNotes: string[];
   machineProfile: MachineProfile | null;
   rewardTerms: RewardTerm[];
   termination: TerminationConfig;
-  hyperparams: PpoHyperparams;
-  parallel: ParallelConfig;
   curriculum: CurriculumConfig;
   customParams: Record<string, CustomParamValue>;
   metadata: Record<string, unknown>;
@@ -167,28 +141,6 @@ export const PRESET_CATALOG: PresetInfo[] = [
     difficulty: "advanced",
   },
 ];
-
-export const RL_HYPERPARAM_GROUPS: { id: string; label: string; keys: (keyof PpoHyperparams)[] }[] = [
-  { id: "rollout", label: "Rollout & batch", keys: ["nSteps", "batchSize", "nEpochs"] },
-  { id: "optimizer", label: "Optimizer", keys: ["learningRate", "maxGradNorm"] },
-  { id: "rl", label: "RL objective", keys: ["gamma", "gaeLambda", "clipRange", "entCoef", "vfCoef"] },
-  { id: "training", label: "Training run", keys: ["totalTimesteps", "device"] },
-];
-
-export const RL_HYPERPARAM_HINTS: Partial<Record<keyof PpoHyperparams, string>> = {
-  learningRate: "Adam learning rate",
-  nSteps: "Steps per env before each PPO update",
-  batchSize: "Minibatch size (should divide n_steps × num_envs)",
-  nEpochs: "Epochs over rollout data per update",
-  gamma: "Discount factor",
-  gaeLambda: "GAE λ",
-  clipRange: "PPO clip range ε",
-  entCoef: "Entropy bonus coefficient",
-  vfCoef: "Value-function loss coefficient",
-  maxGradNorm: "Gradient clipping max norm",
-  totalTimesteps: "Total environment steps for training",
-  device: "auto prefers CUDA when available",
-};
 
 export const REWARD_CATEGORY_HINTS: Record<string, string> = {
   velocity: "Requires base linear/angular velocity observations",

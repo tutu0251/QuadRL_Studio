@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from enum import Enum
 from typing import Any, Literal, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def new_id() -> str:
@@ -15,17 +14,6 @@ def new_id() -> str:
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-class ComputeDevice(str, Enum):
-    AUTO = "auto"
-    CPU = "cpu"
-    CUDA = "cuda"
-
-
-class VecEnvType(str, Enum):
-    DUMMY = "dummy"
-    SUBPROC = "subproc"
 
 
 class MachineProfile(BaseModel):
@@ -55,27 +43,6 @@ class TerminationConfig(BaseModel):
     maxTiltRad: float = 0.8
     maxJointTorque: Optional[float] = None
     timeoutTruncation: bool = True
-
-
-class PpoHyperparams(BaseModel):
-    learningRate: float = 3e-4
-    nSteps: int = 2048
-    batchSize: int = 64
-    nEpochs: int = 10
-    gamma: float = 0.99
-    gaeLambda: float = 0.95
-    clipRange: float = 0.2
-    entCoef: float = 0.0
-    vfCoef: float = 0.5
-    maxGradNorm: float = 0.5
-    totalTimesteps: int = 1_000_000
-    device: ComputeDevice = ComputeDevice.AUTO
-
-
-class ParallelConfig(BaseModel):
-    numEnvs: int = 1
-    vecEnvType: VecEnvType = VecEnvType.SUBPROC
-    nProc: Optional[int] = None
 
 
 class CurriculumAdvanceCriteria(BaseModel):
@@ -114,18 +81,17 @@ class CurriculumConfig(BaseModel):
 
 
 class RlTrainerModel(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     id: str = Field(default_factory=new_id)
     projectName: str = ""
     robotName: str = "robot"
     version: str = "1.0"
     selectedPresetId: Optional[str] = None
-    useRecommended: bool = True
     recommendationNotes: list[str] = Field(default_factory=list)
     machineProfile: Optional[MachineProfile] = None
     rewardTerms: list[RewardTerm] = Field(default_factory=list)
     termination: TerminationConfig = Field(default_factory=TerminationConfig)
-    hyperparams: PpoHyperparams = Field(default_factory=PpoHyperparams)
-    parallel: ParallelConfig = Field(default_factory=ParallelConfig)
     curriculum: CurriculumConfig = Field(default_factory=CurriculumConfig)
     customParams: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -156,42 +122,9 @@ class AsyncTaskStatus(BaseModel):
     result: Optional[dict[str, Any]] = None
 
 
-class RecommendationResponse(BaseModel):
-    hyperparams: PpoHyperparams
-    parallel: ParallelConfig
-    notes: list[str]
-    machine: MachineProfile
-
-
 class RlTrainerPatch(BaseModel):
     selectedPresetId: Optional[str] = None
-    useRecommended: Optional[bool] = None
     rewardTerms: Optional[list[RewardTerm]] = None
     termination: Optional[TerminationConfig] = None
-    hyperparams: Optional[PpoHyperparams] = None
-    parallel: Optional[ParallelConfig] = None
     curriculum: Optional[CurriculumConfig] = None
     customParams: Optional[dict[str, Any]] = None
-
-
-class HyperparamsPatch(BaseModel):
-    learningRate: Optional[float] = None
-    nSteps: Optional[int] = None
-    batchSize: Optional[int] = None
-    nEpochs: Optional[int] = None
-    gamma: Optional[float] = None
-    gaeLambda: Optional[float] = None
-    clipRange: Optional[float] = None
-    entCoef: Optional[float] = None
-    vfCoef: Optional[float] = None
-    maxGradNorm: Optional[float] = None
-    totalTimesteps: Optional[int] = None
-    device: Optional[ComputeDevice] = None
-    useRecommended: Optional[bool] = None
-
-
-class ParallelPatch(BaseModel):
-    numEnvs: Optional[int] = None
-    vecEnvType: Optional[VecEnvType] = None
-    nProc: Optional[int] = None
-    useRecommended: Optional[bool] = None

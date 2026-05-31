@@ -30,8 +30,9 @@ def test_export_contains_required_keys(monkeypatch):
         doc = yaml.safe_load(yaml_body)
         assert doc["algorithm"] == "PPO"
         assert doc["framework"] == "stable_baselines3"
-        assert "hyperparameters" in doc
-        assert "parallel" in doc
+        assert doc["ppo_config_file"] == "ppo_mybot_config.yaml"
+        assert "hyperparameters" not in doc
+        assert "parallel" not in doc
         assert "task" in doc
         assert doc["logging"]["tensorboard_root"] == "runs"
         assert doc["env"]["observations_file"] == "sens_mybot_observations.yaml"

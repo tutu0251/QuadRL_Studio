@@ -6,6 +6,7 @@ import math
 from domain.models import RlTrainerModel, ValidationIssue, ValidationResult
 from storage import project_storage
 
+
 _CATEGORY_OBS: dict[str, set[str]] = {
     "contact": {"contact"},
     "velocity": set(),
@@ -119,80 +120,18 @@ class RlTrainerValidator:
                 )
             )
 
-        p = self._model.hyperparams
-        par = self._model.parallel
-
-        if p.learningRate <= 0 or p.learningRate > 1:
-            errors.append(
-                ValidationIssue(
-                    severity="error",
-                    code="learning_rate_range",
-                    message="learning_rate must be in (0, 1].",
-                )
-            )
-        if p.nSteps < 64:
-            errors.append(
-                ValidationIssue(
-                    severity="error",
-                    code="n_steps_min",
-                    message="n_steps should be at least 64.",
-                )
-            )
-        if p.batchSize < 8:
-            errors.append(
-                ValidationIssue(
-                    severity="error",
-                    code="batch_size_min",
-                    message="batch_size should be at least 8.",
-                )
-            )
-        if par.numEnvs < 1:
-            errors.append(
-                ValidationIssue(
-                    severity="error",
-                    code="num_envs_min",
-                    message="num_envs must be at least 1.",
-                )
-            )
-        if not 0 < p.gamma <= 1:
-            errors.append(
-                ValidationIssue(
-                    severity="error",
-                    code="gamma_range",
-                    message="gamma must be in (0, 1].",
-                )
-            )
-        if p.totalTimesteps < 10_000:
-            warnings.append(
-                ValidationIssue(
-                    severity="warning",
-                    code="low_timesteps",
-                    message="total_timesteps below 10k may not train a useful policy.",
-                )
-            )
-
-        rollout = p.nSteps * par.numEnvs
-        if rollout % p.batchSize != 0:
-            warnings.append(
-                ValidationIssue(
-                    severity="warning",
-                    code="batch_divisor",
-                    message=(
-                        f"n_steps×num_envs ({rollout}) is not divisible by batch_size "
-                        f"({p.batchSize}); SB3 may truncate the last minibatch."
-                    ),
-                )
-            )
-        if p.batchSize > rollout:
-            errors.append(
-                ValidationIssue(
-                    severity="error",
-                    code="batch_gt_rollout",
-                    message="batch_size cannot exceed n_steps × num_envs.",
-                )
-            )
-
         if project:
+            if not project_storage.export_ppo_yaml_path(project).exists():
+                warnings.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="missing_ppo_config",
+                        message=(
+                            "ppo_*_config.yaml not found — export from PPO Planner for "
+                            "hyperparameters and parallel env settings."
+                        ),
+                    )
+                )
             if not project_storage.observations_yaml_path(project).exists():
                 warnings.append(
                     ValidationIssue(
@@ -223,16 +162,6 @@ class RlTrainerValidator:
                             ),
                         )
                     )
-
-        if self._model.machineProfile and not self._model.machineProfile.gpuAvailable:
-            if p.device.value == "cuda":
-                warnings.append(
-                    ValidationIssue(
-                        severity="warning",
-                        code="cuda_without_gpu",
-                        message="device is cuda but no GPU was detected on this machine.",
-                    )
-                )
 
         return ValidationResult(
             valid=len(errors) == 0,

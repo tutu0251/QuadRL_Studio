@@ -11,7 +11,7 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Sensor Editor | [`sensor-editor/`](sensor-editor/) | v1 — IMU/contact/lidar, sens_* RL export |
 | Workspace Generator | [`workspace-generator/`](workspace-generator/) | v1 — colcon workspace + RL training readiness validation |
 | PPO Planner | [`ppo-planner/`](ppo-planner/) | v1 — PPO hyperparameters + machine-based defaults |
-| RL Trainer Editor | [`rl-trainer-editor/`](rl-trainer-editor/) | v1 — rewards, termination, PPO + parallel training config |
+| RL Trainer Editor | [`rl-trainer-editor/`](rl-trainer-editor/) | v1 — rewards, termination, curriculum (PPO settings via PPO Planner) |
 
 ## Quick start (Sensor Editor)
 

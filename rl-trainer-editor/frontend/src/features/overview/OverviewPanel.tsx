@@ -1,12 +1,6 @@
 import { useTrainerStore } from "../../stores/trainerStore";
 import { MetricCard } from "../../components/MetricCard";
-import {
-  batchDividesRollout,
-  enabledRewardCount,
-  formatTimesteps,
-  resolvedDevice,
-  rolloutSize,
-} from "../../utils/trainerMetrics";
+import { enabledRewardCount, formatTimesteps, machineTier } from "../../utils/trainerMetrics";
 
 export function OverviewPanel() {
   const model = useTrainerStore((s) => s.model);
@@ -18,8 +12,9 @@ export function OverviewPanel() {
         <div className="hero-card">
           <h1>RL Trainer</h1>
           <p className="hero-lead">
-            Configure rewards, termination thresholds, PPO hyperparameters, and parallel training
-            for your quadruped SB3 + ROS 2 / Gazebo run.
+            Configure rewards, termination thresholds, curriculum stages, and custom parameters for
+            your quadruped SB3 + ROS 2 / Gazebo run. Tune PPO hyperparameters and parallel envs in
+            PPO Planner.
           </p>
         </div>
         <div className="workflow-card">
@@ -35,7 +30,11 @@ export function OverviewPanel() {
             </li>
             <li>
               <span className="step-num">3</span>
-              <span>Recommend → Validate → Export YAML</span>
+              <span>Configure task → Validate → Export YAML</span>
+            </li>
+            <li>
+              <span className="step-num">4</span>
+              <span>Export PPO config from PPO Planner for hyperparams & parallel envs</span>
             </li>
           </ol>
         </div>
@@ -46,11 +45,11 @@ export function OverviewPanel() {
     );
   }
 
-  const p = model.hyperparams;
-  const par = model.parallel;
-  const rollout = rolloutSize(p, par.numEnvs);
-  const batchOk = batchDividesRollout(p, par.numEnvs);
-  const device = resolvedDevice(p, model.machineProfile);
+  const curriculumTotal =
+    model.curriculum.enabled && model.curriculum.stages.length > 0
+      ? model.curriculum.stages.reduce((sum, s) => sum + s.timesteps, 0)
+      : null;
+  const tier = model.machineProfile ? machineTier(model.machineProfile.ramGb) : null;
 
   return (
     <div className="overview-panel">
@@ -62,14 +61,15 @@ export function OverviewPanel() {
             {model.curriculum.enabled
               ? `curriculum: ${model.curriculum.name || model.curriculum.curriculumId}`
               : model.selectedPresetId ?? "no preset"}{" "}
-            · PPO / SB3
+            · task config
           </p>
         </div>
         <div className="overview-badges">
-          <span className={`badge badge-device badge-${device}`}>{device.toUpperCase()}</span>
-          <span className={`badge ${model.useRecommended ? "badge-auto" : "badge-manual"}`}>
-            {model.useRecommended ? "Auto-tuned" : "Manual"}
-          </span>
+          {model.machineProfile && (
+            <span className={`badge badge-device badge-${model.machineProfile.gpuAvailable ? "cuda" : "cpu"}`}>
+              {model.machineProfile.gpuAvailable ? "GPU" : "CPU"}
+            </span>
+          )}
           {validation && (
             <span className={`badge ${validation.valid ? "badge-ok" : "badge-err"}`}>
               {validation.valid ? "Valid" : `${validation.errors.length} errors`}
@@ -86,26 +86,29 @@ export function OverviewPanel() {
           variant="accent"
         />
         <MetricCard
-          label="Rollout buffer"
-          value={String(rollout)}
-          sub={`${p.nSteps} × ${par.numEnvs} envs`}
-        />
-        <MetricCard
-          label="Batch size"
-          value={String(p.batchSize)}
-          sub={batchOk ? "divides rollout" : "may truncate minibatch"}
-          variant={batchOk ? "ok" : "warn"}
+          label="Curriculum stages"
+          value={model.curriculum.enabled ? String(model.curriculum.stages.length) : "—"}
+          sub={
+            model.curriculum.enabled
+              ? model.curriculum.name || model.curriculum.curriculumId || "enabled"
+              : "single-stage"
+          }
         />
         <MetricCard
           label="Training steps"
-          value={formatTimesteps(p.totalTimesteps)}
-          sub={`${par.vecEnvType} vec env`}
+          value={curriculumTotal != null ? formatTimesteps(curriculumTotal) : "—"}
+          sub={curriculumTotal != null ? "curriculum total" : "set in PPO Planner"}
+        />
+        <MetricCard
+          label="Host tier"
+          value={tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : "—"}
+          sub={model.machineProfile ? `${model.machineProfile.ramGb.toFixed(0)} GB RAM` : "profile host"}
         />
       </div>
 
-      {!batchOk && (
+      {validation?.warnings.some((w) => w.code === "missing_ppo_config") && (
         <div className="banner banner-warn" role="status">
-          Rollout size ({rollout}) is not divisible by batch_size ({p.batchSize}).
+          Export <code>ppo_{model.projectName}_config.yaml</code> from PPO Planner before training.
         </div>
       )}
 
@@ -133,7 +136,7 @@ export function OverviewPanel() {
 
       {model.recommendationNotes.length > 0 && (
         <section className="insight-card">
-          <h3>Recommendations</h3>
+          <h3>Notes</h3>
           <ul className="insight-list">
             {model.recommendationNotes.slice(-6).map((n, i) => (
               <li key={i}>
@@ -149,7 +152,10 @@ export function OverviewPanel() {
         <p className="export-hints-title">On export</p>
         <ul>
           <li>
-            <code>rl_{model.projectName}_config.yaml</code>
+            <code>rl_{model.projectName}_config.yaml</code> — task, curriculum, env refs
+          </li>
+          <li>
+            <code>ppo_{model.projectName}_config.yaml</code> — from PPO Planner (hyperparams, parallel)
           </li>
         </ul>
       </section>

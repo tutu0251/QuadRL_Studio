@@ -2,8 +2,6 @@ import type {
   CurriculumConfig,
   CurriculumInfo,
   MachineProfile,
-  ParallelConfig,
-  PpoHyperparams,
   RlTrainerModel,
   RewardTerm,
   TerminationConfig,
@@ -30,11 +28,8 @@ export const wsLogsUrl = () => {
   return `${u.origin}/ws/logs`;
 };
 
-export type HyperparamsPatch = Partial<PpoHyperparams> & { useRecommended?: boolean };
-export type ParallelPatch = Partial<ParallelConfig> & { useRecommended?: boolean };
 export type ModelPatch = {
   selectedPresetId?: string | null;
-  useRecommended?: boolean;
   rewardTerms?: RewardTerm[];
   termination?: TerminationConfig;
   curriculum?: CurriculumConfig;
@@ -66,27 +61,12 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  patchHyperparams: (name: string, body: HyperparamsPatch) =>
-    req<RlTrainerModel>(`/api/projects/${name}/hyperparams`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
-  patchParallel: (name: string, body: ParallelPatch) =>
-    req<RlTrainerModel>(`/api/projects/${name}/parallel`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
   applyCurriculum: (name: string, curriculumId: string) =>
     req<RlTrainerModel>(`/api/projects/${name}/curriculum/${curriculumId}`, { method: "POST" }),
   setCurriculumStage: (name: string, stageIndex: number) =>
     req<RlTrainerModel>(`/api/projects/${name}/curriculum/stage/${stageIndex}`, { method: "POST" }),
-  recommend: (name: string) =>
-    req<{ hyperparams: PpoHyperparams; parallel: ParallelConfig; notes: string[]; machine: MachineProfile }>(
-      `/api/projects/${name}/recommend`,
-      { method: "POST" }
-    ),
-  resetBaseline: (name: string) =>
-    req<RlTrainerModel>(`/api/projects/${name}/reset-baseline`, { method: "POST" }),
+  refreshMachineProfile: (name: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/machine-profile`, { method: "POST" }),
   validate: (name: string) =>
     req<ValidationResult>(`/api/projects/${name}/validate`, { method: "POST" }),
   exportRl: (name: string) =>

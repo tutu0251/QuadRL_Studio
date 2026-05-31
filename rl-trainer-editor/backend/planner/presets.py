@@ -3,15 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domain.models import (
-    ParallelConfig,
-    PpoHyperparams,
-    RewardTerm,
-    RlTrainerModel,
-    TerminationConfig,
-    VecEnvType,
-)
-from planner.defaults import SB3_BASELINE
+from domain.models import RewardTerm, RlTrainerModel, TerminationConfig
 
 
 @dataclass(frozen=True)
@@ -22,8 +14,6 @@ class PresetDefinition:
     difficulty: str
     reward_terms: list[RewardTerm]
     termination: TerminationConfig
-    hyperparams: PpoHyperparams
-    parallel: ParallelConfig
 
 
 def _term(
@@ -60,8 +50,6 @@ PRESET_CATALOG: list[PresetDefinition] = [
             fallBaseHeightThreshold=0.15,
             maxTiltRad=0.8,
         ),
-        hyperparams=SB3_BASELINE.model_copy(deep=True),
-        parallel=ParallelConfig(numEnvs=1, vecEnvType=VecEnvType.SUBPROC),
     ),
     PresetDefinition(
         id="stand_still",
@@ -79,10 +67,6 @@ PRESET_CATALOG: list[PresetDefinition] = [
             fallBaseHeightThreshold=0.12,
             maxTiltRad=0.6,
         ),
-        hyperparams=SB3_BASELINE.model_copy(
-            update={"totalTimesteps": 500_000, "entCoef": 0.01}
-        ),
-        parallel=ParallelConfig(numEnvs=1, vecEnvType=VecEnvType.DUMMY),
     ),
     PresetDefinition(
         id="efficient_locomotion",
@@ -101,10 +85,6 @@ PRESET_CATALOG: list[PresetDefinition] = [
             fallBaseHeightThreshold=0.14,
             maxTiltRad=0.75,
         ),
-        hyperparams=SB3_BASELINE.model_copy(
-            update={"nEpochs": 8, "entCoef": 0.005}
-        ),
-        parallel=ParallelConfig(numEnvs=2, vecEnvType=VecEnvType.SUBPROC),
     ),
     PresetDefinition(
         id="custom_blank",
@@ -113,8 +93,6 @@ PRESET_CATALOG: list[PresetDefinition] = [
         difficulty="advanced",
         reward_terms=[],
         termination=TerminationConfig(),
-        hyperparams=SB3_BASELINE.model_copy(deep=True),
-        parallel=ParallelConfig(numEnvs=1, vecEnvType=VecEnvType.DUMMY),
     ),
 ]
 
@@ -143,6 +121,4 @@ def apply_preset_to_model(model: RlTrainerModel, preset_id: str) -> RlTrainerMod
     model.selectedPresetId = preset_id
     model.rewardTerms = [t.model_copy(deep=True) for t in preset.reward_terms]
     model.termination = preset.termination.model_copy(deep=True)
-    model.hyperparams = preset.hyperparams.model_copy(deep=True)
-    model.parallel = preset.parallel.model_copy(deep=True)
     return model

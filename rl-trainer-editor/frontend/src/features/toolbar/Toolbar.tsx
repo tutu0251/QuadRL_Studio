@@ -22,15 +22,12 @@ export function Toolbar() {
   const log = useTrainerStore((s) => s.log);
   const [busy, setBusy] = useState(false);
 
-  const recommend = async () => {
+  const refreshProfile = async () => {
     if (!project || busy) return;
     setBusy(true);
     try {
-      const r = await api.recommend(project);
-      const m = await api.getModel(project);
-      setModel(m);
-      r.notes.forEach((n) => log(n));
-      log("Machine recommendations applied");
+      setModel(await api.refreshMachineProfile(project));
+      log("Machine profile refreshed");
       setValidation(await api.validate(project));
     } catch (e) {
       log(String(e));
@@ -80,14 +77,14 @@ export function Toolbar() {
   return (
     <div className="toolbar">
       <div className="toolbar-group">
-        <span className="toolbar-label">Tune</span>
+        <span className="toolbar-label">Host</span>
         <button
           type="button"
           className="toolbar-btn primary"
           disabled={!project || busy}
-          onClick={() => void recommend()}
+          onClick={() => void refreshProfile()}
         >
-          Recommend
+          Profile machine
         </button>
       </div>
 
@@ -127,7 +124,7 @@ export function Toolbar() {
       {busy && <span className="toolbar-busy">Working…</span>}
       {model && project && (
         <span className="toolbar-context mono">
-          {model.parallel.numEnvs} env · {enabledTerms(model)} rewards
+          {enabledTerms(model)} rewards
           {model.curriculum.enabled ? " · curriculum" : ""}
         </span>
       )}

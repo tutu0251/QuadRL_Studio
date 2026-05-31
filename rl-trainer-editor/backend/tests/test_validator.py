@@ -25,10 +25,8 @@ def test_bootstrapped_model_valid():
     assert result.valid
 
 
-def test_batch_divisor_warning():
+def test_missing_ppo_config_warning():
     model = TrainerCore.bootstrap_project("test")
-    model.hyperparams.nSteps = 2047
-    model.hyperparams.batchSize = 64
-    model.parallel.numEnvs = 1
+    model.projectName = "test"
     result = RlTrainerValidator(model).validate()
-    assert any(w.code == "batch_divisor" for w in result.warnings)
+    assert any(w.code == "missing_ppo_config" for w in result.warnings)

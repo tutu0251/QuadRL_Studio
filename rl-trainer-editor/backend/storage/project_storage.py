@@ -14,6 +14,7 @@ TRAINER_FILE = "rl_trainer_model.json"
 SENSOR_FILE = "sensor_model.json"
 EXPORTS_DIR = "exports"
 RL_PREFIX = "rl_"
+PPO_PREFIX = "ppo_"
 SENS_PREFIX = "sens_"
 CTRL_PREFIX = "ctrl_"
 
@@ -28,6 +29,14 @@ def trainer_model_path(name: str) -> Path:
 
 def export_rl_yaml_path(name: str) -> Path:
     return project_dir(name) / EXPORTS_DIR / f"{RL_PREFIX}{name}_config.yaml"
+
+
+def export_ppo_yaml_path(name: str) -> Path:
+    return project_dir(name) / EXPORTS_DIR / f"{PPO_PREFIX}{name}_config.yaml"
+
+
+def ppo_config_path(name: str) -> Path:
+    return project_dir(name) / EXPORTS_DIR / f"{PPO_PREFIX}{name}_config.yaml"
 
 
 def observations_yaml_path(name: str) -> Path:
