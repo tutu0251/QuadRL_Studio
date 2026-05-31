@@ -789,12 +789,13 @@ body {
   color: #888;
 }
 
-.reward-term-card {
+.reward-term-card,
+.inspector-param-card {
   display: flex;
   flex-direction: column;
-  width: fit-content;
-  min-width: 168px;
+  width: max-content;
   max-width: 100%;
+  flex: 0 0 auto;
   border: 1px solid #3a3f4a;
   border-radius: 6px;
   padding: 10px 12px;
@@ -802,29 +803,38 @@ body {
   box-sizing: border-box;
 }
 
-.reward-term-list {
+.inspector-param-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: flex-start;
   align-content: flex-start;
+  width: 100%;
 }
 
-.reward-term-card-head {
+.inspector-param-grid-rewards {
+  gap: 10px;
+}
+
+.reward-term-card-head,
+.inspector-param-card-head {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #333;
+  width: max-content;
+  max-width: 100%;
+}
+
+.inspector-param-card-bool {
+  width: max-content;
 }
 
 .reward-term-card-title {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1;
-  min-width: 0;
+  flex: 0 1 auto;
+  min-width: min-content;
 }
 
 .reward-term-card-title .term-id {
@@ -849,13 +859,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: max-content;
+  max-width: 100%;
 }
 
 .reward-param-row {
   display: grid;
-  grid-template-columns: max-content 88px;
+  grid-template-columns: max-content max-content;
   gap: 10px;
   align-items: center;
+  width: max-content;
+  max-width: 100%;
 }
 
 .reward-param-label {
@@ -872,9 +886,11 @@ body {
 }
 
 .reward-param-input {
-  width: 100%;
-  min-width: 72px;
+  width: auto;
+  min-width: 4.5rem;
+  max-width: 100%;
   box-sizing: border-box;
+  field-sizing: content;
 }
 
 .reward-term-header {
@@ -973,6 +989,10 @@ body {
   list-style: none;
   padding: 0;
   margin: 0;
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .curriculum-pipeline.compact li {
@@ -1142,12 +1162,12 @@ body {
 }
 
 .stage-workspace {
-  display: grid;
-  grid-template-columns: minmax(140px, 38%) minmax(180px, 1fr);
-  gap: 10px;
+  display: flex;
   flex: 1;
   min-height: 0;
+  gap: 10px;
   margin-top: 8px;
+  align-items: stretch;
 }
 
 .stage-pipeline-pane,
@@ -1155,25 +1175,31 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  min-width: 0;
   border: 1px solid #333;
   border-radius: 4px;
   background: #222;
 }
 
 .stage-pipeline-pane {
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: min(260px, 34%);
+  min-width: 152px;
   background: #1e1e1e;
+}
+
+.stage-inspector-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .pipeline-scroll {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   padding: 0 6px 6px;
-}
-
-.stage-inspector-pane {
-  overflow: hidden;
 }
 
 .stage-inspector {
@@ -1428,14 +1454,36 @@ body {
   }
 
   .stage-workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(120px, 35%) 1fr;
+    flex-direction: column;
+  }
+
+  .stage-pipeline-pane {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    max-height: 35vh;
+  }
+
+  .stage-inspector-pane {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .inspector-param-grid {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inspector-param-card,
+  .reward-term-card {
+    width: 100%;
+    max-width: 100%;
   }
 }
 
-@media (min-width: 561px) and (max-width: 720px) {
-  .stage-workspace {
-    grid-template-columns: minmax(120px, 42%) 1fr;
+@media (min-width: 561px) and (max-width: 900px) {
+  .stage-pipeline-pane {
+    max-width: min(220px, 38%);
   }
 
   .pipeline-item .stage-actions .icon-btn:nth-child(n + 3) {

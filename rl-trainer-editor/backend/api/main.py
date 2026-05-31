@@ -177,52 +177,10 @@ def refresh_machine_profile(name: str):
     return core.get_model()
 
 
-@app.post("/api/projects/{name}/curriculum/{curriculum_id}")
-def apply_curriculum(name: str, curriculum_id: str):
-    core = _get_core(name)
-    try:
-        core.apply_curriculum(curriculum_id)
-    except KeyError:
-        raise HTTPException(404, f"Unknown curriculum: {curriculum_id}")
-    _save(name, core)
-    return core.get_model()
-
-
-@app.post("/api/projects/{name}/curriculum/stage/{stage_index}")
-def set_curriculum_stage(name: str, stage_index: int):
-    core = _get_core(name)
-    core.set_curriculum_stage(stage_index)
-    _save(name, core)
-    return core.get_model()
-
-
-@app.get("/api/projects/{name}/checkpoints")
-def list_checkpoints(name: str):
-    core = _get_core(name)
-    checkpoints = core.list_checkpoints()
-    return {"checkpoints": [c.model_dump() for c in checkpoints]}
-
-
 @app.post("/api/projects/{name}/curriculum/add")
 def add_curriculum(name: str, body: dict):
     core = _get_core(name)
     core.add_curriculum(body.get("name", "New curriculum"), body.get("terrainProfile", "flat"))
-    _save(name, core)
-    return core.get_model()
-
-
-@app.delete("/api/projects/{name}/curriculum/{entry_id}")
-def delete_curriculum(name: str, entry_id: str):
-    core = _get_core(name)
-    core.delete_curriculum(entry_id)
-    _save(name, core)
-    return core.get_model()
-
-
-@app.post("/api/projects/{name}/curriculum/{entry_id}/duplicate")
-def duplicate_curriculum(name: str, entry_id: str):
-    core = _get_core(name)
-    core.duplicate_curriculum(entry_id)
     _save(name, core)
     return core.get_model()
 
@@ -256,6 +214,48 @@ def duplicate_stage(name: str, stage_id: str):
 def reorder_stage(name: str, stage_id: str, body: dict):
     core = _get_core(name)
     core.reorder_stage(stage_id, body.get("direction", "up"))
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/curriculum/{curriculum_id}")
+def apply_curriculum(name: str, curriculum_id: str):
+    core = _get_core(name)
+    try:
+        core.apply_curriculum(curriculum_id)
+    except KeyError:
+        raise HTTPException(404, f"Unknown curriculum: {curriculum_id}")
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/curriculum/stage/{stage_index}")
+def set_curriculum_stage(name: str, stage_index: int):
+    core = _get_core(name)
+    core.set_curriculum_stage(stage_index)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.get("/api/projects/{name}/checkpoints")
+def list_checkpoints(name: str):
+    core = _get_core(name)
+    checkpoints = core.list_checkpoints()
+    return {"checkpoints": [c.model_dump() for c in checkpoints]}
+
+
+@app.delete("/api/projects/{name}/curriculum/{entry_id}")
+def delete_curriculum(name: str, entry_id: str):
+    core = _get_core(name)
+    core.delete_curriculum(entry_id)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/curriculum/{entry_id}/duplicate")
+def duplicate_curriculum(name: str, entry_id: str):
+    core = _get_core(name)
+    core.duplicate_curriculum(entry_id)
     _save(name, core)
     return core.get_model()
 

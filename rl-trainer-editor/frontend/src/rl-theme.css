@@ -827,6 +827,7 @@
   overflow: visible;
 }
 
+.inspector-param-card.param-disabled,
 .reward-term-card.term-inactive {
   opacity: 0.62;
   border-color: #2e3238;
@@ -834,6 +835,58 @@
 
 .reward-term-card.term-inactive .reward-term-card-body {
   pointer-events: none;
+}
+
+.inspector-param-card-head,
+.reward-term-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+  width: max-content;
+  max-width: 100%;
+}
+
+.inspector-param-card-bool .inspector-param-card-head {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.inspector-param-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: max-content;
+  max-width: 100%;
+}
+
+.inspector-param-card-body .param-input,
+.inspector-param-card-body .param-select {
+  width: auto;
+  min-width: 5ch;
+  max-width: 100%;
+  box-sizing: border-box;
+  field-sizing: content;
+}
+
+.inspector-param-card .param-label-row {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+}
+
+.inspector-param-card .param-label {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.stage-inspector-tab-panel {
+  padding: 8px;
 }
 
 .param-label {
@@ -1499,6 +1552,13 @@
 
 .stage-pipeline-pane.editor-pane {
   background: #22262d !important;
+  margin-right: 0 !important;
+}
+
+.stage-inspector-pane.editor-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: 0 !important;
 }
 
 .stage-card {

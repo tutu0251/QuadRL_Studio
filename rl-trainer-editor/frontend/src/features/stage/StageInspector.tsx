@@ -2,7 +2,8 @@ import { useState } from "react";
 import type { CurriculumAdvanceCriteria, CurriculumStage, DisturbanceConfig, StageCommand } from "@rl-trainer-model";
 import { STAGE_PARAM_HINTS, stageParamKey } from "@rl-trainer-model";
 import { api } from "../../api/client";
-import { ParamBoolField, ParamNumberField, ParamTextField } from "../../components/ParamField";
+import { InspectorParamGrid } from "../../components/InspectorParamGrid";
+import { ParamBoolField, ParamNumberField, ParamSelectField, ParamTextField } from "../../components/ParamField";
 import { RewardTermList } from "../shared/RewardTermList";
 import { TerminationFields } from "../shared/TerminationFields";
 import { useTrainerStore } from "../../stores/trainerStore";
@@ -138,7 +139,7 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
 
       <div className="stage-inspector-scroll stage-inspector-tab-panel">
         {activeTab === "identity" && (
-          <div className="inspector-tab-pane">
+          <InspectorParamGrid>
             <ParamTextField
               paramKey={stageParamKey("identity", "name")}
               label="name"
@@ -157,12 +158,15 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
               value={stage.description}
               onChange={(v) => patchStage({ description: v })}
             />
-            <ParamFieldGaitSelect
-              stage={stage}
-              gaitOptions={gaitOptions}
+            <ParamSelectField
+              paramKey={stageParamKey("identity", "gait_type")}
+              label="gait_type"
+              hint={hint("identity.gait_type")}
               enabled={paramEnabled(stage, "identity.gait_type")}
               onEnabledChange={(v) => setParamFlag("identity.gait_type", v)}
+              value={stage.gaitTypeId}
               onChange={(gaitTypeId) => patchStage({ gaitTypeId })}
+              options={gaitOptions}
             />
             <ParamNumberField
               paramKey={stageParamKey("identity", "timesteps")}
@@ -174,11 +178,11 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
               step={10_000}
               onChange={(v) => patchStage({ timesteps: Math.max(10_000, Math.round(v)) })}
             />
-          </div>
+          </InspectorParamGrid>
         )}
 
         {activeTab === "command" && (
-          <div className="inspector-tab-pane">
+          <InspectorParamGrid>
             <ParamNumberField
               paramKey={stageParamKey("command", "target_lin_vel_x")}
               label="target_lin_vel_x"
@@ -229,20 +233,20 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
               step={0.05}
               onChange={(v) => patchCommand({ gaitSpeedScale: v })}
             />
-          </div>
+          </InspectorParamGrid>
         )}
 
         {activeTab === "rewards" && (
-          <div className="inspector-tab-pane inspector-tab-pane-rewards">
+          <InspectorParamGrid className="inspector-param-grid-rewards">
             <RewardTermList
               terms={stage.rewardTerms}
               onChange={(terms) => patchStage({ rewardTerms: terms })}
             />
-          </div>
+          </InspectorParamGrid>
         )}
 
         {activeTab === "disturbance" && (
-          <div className="inspector-tab-pane">
+          <InspectorParamGrid>
             <ParamBoolField
               paramKey={stageParamKey("disturbance", "enabled")}
               label="enable_disturbances"
@@ -303,22 +307,22 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
               step={0.01}
               onChange={(v) => patchDisturbance({ randomOrientationNoiseRad: v })}
             />
-          </div>
+          </InspectorParamGrid>
         )}
 
         {activeTab === "termination" && (
-          <div className="inspector-tab-pane">
+          <InspectorParamGrid>
             <TerminationFields
               stage={stage}
               termination={stage.termination}
               onChange={(p) => patchStage({ termination: { ...stage.termination, ...p } })}
               onParamFlag={setParamFlag}
             />
-          </div>
+          </InspectorParamGrid>
         )}
 
         {activeTab === "advance" && (
-          <div className="inspector-tab-pane">
+          <InspectorParamGrid>
             <ParamNumberField
               paramKey={stageParamKey("advance", "min_mean_episode_reward")}
               label="min_mean_episode_reward"
@@ -349,58 +353,9 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
               step={0.05}
               onChange={(v) => patchAdvance({ maxFallRate: v })}
             />
-          </div>
+          </InspectorParamGrid>
         )}
       </div>
-    </div>
-  );
-}
-
-function ParamFieldGaitSelect({
-  stage,
-  gaitOptions,
-  enabled,
-  onEnabledChange,
-  onChange,
-}: {
-  stage: CurriculumStage;
-  gaitOptions: { id: string; name: string }[];
-  enabled: boolean;
-  onEnabledChange: (v: boolean) => void;
-  onChange: (gaitTypeId: string) => void;
-}) {
-  const key = stageParamKey("identity", "gait_type");
-  const checkboxId = `param-${key.replace(/[^a-z0-9.-]/gi, "-")}`;
-  const hint = STAGE_PARAM_HINTS[key];
-  return (
-    <div className={`param-field param-field-checked ${enabled ? "" : "param-disabled"}`}>
-      <label className="checkbox-row" title={hint}>
-        <input
-          id={checkboxId}
-          type="checkbox"
-          className="param-checkbox"
-          checked={enabled}
-          onChange={(e) => onEnabledChange(e.target.checked)}
-        />
-      </label>
-      <label className="param-label-row" htmlFor={checkboxId}>
-        <span className="param-label">gait_type</span>
-        <span className="param-hint-icon" title={hint} aria-label={hint}>
-          ⓘ
-        </span>
-      </label>
-      <select
-        className="param-input param-select"
-        disabled={!enabled}
-        value={stage.gaitTypeId}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {gaitOptions.map((g) => (
-          <option key={g.id} value={g.id}>
-            {g.name}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }

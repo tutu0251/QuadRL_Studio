@@ -27,19 +27,21 @@ export function ParamField({
 }) {
   const checkboxId = `param-${paramKey.replace(/[^a-z0-9.-]/gi, "-")}`;
   return (
-    <div className={`param-field param-field-checked ${enabled ? "" : "param-disabled"}`}>
-      <Checkbox
-        id={checkboxId}
-        checked={enabled}
-        onChange={onEnabledChange}
-        hint={hint ? `${label}: ${hint}` : label}
-      />
-      <label className="param-label-row" htmlFor={checkboxId}>
-        <span className="param-label">{label}</span>
-        <ParamHint text={hint} />
-      </label>
-      <div className="param-control">{children}</div>
-    </div>
+    <article className={`inspector-param-card ${enabled ? "" : "param-disabled"}`}>
+      <header className="inspector-param-card-head">
+        <Checkbox
+          id={checkboxId}
+          checked={enabled}
+          onChange={onEnabledChange}
+          hint={hint ? `${label}: ${hint}` : label}
+        />
+        <label className="param-label-row" htmlFor={checkboxId}>
+          <span className="param-label">{label}</span>
+          <ParamHint text={hint} />
+        </label>
+      </header>
+      <div className="inspector-param-card-body">{children}</div>
+    </article>
   );
 }
 
@@ -117,6 +119,38 @@ export function ParamTextField({
   );
 }
 
+export function ParamSelectField({
+  paramKey,
+  label,
+  hint,
+  enabled,
+  onEnabledChange,
+  value,
+  onChange,
+  options,
+}: {
+  paramKey: string;
+  label: string;
+  hint?: string;
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; name: string }[];
+}) {
+  return (
+    <ParamField paramKey={paramKey} label={label} hint={hint} enabled={enabled} onEnabledChange={onEnabledChange}>
+      <select className="param-input param-select" disabled={!enabled} value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    </ParamField>
+  );
+}
+
 export function ParamBoolField({
   paramKey,
   label,
@@ -134,20 +168,22 @@ export function ParamBoolField({
 }) {
   const checkboxId = `param-bool-${paramKey.replace(/[^a-z0-9.-]/gi, "-")}`;
   return (
-    <div className={`param-field param-field-bool ${disabled ? "param-disabled" : ""}`}>
-      <input
-        id={checkboxId}
-        type="checkbox"
-        className="param-checkbox"
-        checked={checked}
-        disabled={disabled}
-        title={hint ? `${label}: ${hint}` : label}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <label className="param-label-row" htmlFor={checkboxId}>
-        <span className="param-label">{label}</span>
-        <ParamHint text={hint} />
-      </label>
-    </div>
+    <article className={`inspector-param-card inspector-param-card-bool ${disabled ? "param-disabled" : ""}`}>
+      <header className="inspector-param-card-head">
+        <input
+          id={checkboxId}
+          type="checkbox"
+          className="param-checkbox"
+          checked={checked}
+          disabled={disabled}
+          title={hint ? `${label}: ${hint}` : label}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <label className="param-label-row" htmlFor={checkboxId}>
+          <span className="param-label">{label}</span>
+          <ParamHint text={hint} />
+        </label>
+      </header>
+    </article>
   );
 }

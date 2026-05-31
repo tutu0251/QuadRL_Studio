@@ -65,7 +65,7 @@ export function RewardTermList({
   };
 
   return (
-    <div className="reward-term-list">
+    <>
       {terms.map((term, i) => {
         const termHint = REWARD_TERM_HINTS[term.id] ?? REWARD_CATEGORY_HINTS[term.category];
         const categoryHint = REWARD_CATEGORY_HINTS[term.category];
@@ -73,7 +73,7 @@ export function RewardTermList({
         return (
           <article
             key={term.id}
-            className={`reward-term-card ${term.enabled ? "" : "term-inactive"}`}
+            className={`reward-term-card inspector-param-card ${term.enabled ? "" : "term-inactive"}`}
             aria-label={`Reward term ${term.id}`}
           >
             <header className="reward-term-card-head">
@@ -119,6 +119,6 @@ export function RewardTermList({
           </article>
         );
       })}
-    </div>
+    </>
   );
 }

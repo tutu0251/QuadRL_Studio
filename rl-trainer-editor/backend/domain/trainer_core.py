@@ -69,24 +69,27 @@ class TrainerCore:
                 return
 
     def patch(self, body: RlTrainerPatch) -> RlTrainerModel:
-        data = body.model_dump(exclude_unset=True)
-        for key in (
-            "rewardTerms",
-            "termination",
-            "customParams",
-            "selectedPresetId",
-            "gaitTypes",
-            "curriculumLibrary",
-            "activeCurriculumId",
-            "trainingCheckpoint",
-            "useRecommended",
-        ):
-            if key in data:
-                setattr(self._model, key, data.pop(key))
-        if "curriculum" in data:
-            self._model.curriculum = data.pop("curriculum")
+        if body.selectedPresetId is not None:
+            self._model.selectedPresetId = body.selectedPresetId
+        if body.rewardTerms is not None:
+            self._model.rewardTerms = body.rewardTerms
+        if body.termination is not None:
+            self._model.termination = body.termination
+        if body.customParams is not None:
+            self._model.customParams = body.customParams
+        if body.gaitTypes is not None:
+            self._model.gaitTypes = body.gaitTypes
+        if body.curriculumLibrary is not None:
+            self._model.curriculumLibrary = body.curriculumLibrary
+        if body.trainingCheckpoint is not None:
+            self._model.trainingCheckpoint = body.trainingCheckpoint
+        if body.useRecommended is not None:
+            self._model.useRecommended = body.useRecommended
+        if body.curriculum is not None:
+            self._model.curriculum = body.curriculum
             self._sync_curriculum_to_library()
-        if "activeCurriculumId" in body.model_dump(exclude_unset=True):
+        if body.activeCurriculumId is not None:
+            self._model.activeCurriculumId = body.activeCurriculumId
             if self._model.activeCurriculumId:
                 self._sync_library_to_curriculum(self._model.activeCurriculumId)
         return self._model

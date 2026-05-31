@@ -60,3 +60,12 @@ def test_duplicate_stage():
     m = core.get_model()
     assert len(m.curriculum.stages) == 8
     assert m.curriculum.stages[1].name.endswith("(copy)")
+
+
+def test_add_curriculum():
+    model = RlTrainerModel(projectName="bot", robotName="bot")
+    core = TrainerCore(model)
+    core.apply_curriculum("stand_sprint")
+    core.add_curriculum("Custom plan")
+    m = core.get_model()
+    assert any(e.name == "Custom plan" for e in m.curriculumLibrary)
