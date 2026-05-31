@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CURRICULUM_CATALOG, type CurriculumInfo, type CurriculumStage } from "@rl-trainer-model";
 import { api } from "../../api/client";
 import { StageInspector } from "../stage/StageInspector";
+import { formatStageGaitTypes } from "../stage/stageGaitUtils";
 import { useTrainerStore } from "../../stores/trainerStore";
 
 function formatSteps(n: number): string {
@@ -266,7 +267,7 @@ export function CurriculumPanel() {
                           <span className="stage-card-text">
                             <strong>{stage.name}</strong>
                             <span className="mono stage-vel">
-                              {stage.gaitTypeId} · {formatSteps(stage.timesteps)}
+                              {formatStageGaitTypes(stage)} · {formatSteps(stage.timesteps)}
                             </span>
                           </span>
                         </button>

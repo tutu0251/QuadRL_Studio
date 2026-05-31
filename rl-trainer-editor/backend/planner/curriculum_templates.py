@@ -103,7 +103,7 @@ def _build_stage(
         timesteps=timesteps,
         targetLinVelX=lin_vel,
         targetAngVelZ=0.0,
-        gaitTypeId=gait_id,
+        gaitTypeIds=[gait_id],
         command=cmd,
         disturbance=_disturbance_for_gait(gait_id, rough),
         rewardTerms=rewards,

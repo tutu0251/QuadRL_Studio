@@ -13,7 +13,8 @@ from domain.models import (
     StageCommand,
     TerminationConfig,
 )
-from planner.gait_defaults import build_gait, resolve_gait_id
+from domain.stage_gait import stage_gait_type_ids, stage_is_stand_only, stage_primary_gait_for_command
+from planner.gait_defaults import build_gait
 
 
 @dataclass
@@ -77,7 +78,7 @@ def recommend_gait(gait_id: str) -> tuple[GaitType, list[str]]:
 
 
 def _recommend_reward_terms(stage: CurriculumStage) -> list[RewardTerm]:
-    is_stand = resolve_gait_id(stage.gaitTypeId) == "none"
+    is_stand = stage_is_stand_only(stage)
     out: list[RewardTerm] = []
     for term in stage.rewardTerms:
         t = term.model_copy(deep=True)
@@ -95,7 +96,7 @@ def recommend_param_enabled(
     reward_terms: list[RewardTerm],
 ) -> dict[str, bool]:
     flags: dict[str, bool] = {}
-    is_stand = resolve_gait_id(stage.gaitTypeId) == "none"
+    is_stand = stage_is_stand_only(stage)
 
     for key in ("name", "description", "gait_type", "timesteps"):
         flags[f"identity.{key}"] = True
@@ -162,10 +163,15 @@ def recommend_stage_params(
     rough: bool,
     machine: MachineProfile | None = None,
 ) -> StageRecommendation:
-    gait_id = resolve_gait_id(stage.gaitTypeId)
-    vel = _VEL_BY_GAIT.get(gait_id, stage.targetLinVelX)
+    gait_id = stage_primary_gait_for_command(stage)
+    selected = stage_gait_type_ids(stage)
+    vel = max(_VEL_BY_GAIT.get(g, 0.0) for g in selected) if selected else stage.targetLinVelX
+    if gait_id in _VEL_BY_GAIT:
+        vel = _VEL_BY_GAIT[gait_id]
     scale = _machine_scale(machine)
-    base_ts = _TIMESTEPS_BY_GAIT.get(gait_id, stage.timesteps)
+    base_ts = max(_TIMESTEPS_BY_GAIT.get(g, 0) for g in selected) if selected else stage.timesteps
+    if gait_id in _TIMESTEPS_BY_GAIT:
+        base_ts = _TIMESTEPS_BY_GAIT[gait_id]
     timesteps = max(50_000, int(base_ts * scale * (1.1 if rough else 1.0)))
 
     gait = build_gait(gait_id) if gait_id in _VEL_BY_GAIT else None

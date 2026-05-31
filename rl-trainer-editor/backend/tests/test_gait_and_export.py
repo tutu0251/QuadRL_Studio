@@ -47,6 +47,7 @@ def test_export_includes_gait_and_training(tmp_path, monkeypatch):
     assert "gait_types:" in text
     assert "training:" in text
     assert "resume_checkpoint:" in text
+    assert "gait_type_ids:" in text
     assert "gait_type_id:" in text
 
 

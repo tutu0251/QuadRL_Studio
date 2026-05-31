@@ -12,7 +12,8 @@ from domain.models import (
     new_id,
 )
 from planner.curriculum_templates import curriculum_to_entry
-from planner.gait_defaults import default_gait_library, resolve_gait_id
+from domain.stage_gait import stage_gait_type_ids
+from planner.gait_defaults import default_gait_library
 
 
 def _migrate_stage(stage: CurriculumStage) -> CurriculumStage:
@@ -33,10 +34,9 @@ def _migrate_stage(stage: CurriculumStage) -> CurriculumStage:
     else:
         s.targetLinVelX = s.command.targetLinVelX
         s.targetAngVelZ = s.command.targetAngVelZ
-    if not s.gaitTypeId:
-        s.gaitTypeId = "walk" if s.targetLinVelX > 0 else "none"
-    else:
-        s.gaitTypeId = resolve_gait_id(s.gaitTypeId)
+    if not s.gaitTypeIds:
+        s.gaitTypeIds = ["walk"] if s.targetLinVelX > 0 else ["none"]
+    s.gaitTypeIds = stage_gait_type_ids(s)
     if s.disturbance is None:
         s.disturbance = DisturbanceConfig()
     return s

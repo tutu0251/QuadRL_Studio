@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def new_id() -> str:
@@ -100,7 +100,7 @@ class CurriculumStage(BaseModel):
     timesteps: int = 300_000
     targetLinVelX: float = 0.0
     targetAngVelZ: float = 0.0
-    gaitTypeId: str = "none"
+    gaitTypeIds: list[str] = Field(default_factory=lambda: ["none"])
     command: StageCommand = Field(default_factory=StageCommand)
     disturbance: DisturbanceConfig = Field(default_factory=DisturbanceConfig)
     rewardTerms: list[RewardTerm] = Field(default_factory=list)
@@ -109,6 +109,29 @@ class CurriculumStage(BaseModel):
         default_factory=CurriculumAdvanceCriteria
     )
     paramEnabled: dict[str, bool] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_gait_type_ids(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        from planner.gait_defaults import resolve_gait_id
+
+        ids = data.get("gaitTypeIds") or data.get("gait_type_ids")
+        if ids:
+            seen: set[str] = set()
+            out: list[str] = []
+            for g in ids:
+                c = resolve_gait_id(str(g))
+                if c not in seen:
+                    seen.add(c)
+                    out.append(c)
+            data["gaitTypeIds"] = out or ["none"]
+            return data
+        legacy = data.get("gaitTypeId") or data.get("gait_type_id")
+        if legacy:
+            data["gaitTypeIds"] = [resolve_gait_id(str(legacy))]
+        return data
 
 
 class CurriculumConfig(BaseModel):

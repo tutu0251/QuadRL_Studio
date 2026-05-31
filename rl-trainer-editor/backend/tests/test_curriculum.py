@@ -15,8 +15,8 @@ from validator.validator import RlTrainerValidator
 def test_stand_sprint_has_four_gate_types():
     cur = build_stand_sprint_curriculum()
     assert len(cur.stages) == 4
-    assert cur.stages[0].gaitTypeId == "none"
-    assert cur.stages[-1].gaitTypeId == "gallop"
+    assert cur.stages[0].gaitTypeIds == ["none"]
+    assert cur.stages[-1].gaitTypeIds == ["gallop"]
     assert cur.stages[0].targetLinVelX == 0.0
     assert cur.stages[-1].targetLinVelX > 0
 
@@ -48,7 +48,7 @@ def test_stage_advance_updates_active_rewards():
     core.set_curriculum_stage(2)
     m = core.get_model()
     assert m.curriculum.currentStageIndex == 2
-    assert m.curriculum.stages[2].gaitTypeId == "trot"
+    assert m.curriculum.stages[2].gaitTypeIds == ["trot"]
 
 
 def test_duplicate_stage():

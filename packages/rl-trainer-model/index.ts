@@ -98,7 +98,10 @@ export interface CurriculumStage {
   timesteps: number;
   targetLinVelX: number;
   targetAngVelZ: number;
-  gaitTypeId: string;
+  /** Selected gate types for this stage (multi-select). */
+  gaitTypeIds: string[];
+  /** @deprecated Legacy single selection; migrated to gaitTypeIds on load. */
+  gaitTypeId?: string;
   command: StageCommand;
   disturbance: DisturbanceConfig;
   rewardTerms: RewardTerm[];
@@ -260,7 +263,7 @@ export const GAIT_PARAM_HINTS: Record<string, string> = {
 export const STAGE_PARAM_HINTS: Record<string, string> = {
   "identity.name": "Human-readable stage label shown in the curriculum pipeline.",
   "identity.description": "Short note describing what this stage teaches.",
-  "identity.gait_type": "Gate type linked to this stage (none, walk, trot, gallop).",
+  "identity.gait_type": "Gate types for this stage — select one or more (none, walk, trot, gallop).",
   "identity.timesteps": "PPO environment steps to train before advancing or finishing this stage.",
   "command.target_lin_vel_x": "Commanded forward body velocity (m/s) the policy should track.",
   "command.target_lin_vel_y": "Commanded lateral velocity (m/s); usually 0 for straight locomotion.",

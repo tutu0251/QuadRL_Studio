@@ -151,6 +151,57 @@ export function ParamSelectField({
   );
 }
 
+export function ParamMultiSelectField({
+  paramKey,
+  label,
+  hint,
+  enabled,
+  onEnabledChange,
+  value,
+  onChange,
+  options,
+}: {
+  paramKey: string;
+  label: string;
+  hint?: string;
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+  value: string[];
+  onChange: (v: string[]) => void;
+  options: { id: string; name: string }[];
+}) {
+  const toggle = (id: string) => {
+    if (value.includes(id)) {
+      if (value.length <= 1) return;
+      onChange(value.filter((x) => x !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
+  return (
+    <ParamField paramKey={paramKey} label={label} hint={hint} enabled={enabled} onEnabledChange={onEnabledChange}>
+      <div className="chip-row param-multi-select" role="group" aria-label={label}>
+        {options.map((o) => {
+          const selected = value.includes(o.id);
+          return (
+            <button
+              key={o.id}
+              type="button"
+              className={`chip-btn ${selected ? "active" : ""}`}
+              disabled={!enabled}
+              aria-pressed={selected}
+              onClick={() => toggle(o.id)}
+            >
+              {o.name}
+            </button>
+          );
+        })}
+      </div>
+    </ParamField>
+  );
+}
+
 export function ParamBoolField({
   paramKey,
   label,

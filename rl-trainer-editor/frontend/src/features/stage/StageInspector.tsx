@@ -3,7 +3,8 @@ import type { CurriculumAdvanceCriteria, CurriculumStage, DisturbanceConfig, Sta
 import { STAGE_PARAM_HINTS, stageParamKey } from "@rl-trainer-model";
 import { api } from "../../api/client";
 import { InspectorParamGrid } from "../../components/InspectorParamGrid";
-import { ParamBoolField, ParamNumberField, ParamSelectField, ParamTextField } from "../../components/ParamField";
+import { ParamBoolField, ParamMultiSelectField, ParamNumberField, ParamTextField } from "../../components/ParamField";
+import { formatStageGaitTypes, stageGaitTypeIds } from "./stageGaitUtils";
 import { RewardTermList } from "../shared/RewardTermList";
 import { TerminationFields } from "../shared/TerminationFields";
 import { useTrainerStore } from "../../stores/trainerStore";
@@ -42,6 +43,8 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
   }
 
   const gaitOptions = model.gaitTypes ?? [];
+  const selectedGaitIds = stageGaitTypeIds(stage);
+  const gaitTypesLabel = formatStageGaitTypes(stage);
   const activeRewards = stage.rewardTerms.filter((t) => t.enabled).length;
 
   const updateStages = async (next: CurriculumStage[]) => {
@@ -100,7 +103,7 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
           <div>
             <h3>{stage.name}</h3>
             <span className="stage-inspector-meta mono">
-              Stage {(stage.order ?? 0) + 1} · {stage.gaitTypeId}
+              Stage {(stage.order ?? 0) + 1} · {gaitTypesLabel}
             </span>
           </div>
           <button type="button" className="header-btn primary" onClick={() => void recommend()}>
@@ -112,7 +115,7 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
       {compact && (
         <div className="inspector-inline-bar">
           <span className="inspector-inline-title">{stage.name}</span>
-          <span className="inspector-inline-meta mono">{stage.gaitTypeId}</span>
+          <span className="inspector-inline-meta mono">{gaitTypesLabel}</span>
           <button type="button" className="header-btn" onClick={() => void recommend()}>
             Recommend
           </button>
@@ -158,14 +161,14 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
               value={stage.description}
               onChange={(v) => patchStage({ description: v })}
             />
-            <ParamSelectField
+            <ParamMultiSelectField
               paramKey={stageParamKey("identity", "gait_type")}
-              label="gait_type"
+              label="gate_type"
               hint={hint("identity.gait_type")}
               enabled={paramEnabled(stage, "identity.gait_type")}
               onEnabledChange={(v) => setParamFlag("identity.gait_type", v)}
-              value={stage.gaitTypeId}
-              onChange={(gaitTypeId) => patchStage({ gaitTypeId })}
+              value={selectedGaitIds}
+              onChange={(gaitTypeIds) => patchStage({ gaitTypeIds })}
               options={gaitOptions}
             />
             <ParamNumberField

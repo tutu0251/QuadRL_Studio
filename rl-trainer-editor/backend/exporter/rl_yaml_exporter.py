@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from domain.models import CurriculumConfig, CurriculumStage, GaitType, RlTrainerModel
+from domain.stage_gait import stage_gait_type_ids
 from planner.curriculum import curriculum_total_timesteps
 from storage import project_storage
 
@@ -58,7 +59,8 @@ def _stage_export(stage: CurriculumStage) -> dict:
         "order": stage.order,
         "description": stage.description,
         "timesteps": stage.timesteps,
-        "gait_type_id": stage.gaitTypeId,
+        "gait_type_ids": stage_gait_type_ids(stage),
+        "gait_type_id": stage_gait_type_ids(stage)[0],
         "command": _command_export(stage),
         "disturbance": _disturbance_export(stage.disturbance),
         "reward_terms": [_reward_term_export(t) for t in stage.rewardTerms],

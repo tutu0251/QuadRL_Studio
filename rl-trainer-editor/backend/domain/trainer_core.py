@@ -184,7 +184,7 @@ class TrainerCore:
             name="New stage",
             order=insert_at,
             description="",
-            gaitTypeId="walk",
+            gaitTypeIds=["walk"],
             rewardTerms=_locomotion_terms(0.4),
         )
         stages.insert(insert_at, new_stage)

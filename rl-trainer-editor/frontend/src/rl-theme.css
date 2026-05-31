@@ -1506,6 +1506,22 @@
   cursor: pointer;
 }
 
+.chip-btn.active {
+  background: var(--accent, #3d7dd6);
+  border-color: var(--accent, #3d7dd6);
+  color: #fff;
+}
+
+.chip-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.param-multi-select {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .chip-btn:hover {
   border-color: var(--ppo-accent);
   color: var(--ppo-accent);
