@@ -2,6 +2,18 @@ import { useState } from "react";
 import { api } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
 
+type ValidationIssue = {
+  code: string;
+  message: string;
+};
+
+type ExportValidationResult = {
+  valid: boolean;
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+  details?: { status?: string; durationS?: number; modelFile?: string };
+};
+
 async function pollTask(taskId: string) {
   for (let i = 0; i < 120; i++) {
     await new Promise((r) => setTimeout(r, 500));
@@ -9,6 +21,32 @@ async function pollTask(taskId: string) {
     if (t.status === "completed" || t.status === "failed") return t;
   }
   return null;
+}
+
+function logValidationResult(
+  log: (msg: string) => void,
+  label: string,
+  v: ExportValidationResult
+) {
+  const status = v.details?.status;
+  if (status === "skipped") {
+    const skipMsg = v.warnings.find((w) => w.code.includes("skipped"))?.message;
+    log(skipMsg ?? `${label} skipped (not installed)`);
+    return;
+  }
+  if (v.valid) {
+    log(`${label} passed${v.warnings.length ? ` — ${v.warnings.length} warning(s)` : ""}`);
+  } else {
+    log(`${label} failed — ${v.errors.length} error(s)`);
+    v.errors.forEach((e) => log(`  [${e.code}] ${e.message}`));
+  }
+  v.warnings.slice(0, 5).forEach((w) => log(`  ⚠ ${w.message}`));
+  if (v.details?.durationS != null) {
+    log(`  duration: ${v.details.durationS}s`);
+  }
+  if (v.details?.modelFile) {
+    log(`  file: ${v.details.modelFile}`);
+  }
 }
 
 export function Toolbar() {
@@ -40,8 +78,20 @@ export function Toolbar() {
       const t = await pollTask(task_id);
       if (t?.status === "completed") {
         log(`${label} complete`);
+        const validation = t.result?.exportValidation;
+        if (validation) {
+          logValidationResult(log, "Export validation", validation);
+        }
         await refresh();
-      } else log(`${label} failed`);
+      } else if (t?.status === "failed") {
+        log(`${label} failed`);
+        const validation = t.result?.exportValidation;
+        if (validation) {
+          logValidationResult(log, "Export validation", validation);
+        }
+      } else {
+        log(`${label} timed out — see console for progress`);
+      }
     } catch (e) {
       log(String(e));
     } finally {

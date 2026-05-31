@@ -35,12 +35,12 @@ from domain.models import (
     Vec3,
 )
 from domain.service import GeometryCore
-from exporter.consistency import check_export_consistency
 from exporter.sdf_exporter import SdfConversionError, export_sdf_from_urdf
 from exporter.urdf_exporter import export_urdf, urdf_to_string
 from storage import project_storage
 from templates.registry import list_templates
 from validator.validator import GeometryValidator
+from validator.runtime_validator import ExportValidationResult, validate_geometry_export
 
 _sessions: dict[str, GeometryCore] = {}
 _active_project: Optional[str] = None
@@ -497,6 +497,50 @@ def naming_check(name: str):
     return {"issues": core.check_naming_conventions()}
 
 
+def _log_export_validation(tid: str, validation: ExportValidationResult, label: str) -> None:
+    status = (validation.details or {}).get("status", "unknown")
+    if status == "skipped":
+        msg = next(
+            (w.message for w in validation.warnings if "skipped" in w.code),
+            f"{label} skipped (not installed)",
+        )
+        task_manager.log(tid, "warning", msg)
+        return
+    if validation.valid:
+        msg = f"{label} passed"
+        if validation.warnings:
+            msg += f" ({len(validation.warnings)} warning(s))"
+        task_manager.log(tid, "info", msg)
+        for w in validation.warnings[:5]:
+            task_manager.log(tid, "warning", w.message)
+        return
+    task_manager.log(tid, "warning", f"{label} failed: {len(validation.errors)} error(s)")
+    for err in validation.errors[:10]:
+        task_manager.log(tid, "error", err.message)
+    for w in validation.warnings[:3]:
+        task_manager.log(tid, "warning", w.message)
+
+
+async def _validate_geometry_export(tid: str, exports_dir: Path) -> ExportValidationResult:
+    def _runtime_log(message: str) -> None:
+        task_manager.log(tid, "info", message.strip())
+
+    task_manager.log(tid, "info", "Running export validation (may take up to 1 minute)…")
+    return await asyncio.to_thread(validate_geometry_export, exports_dir, on_log=_runtime_log)
+
+
+async def _finish_geometry_export(tid: str, payload: dict[str, Any]) -> None:
+    exports_dir = project_storage.project_dir(payload["project"]) / "exports"
+    validation = await _validate_geometry_export(tid, exports_dir)
+    out = {**payload, "exportValidation": validation.model_dump()}
+    _log_export_validation(tid, validation, "Export validation")
+    status = (validation.details or {}).get("status", "unknown")
+    if status == "skipped" or validation.valid:
+        task_manager.set_status(tid, "completed", out)
+    else:
+        task_manager.set_status(tid, "failed", out)
+
+
 @app.post("/api/projects/{name}/validate")
 async def validate_project(name: str):
     core = _get_core(name)
@@ -537,7 +581,10 @@ async def export_urdf_api(name: str):
         out = project_storage.export_urdf_path(name)
         export_urdf(core.get_model(), out)
         task_manager.log(tid, "info", f"Exported URDF to {out}")
-        task_manager.set_status(tid, "completed", {"path": str(out), "format": "urdf"})
+        await _finish_geometry_export(
+            tid,
+            {"project": name, "path": str(out), "format": "urdf", "urdf": str(out)},
+        )
 
     asyncio.create_task(run())
     return {"task_id": tid}
@@ -566,11 +613,11 @@ async def export_gazebo(name: str):
             task_manager.log(tid, "error", str(e))
             task_manager.set_status(tid, "failed", {"error": str(e)})
             return
-        consistency = check_export_consistency(core.get_model(), urdf_out, sdf_out)
-        for issue in consistency:
-            task_manager.log(tid, issue.severity, f"[{issue.code}] {issue.message}")
         task_manager.log(tid, "info", f"Exported SDF to {sdf_out}")
-        task_manager.set_status(tid, "completed", {"path": str(sdf_out), "format": "sdf", "urdf": str(urdf_out)})
+        await _finish_geometry_export(
+            tid,
+            {"project": name, "path": str(sdf_out), "format": "sdf", "urdf": str(urdf_out), "sdf": str(sdf_out)},
+        )
 
     asyncio.create_task(run())
     return {"task_id": tid}
@@ -599,14 +646,10 @@ async def export_both(name: str):
             task_manager.log(tid, "error", str(e))
             task_manager.set_status(tid, "failed", {"error": str(e)})
             return
-        consistency = check_export_consistency(core.get_model(), urdf_out, sdf_out)
-        for issue in consistency:
-            task_manager.log(tid, issue.severity, f"[{issue.code}] {issue.message}")
         task_manager.log(tid, "info", f"Exported SDF: {sdf_out}")
-        task_manager.set_status(
+        await _finish_geometry_export(
             tid,
-            "completed",
-            {"urdf": str(urdf_out), "sdf": str(sdf_out)},
+            {"project": name, "urdf": str(urdf_out), "sdf": str(sdf_out)},
         )
 
     asyncio.create_task(run())

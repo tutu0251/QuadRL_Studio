@@ -28,6 +28,7 @@ from exporter.sdf_exporter import SdfConversionError, export_sdf_from_urdf
 from exporter.urdf_exporter import export_urdf
 from storage import project_storage
 from validator.validator import PhysicsValidator
+from validator.runtime_validator import validate_physics_export
 
 _sessions: dict[str, PhysicsCore] = {}
 _active_project: Optional[str] = None
@@ -241,6 +242,30 @@ def validate(name: str) -> ValidationResult:
     return PhysicsValidator(core.get_model()).validate()
 
 
+def _log_export_validation(tid: str, validation: ValidationResult, label: str) -> None:
+    status = (validation.details or {}).get("status", "unknown")
+    if status == "skipped":
+        msg = next(
+            (w.message for w in validation.warnings if "skipped" in w.code),
+            f"{label} skipped (not installed)",
+        )
+        task_manager.log(tid, "warning", msg)
+        return
+    if validation.valid:
+        msg = f"{label} passed"
+        if validation.warnings:
+            msg += f" ({len(validation.warnings)} warning(s))"
+        task_manager.log(tid, "info", msg)
+        for w in validation.warnings[:5]:
+            task_manager.log(tid, "warning", w.message)
+        return
+    task_manager.log(tid, "warning", f"{label} failed: {len(validation.errors)} error(s)")
+    for err in validation.errors[:10]:
+        task_manager.log(tid, "error", err.message)
+    for w in validation.warnings[:3]:
+        task_manager.log(tid, "warning", w.message)
+
+
 async def _run_export(name: str, tid: str, include_sdf: bool):
     try:
         core = _get_core(name)
@@ -258,7 +283,23 @@ async def _run_export(name: str, tid: str, include_sdf: bool):
             export_sdf_from_urdf(urdf_out, sdf_out)
             task_manager.log(tid, "info", f"Wrote {sdf_out}")
             payload["sdf"] = str(sdf_out)
-        task_manager.set_status(tid, "completed", payload)
+
+        def _runtime_log(message: str) -> None:
+            task_manager.log(tid, "info", message.strip())
+
+        task_manager.log(tid, "info", "Running export validation (may take up to 1 minute)…")
+        runtime_validation = await asyncio.to_thread(
+            validate_physics_export,
+            name,
+            on_log=_runtime_log,
+        )
+        out = {**payload, "exportValidation": runtime_validation.model_dump()}
+        _log_export_validation(tid, runtime_validation, "Export validation")
+        status = (runtime_validation.details or {}).get("status", "unknown")
+        if status == "skipped" or runtime_validation.valid:
+            task_manager.set_status(tid, "completed", out)
+        else:
+            task_manager.set_status(tid, "failed", out)
     except SdfConversionError as e:
         task_manager.log(tid, "error", str(e))
         task_manager.set_status(tid, "failed", {"error": str(e)})

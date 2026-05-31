@@ -153,6 +153,7 @@ class ValidationResult(BaseModel):
     valid: bool
     errors: list[ValidationIssue] = Field(default_factory=list)
     warnings: list[ValidationIssue] = Field(default_factory=list)
+    details: Optional[dict[str, Any]] = None
 
 
 class TaskLogEntry(BaseModel):

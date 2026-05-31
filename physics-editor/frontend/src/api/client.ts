@@ -18,6 +18,13 @@ export const wsLogsUrl = () => {
   return `${u.origin}/ws/logs`;
 };
 
+export type ExportValidationResult = {
+  valid: boolean;
+  errors: { code: string; message: string }[];
+  warnings: { code: string; message: string }[];
+  details?: { status?: string; durationS?: number; modelFile?: string };
+};
+
 export const api = {
   health: () => req<{ status: string }>("/api/health"),
   listProjects: () =>
@@ -73,7 +80,11 @@ export const api = {
   exportBoth: (project: string) =>
     req<{ task_id: string }>(`/api/projects/${project}/export/both`, { method: "POST" }),
   getTask: (taskId: string) =>
-    req<{ task_id: string; status: string; result?: Record<string, string> }>(`/api/tasks/${taskId}`),
+    req<{
+      status: string;
+      logs: { level: string; message: string }[];
+      result?: Record<string, unknown> & { exportValidation?: ExportValidationResult };
+    }>(`/api/tasks/${taskId}`),
   gazeboPreview: (project: string) =>
     req<{ sdf: string; command: string; exists: boolean }>(`/api/projects/${project}/gazebo-preview`),
   robotCom: (project: string) => req<{ com: import("@robot-model").Vec3 | null }>(`/api/projects/${project}/com`),
