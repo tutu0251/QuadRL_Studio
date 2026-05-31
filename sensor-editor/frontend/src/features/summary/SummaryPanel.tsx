@@ -10,8 +10,8 @@ export function SummaryPanel() {
       <div className="summary-panel empty">
         <h2>Sensor Editor</h2>
         <p>
-          Import a control package (ctrl_* ros2_control URDF) and configure IMU, contact, and lidar
-          sensors for Gazebo Fortress RL training.
+          Import a control package (ctrl_* ros2_control URDF) and configure IMU, contact, lidar,
+          and odometry sensors for Gazebo Fortress RL training.
         </p>
         <ol>
           <li>Geometry Editor → geo URDF</li>
@@ -50,6 +50,10 @@ export function SummaryPanel() {
         <div>
           <span className="stat-value">{byKind("lidar")}</span>
           <span className="stat-label">lidar</span>
+        </div>
+        <div>
+          <span className="stat-value">{byKind("odom")}</span>
+          <span className="stat-label">odom</span>
         </div>
       </div>
       <table className="joint-table">

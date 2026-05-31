@@ -7,6 +7,7 @@ from domain.models import (
     ContactConfig,
     ImuConfig,
     LidarConfig,
+    OdomConfig,
     SensorCreate,
     SensorInstance,
     SensorKind,
@@ -35,6 +36,8 @@ def _default_sensor_name(kind: SensorKind, parent_link: str) -> str:
         return f"{link}_imu" if link else "imu"
     if kind == SensorKind.CONTACT:
         return f"{link}_contact" if link else "contact"
+    if kind == SensorKind.ODOM:
+        return f"{link}_odom" if link else "odom"
     return f"{link}_lidar" if link else "lidar"
 
 
@@ -163,6 +166,11 @@ class SensorCore:
             inst.imu = body.imu or ImuConfig()
         elif body.kind == SensorKind.CONTACT:
             inst.contact = body.contact or ContactConfig()
+        elif body.kind == SensorKind.ODOM:
+            odom_cfg = body.odom or OdomConfig()
+            if not odom_cfg.robotBaseFrame:
+                odom_cfg = odom_cfg.model_copy(update={"robotBaseFrame": body.parentLink})
+            inst.odom = odom_cfg
         else:
             inst.lidar = body.lidar or LidarConfig()
 

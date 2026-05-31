@@ -99,8 +99,13 @@ def _wait_for_sim_ready(
     log_path: Path,
     proc: subprocess.Popen[Any],
     timeout_s: float,
+    *,
+    on_log: LogFn | None = None,
 ) -> tuple[bool, str]:
+    log = on_log or _noop_log
     deadline = time.monotonic() + timeout_s
+    started = time.monotonic()
+    last_heartbeat = started
     while time.monotonic() < deadline:
         if proc.poll() is not None:
             excerpt = read_launch_log(log_path)[-1500:]
@@ -109,7 +114,20 @@ def _wait_for_sim_ready(
         has_controller = any(marker in text for marker in CONTROLLER_READY_MARKERS)
         has_bridge = "parameter_bridge" in text.lower() or "ros_gz_bridge" in text.lower()
         if has_controller and has_bridge:
+            elapsed = int(time.monotonic() - started)
+            log(f"  sim ready ({elapsed}s)")
             return True, ""
+        now = time.monotonic()
+        if now - last_heartbeat >= 10.0:
+            elapsed = int(now - started)
+            flags = []
+            if has_controller:
+                flags.append("controllers")
+            if has_bridge:
+                flags.append("bridge")
+            status = ", ".join(flags) if flags else "starting"
+            log(f"  still waiting for sim ({elapsed}s, {status})...")
+            last_heartbeat = now
         time.sleep(2.0)
     return False, f"Timed out waiting for sim bridge/controllers in launch log ({int(timeout_s)}s)"
 
@@ -160,7 +178,7 @@ def _run_sensor_runtime(paths: SensorProjectPaths, *, on_log: LogFn | None = Non
 
     try:
         log("  waiting for bridge and controllers...")
-        ready, ready_err = _wait_for_sim_ready(log_path, proc, LAUNCH_READY_TIMEOUT_S)
+        ready, ready_err = _wait_for_sim_ready(log_path, proc, LAUNCH_READY_TIMEOUT_S, on_log=log)
         if not ready:
             result["errors"].append(ready_err or "Simulation did not become ready")
             result["launch_log_excerpt"] = read_launch_log(log_path)[-3000:]

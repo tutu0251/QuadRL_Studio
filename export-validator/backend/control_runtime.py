@@ -140,15 +140,27 @@ def _wait_for_controllers_in_log(
     log_path: Path,
     proc: subprocess.Popen[Any],
     timeout_s: float,
+    *,
+    on_log: LogFn | None = None,
 ) -> tuple[bool, str]:
+    log = on_log or _noop_log
     deadline = time.monotonic() + timeout_s
+    started = time.monotonic()
+    last_heartbeat = started
     while time.monotonic() < deadline:
         if proc.poll() is not None:
             excerpt = _read_launch_log(log_path)[-1500:]
             return False, f"Launch process exited early — see control_runtime_launch.log\n{excerpt}"
         text = _read_launch_log(log_path)
         if any(marker in text for marker in CONTROLLER_READY_MARKERS):
+            elapsed = int(time.monotonic() - started)
+            log(f"  controllers ready ({elapsed}s)")
             return True, ""
+        now = time.monotonic()
+        if now - last_heartbeat >= 10.0:
+            elapsed = int(now - started)
+            log(f"  still waiting for controllers ({elapsed}s)...")
+            last_heartbeat = now
         time.sleep(2.0)
     return False, f"Timed out waiting for controllers in launch log ({int(timeout_s)}s)"
 
@@ -267,7 +279,7 @@ def _run_runtime(paths: ControlProjectPaths, *, on_log: LogFn | None = None) -> 
 
     try:
         log("  waiting for controllers in launch log...")
-        ready, ready_err = _wait_for_controllers_in_log(log_path, proc, LAUNCH_READY_TIMEOUT_S)
+        ready, ready_err = _wait_for_controllers_in_log(log_path, proc, LAUNCH_READY_TIMEOUT_S, on_log=log)
         if not ready:
             launch_log = log_path.read_text(errors="replace") if log_path.is_file() else ""
             result["errors"].append(ready_err or "Controllers did not become ready")

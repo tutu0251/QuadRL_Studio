@@ -1,11 +1,14 @@
 """Patch exported URDF for installable ROS packages."""
 from __future__ import annotations
 
+import copy
 import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
 import yaml
+
+from generator.link_preservation import assert_link_topology_unchanged
 
 
 def patch_controllers_parameters(urdf_text: str, controllers_path: str) -> str:
@@ -252,6 +255,7 @@ def patch_contact_sensors(urdf_text: str) -> str:
     except ET.ParseError:
         return urdf_text
 
+    before_root = copy.deepcopy(root)
     _preserve_foot_fixed_joints(root)
 
     for gz in root.findall("gazebo"):
@@ -269,6 +273,8 @@ def patch_contact_sensors(urdf_text: str) -> str:
                 continue
             requested = (col.text or "").strip() or None
             col.text = gazebo_contact_collision_name(root, ref, requested)
+
+    assert_link_topology_unchanged(before_root, root, step="contact sensor patch")
 
     ET.indent(root)
     return ET.tostring(root, encoding="unicode", xml_declaration=True)

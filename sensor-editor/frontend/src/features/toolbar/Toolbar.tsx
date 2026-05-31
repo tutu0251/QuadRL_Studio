@@ -39,7 +39,7 @@ function logValidationResult(
   }
 }
 
-const SENSOR_KINDS: SensorKind[] = ["imu", "contact", "lidar"];
+const SENSOR_KINDS: SensorKind[] = ["imu", "contact", "lidar", "odom"];
 
 export function Toolbar() {
   const project = useEditorStore((s) => s.project);

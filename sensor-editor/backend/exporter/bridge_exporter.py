@@ -24,6 +24,7 @@ def export_bridge_yaml(model: SensorModel, output_path: Path) -> Path:
                 "direction": "GZ_TO_ROS",
                 "sensor_id": sensor.id,
                 "sensor_name": sensor.name,
+                "sensor_kind": sensor.kind.value,
                 "parent_link": sensor.parentLink,
             }
         )
