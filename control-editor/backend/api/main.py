@@ -239,6 +239,42 @@ def validate_gazebo(name: str) -> ValidationResult:
     return validate_gazebo_export(urdf_out, name)
 
 
+async def _run_gazebo_validate(name: str, tid: str) -> None:
+    try:
+        urdf_out = project_storage.export_ros2_urdf_path(name)
+        if not urdf_out.is_file():
+            task_manager.log(tid, "error", f"Missing export URDF: {urdf_out}")
+            task_manager.set_status(tid, "failed", {"error": "missing_export_urdf"})
+            return
+
+        def _runtime_log(message: str) -> None:
+            task_manager.log(tid, "info", message.strip())
+
+        task_manager.log(tid, "info", "Running control runtime validation (may take 2–3 minutes)…")
+        gazebo_validation = await asyncio.to_thread(
+            validate_gazebo_export,
+            urdf_out,
+            name,
+            on_log=_runtime_log,
+        )
+        _log_gazebo_validation(tid, gazebo_validation)
+        task_manager.set_status(
+            tid,
+            "completed",
+            {"gazeboValidation": gazebo_validation.model_dump()},
+        )
+    except Exception as e:
+        task_manager.log(tid, "error", str(e))
+        task_manager.set_status(tid, "failed", {"error": str(e)})
+
+
+@app.post("/api/projects/{name}/validate/gazebo/async")
+async def validate_gazebo_async(name: str):
+    tid = task_manager.create_task()
+    asyncio.create_task(_run_gazebo_validate(name, tid))
+    return {"task_id": tid}
+
+
 def _log_gazebo_validation(tid: str, gazebo_validation: ValidationResult) -> None:
     status = (gazebo_validation.details or {}).get("status", "unknown")
     if status == "skipped":
@@ -299,6 +335,7 @@ async def _run_export(name: str, tid: str):
         for k, v in payload.items():
             task_manager.log(tid, "info", f"Wrote {v}")
 
+        task_manager.log(tid, "info", "Validating export files…")
         export_validation = validate_export_files(model, urdf_out, ctrl_out, gains_out)
         result = {**payload, "exportValidation": export_validation.model_dump()}
 
@@ -310,10 +347,15 @@ async def _run_export(name: str, tid: str):
             for w in export_validation.warnings[:5]:
                 task_manager.log(tid, "warning", w.message)
 
+            def _runtime_log(message: str) -> None:
+                task_manager.log(tid, "info", message.strip())
+
+            task_manager.log(tid, "info", "Running control runtime validation (may take 2–3 minutes)…")
             gazebo_validation = await asyncio.to_thread(
                 validate_gazebo_export,
                 urdf_out,
                 name,
+                on_log=_runtime_log,
             )
             result["gazeboValidation"] = gazebo_validation.model_dump()
             _log_gazebo_validation(tid, gazebo_validation)

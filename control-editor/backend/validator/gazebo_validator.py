@@ -9,10 +9,13 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, IO, Optional
 
 from domain.models import ValidationIssue, ValidationResult
+
+LogFn = Callable[[str], None]
 
 EXPORT_VALIDATOR_BACKEND = Path(__file__).resolve().parents[3] / "export-validator" / "backend"
 
@@ -396,7 +399,12 @@ class GazeboExportValidator:
         )
 
 
-def _try_workspace_validation(urdf_path: Path, model_name: str) -> ValidationResult | None:
+def _try_workspace_validation(
+    urdf_path: Path,
+    model_name: str,
+    *,
+    on_log: LogFn | None = None,
+) -> ValidationResult | None:
     """Run workspace-based control validation when export-validator is available."""
     backend = EXPORT_VALIDATOR_BACKEND
     if not (backend / "control_runtime.py").is_file():
@@ -421,6 +429,7 @@ def _try_workspace_validation(urdf_path: Path, model_name: str) -> ValidationRes
         model_name,
         auto_build=True,
         auto_generate=True,
+        on_log=on_log,
     )
     status = (result.details or {}).get("status")
     if status == "skipped" and any(w.code == "control_runtime_no_workspace" for w in result.warnings):
@@ -482,8 +491,11 @@ def validate_gazebo_export(
     model_name: str,
     *,
     timeout_s: float = DEFAULT_TIMEOUT_S,
+    on_log: LogFn | None = None,
 ) -> ValidationResult:
-    workspace_result = _try_workspace_validation(urdf_path, model_name)
+    workspace_result = _try_workspace_validation(urdf_path, model_name, on_log=on_log)
     if workspace_result is not None:
         return workspace_result
+    if on_log:
+        on_log("Using legacy headless Gazebo spawn (workspace validation unavailable)…")
     return GazeboExportValidator(urdf_path, model_name, timeout_s=timeout_s).validate()

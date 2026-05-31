@@ -1,15 +1,60 @@
 import { useState } from "react";
-import { api } from "../../api/client";
+import { api, wsLogsUrl } from "../../api/client";
 import { PROFILE_IMPLEMENTED, type TrainingProfile, type ValidationResult } from "@control-model";
 import { useEditorStore } from "../../stores/editorStore";
 
-async function pollTask(taskId: string) {
-  for (let i = 0; i < 120; i++) {
-    await new Promise((r) => setTimeout(r, 500));
-    const t = await api.getTask(taskId);
-    if (t.status === "completed" || t.status === "failed") return t;
-  }
-  return null;
+/** Control runtime validation (Gazebo + joint probe) often exceeds 2 minutes. */
+const POLL_INTERVAL_MS = 500;
+const POLL_TIMEOUT_MS = 20 * 60 * 1000;
+
+type TaskStatus = Awaited<ReturnType<typeof api.getTask>>;
+
+function waitForTask(taskId: string): Promise<TaskStatus | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let ws: WebSocket | null = null;
+
+    const finish = (task: TaskStatus | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearInterval(pollTimer);
+      ws?.close();
+      resolve(task);
+    };
+
+    const pollTimer = window.setInterval(async () => {
+      try {
+        const t = await api.getTask(taskId);
+        if (t.status === "completed" || t.status === "failed") {
+          finish(t);
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, POLL_INTERVAL_MS);
+
+    window.setTimeout(() => {
+      void api.getTask(taskId).then(finish).catch(() => finish(null));
+    }, POLL_TIMEOUT_MS);
+
+    try {
+      ws = new WebSocket(wsLogsUrl());
+      ws.onmessage = (ev) => {
+        const data = JSON.parse(ev.data) as {
+          type?: string;
+          task_id?: string;
+          status?: string;
+        };
+        if (data.type === "status" && data.task_id === taskId) {
+          if (data.status === "completed" || data.status === "failed") {
+            void api.getTask(taskId).then(finish).catch(() => finish(null));
+          }
+        }
+      };
+    } catch {
+      /* polling-only fallback */
+    }
+  });
 }
 
 function logValidationResult(
@@ -37,6 +82,12 @@ function logValidationResult(
       `  joints: model=${v.details.expectedJointCount} urdf=${v.details.urdfJointCount ?? "?"} ` +
         `controllers=${v.details.controllerJointCount ?? "?"} gains=${v.details.gainsJointCount ?? "?"}`
     );
+  }
+  const probe = v.details?.control_probe as
+    | { joint?: string; moved?: boolean; action_ok?: boolean }
+    | undefined;
+  if (probe?.joint) {
+    log(`  control probe: ${probe.joint} moved=${probe.moved ?? "?"} action=${probe.action_ok ?? "?"}`);
   }
   if (v.details?.durationS != null) {
     log(`  duration: ${v.details.durationS}s`);
@@ -86,14 +137,9 @@ export function Toolbar() {
       v.warnings.slice(0, 3).forEach((w) => log(`  ⚠ ${w.message}`));
       const { task_id } = await api.exportRos2Control(project);
       log("Exporting ros2_control…");
-      const t = await pollTask(task_id);
+      const t = await waitForTask(task_id);
       if (t?.status === "completed") {
         log("Export complete");
-        if (t.result) {
-          if (t.result.urdf) log(`  → ${t.result.urdf}`);
-          if (t.result.controllers) log(`  → ${t.result.controllers}`);
-          if (t.result.gains) log(`  → ${t.result.gains}`);
-        }
         if (t.result?.exportValidation) {
           logValidationResult(log, "Export file validation", t.result.exportValidation);
         }
@@ -102,21 +148,19 @@ export function Toolbar() {
         }
       } else if (t?.status === "failed") {
         log("Export failed — exported files did not pass validation");
-        if (t.result) {
-          if (t.result.urdf) log(`  → ${t.result.urdf}`);
-          if (t.result.controllers) log(`  → ${t.result.controllers}`);
-          if (t.result.gains) log(`  → ${t.result.gains}`);
-        }
         if (t.result?.exportValidation) {
           logValidationResult(log, "Export file validation", t.result.exportValidation, focusConsole);
         }
         if (t.result?.gazeboValidation) {
           logValidationResult(log, "Gazebo validation", t.result.gazeboValidation, focusConsole);
+        } else if (t.result && "error" in t.result) {
+          log(String(t.result.error));
+          focusConsole();
         } else {
           focusConsole();
         }
       } else {
-        log("Export timed out or failed");
+        log("Export timed out waiting for backend — see console for progress");
         focusConsole();
       }
     } catch (e) {
@@ -174,19 +218,39 @@ export function Toolbar() {
           disabled={!project || busy}
           onClick={async () => {
             if (!project) return;
-            const v = await api.validate(project);
-            logValidationResult(log, "Model validation", v, v.valid ? undefined : focusConsole);
+            setBusy(true);
             try {
-              const ev = await api.validateExport(project);
-              if (ev.errors.some((e) => e.code.startsWith("missing_"))) {
-                log("No export files on disk — run Export first");
-              } else {
-                logValidationResult(log, "Export file validation", ev, ev.valid ? undefined : focusConsole);
+              const v = await api.validate(project);
+              logValidationResult(log, "Model validation", v, v.valid ? undefined : focusConsole);
+              try {
+                const ev = await api.validateExport(project);
+                if (ev.errors.some((e) => e.code.startsWith("missing_"))) {
+                  log("No export files on disk — run Export first");
+                } else {
+                  logValidationResult(log, "Export file validation", ev, ev.valid ? undefined : focusConsole);
+                }
+                const { task_id } = await api.validateGazeboAsync(project);
+                log("Running Gazebo validation…");
+                const t = await waitForTask(task_id);
+                if (t?.result?.gazeboValidation) {
+                  logValidationResult(
+                    log,
+                    "Gazebo validation",
+                    t.result.gazeboValidation,
+                    t.result.gazeboValidation.valid ? undefined : focusConsole
+                  );
+                } else if (t?.status === "failed" && t.result && "error" in t.result) {
+                  log(String(t.result.error));
+                  focusConsole();
+                } else if (!t) {
+                  log("Gazebo validation timed out — see console for progress");
+                  focusConsole();
+                }
+              } catch {
+                /* export files optional */
               }
-              const gv = await api.validateGazebo(project);
-              logValidationResult(log, "Gazebo validation", gv, gv.valid ? undefined : focusConsole);
-            } catch {
-              /* export files optional */
+            } finally {
+              setBusy(false);
             }
           }}
         >
