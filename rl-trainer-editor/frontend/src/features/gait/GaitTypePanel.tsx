@@ -81,7 +81,7 @@ export function GaitTypePanel() {
       <div className="gait-layout editor-split-layout">
         <aside className="gait-library editor-sidebar">
           <div className="pane-header">
-            <h4 className="pane-title">Gait library</h4>
+            <h4 className="pane-title">Gate types</h4>
             <span className="pane-badge">{gaits.length}</span>
           </div>
           <div className="library-list">
@@ -154,7 +154,7 @@ export function GaitTypePanel() {
             </>
           ) : (
             <div className="editor-empty-state compact">
-              <p className="empty-desc">Add a gait preset from the library sidebar.</p>
+              <p className="empty-desc">Select a gate type from the sidebar (none, walk, trot, gallop).</p>
             </div>
           )}
         </div>

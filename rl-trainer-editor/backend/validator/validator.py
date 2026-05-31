@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 from domain.models import RlTrainerModel, ValidationIssue, ValidationResult
+from planner.gait_defaults import resolve_gait_id
 from storage import project_storage
 
 
@@ -17,7 +18,7 @@ _CATEGORY_OBS: dict[str, set[str]] = {
     "action_smoothness": set(),
 }
 
-_GAIT_IDS = {"stand", "recover", "walk", "trot", "pace", "bound", "gallop"}
+_GAIT_IDS = {"none", "walk", "trot", "gallop"}
 
 
 class RlTrainerValidator:
@@ -106,18 +107,19 @@ class RlTrainerValidator:
                             message=f"Stage '{stage.id}' has no reward terms.",
                         )
                     )
-                if stage.gaitTypeId and stage.gaitTypeId not in gait_ids:
+                resolved_gait = resolve_gait_id(stage.gaitTypeId) if stage.gaitTypeId else ""
+                if resolved_gait and resolved_gait not in gait_ids:
                     errors.append(
                         ValidationIssue(
                             severity="error",
                             code="missing_gait_type",
-                            message=f"Stage '{stage.id}' references unknown gait '{stage.gaitTypeId}'.",
+                            message=f"Stage '{stage.id}' references unknown gate type '{stage.gaitTypeId}'.",
                         )
                     )
                 if (
                     cur.terrainProfile == "rough"
                     and not stage.disturbance.enabled
-                    and stage.gaitTypeId not in ("stand",)
+                    and resolve_gait_id(stage.gaitTypeId) != "none"
                 ):
                     warnings.append(
                         ValidationIssue(

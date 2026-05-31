@@ -15,10 +15,10 @@ from storage import project_storage
 from validator.validator import RlTrainerValidator
 
 
-def test_default_gait_library_has_seven():
+def test_default_gait_library_has_four_gate_types():
     gaits = default_gait_library()
-    assert len(gaits) == 7
-    assert gaits[0].id == "stand"
+    assert len(gaits) == 4
+    assert gaits[0].id == "none"
     assert gaits[-1].id == "gallop"
 
 

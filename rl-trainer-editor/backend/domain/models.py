@@ -100,7 +100,7 @@ class CurriculumStage(BaseModel):
     timesteps: int = 300_000
     targetLinVelX: float = 0.0
     targetAngVelZ: float = 0.0
-    gaitTypeId: str = "stand"
+    gaitTypeId: str = "none"
     command: StageCommand = Field(default_factory=StageCommand)
     disturbance: DisturbanceConfig = Field(default_factory=DisturbanceConfig)
     rewardTerms: list[RewardTerm] = Field(default_factory=list)

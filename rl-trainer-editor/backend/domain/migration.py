@@ -12,7 +12,7 @@ from domain.models import (
     new_id,
 )
 from planner.curriculum_templates import curriculum_to_entry
-from planner.gait_defaults import default_gait_library
+from planner.gait_defaults import default_gait_library, resolve_gait_id
 
 
 def _migrate_stage(stage: CurriculumStage) -> CurriculumStage:
@@ -34,14 +34,20 @@ def _migrate_stage(stage: CurriculumStage) -> CurriculumStage:
         s.targetLinVelX = s.command.targetLinVelX
         s.targetAngVelZ = s.command.targetAngVelZ
     if not s.gaitTypeId:
-        s.gaitTypeId = "walk" if s.targetLinVelX > 0 else "stand"
+        s.gaitTypeId = "walk" if s.targetLinVelX > 0 else "none"
+    else:
+        s.gaitTypeId = resolve_gait_id(s.gaitTypeId)
     if s.disturbance is None:
         s.disturbance = DisturbanceConfig()
     return s
 
 
+_CATALOG_IDS = frozenset({"none", "walk", "trot", "gallop"})
+
+
 def migrate_model(model: RlTrainerModel) -> RlTrainerModel:
-    if not model.gaitTypes:
+    library_ids = {g.id for g in model.gaitTypes}
+    if not model.gaitTypes or not library_ids.issubset(_CATALOG_IDS) or len(model.gaitTypes) != 4:
         model.gaitTypes = default_gait_library()
 
     if not model.trainingCheckpoint:

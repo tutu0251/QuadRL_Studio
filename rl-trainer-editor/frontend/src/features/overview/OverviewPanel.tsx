@@ -67,7 +67,7 @@ export function OverviewPanel({ compact = false }: { compact?: boolean }) {
             <dd className="mono">{curriculumTotal != null ? formatTimesteps(curriculumTotal) : "—"}</dd>
           </div>
           <div className="side-stat">
-            <dt>Gait types</dt>
+            <dt>Gate types</dt>
             <dd>{model.gaitTypes?.length ?? 0}</dd>
           </div>
         </dl>

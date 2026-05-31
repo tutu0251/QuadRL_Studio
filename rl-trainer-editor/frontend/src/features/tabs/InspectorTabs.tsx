@@ -4,7 +4,7 @@ import { GaitTypePanel } from "../gait/GaitTypePanel";
 
 const TABS = [
   { id: "curriculum", label: "Curriculum", hint: "Stages & training order" },
-  { id: "gait", label: "Gait", hint: "Cycle time & phase offsets" },
+  { id: "gait", label: "Gate Type", hint: "None, walk, trot, gallop — cycle & phase params" },
 ] as const;
 
 export function InspectorTabs() {
@@ -20,7 +20,7 @@ export function InspectorTabs() {
             ◇
           </div>
           <h2>Open a project</h2>
-          <p>Use File → select project to configure curriculum stages and gait types.</p>
+          <p>Use File → select project to configure curriculum stages and gate types.</p>
         </div>
       </div>
     );

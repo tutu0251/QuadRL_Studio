@@ -1,25 +1,26 @@
-"""Canonical quadruped gait parameters."""
+"""Canonical quadruped gate-type parameters."""
 from __future__ import annotations
 
 from domain.models import GaitPhaseOffsets, GaitType
 
+_GAIT_CATALOG = ("none", "walk", "trot", "gallop")
+
+# Legacy stage / project IDs map to catalog entries for recommend & migration.
+_GAIT_ALIASES: dict[str, str] = {
+    "stand": "none",
+    "recover": "none",
+    "pace": "trot",
+    "bound": "gallop",
+}
+
 _GAIT_SPECS: dict[str, dict] = {
-    "stand": {
-        "name": "Stand",
+    "none": {
+        "name": "None",
         "cycleTime": 1.0,
         "dutyFactor": 1.0,
         "phaseOffsets": (0.0, 0.0, 0.0, 0.0),
         "swingHeight": 0.0,
         "stepLength": 0.0,
-        "bodyHeight": 0.35,
-    },
-    "recover": {
-        "name": "Recover",
-        "cycleTime": 0.8,
-        "dutyFactor": 0.85,
-        "phaseOffsets": (0.0, 0.25, 0.5, 0.75),
-        "swingHeight": 0.04,
-        "stepLength": 0.05,
         "bodyHeight": 0.35,
     },
     "walk": {
@@ -40,24 +41,6 @@ _GAIT_SPECS: dict[str, dict] = {
         "stepLength": 0.18,
         "bodyHeight": 0.35,
     },
-    "pace": {
-        "name": "Pace / Lateral trot",
-        "cycleTime": 0.42,
-        "dutyFactor": 0.5,
-        "phaseOffsets": (0.0, 0.0, 0.5, 0.5),
-        "swingHeight": 0.08,
-        "stepLength": 0.16,
-        "bodyHeight": 0.35,
-    },
-    "bound": {
-        "name": "Bound",
-        "cycleTime": 0.35,
-        "dutyFactor": 0.45,
-        "phaseOffsets": (0.0, 0.0, 0.5, 0.5),
-        "swingHeight": 0.1,
-        "stepLength": 0.25,
-        "bodyHeight": 0.34,
-    },
     "gallop": {
         "name": "Gallop",
         "cycleTime": 0.28,
@@ -70,16 +53,21 @@ _GAIT_SPECS: dict[str, dict] = {
 }
 
 
+def resolve_gait_id(gait_id: str) -> str:
+    return _GAIT_ALIASES.get(gait_id, gait_id)
+
+
 def _offsets(t: tuple[float, float, float, float]) -> GaitPhaseOffsets:
     return GaitPhaseOffsets(fl=t[0], fr=t[1], rl=t[2], rr=t[3])
 
 
 def build_gait(gait_id: str) -> GaitType:
-    spec = _GAIT_SPECS.get(gait_id)
+    canonical = resolve_gait_id(gait_id)
+    spec = _GAIT_SPECS.get(canonical)
     if not spec:
         raise KeyError(f"Unknown gait: {gait_id}")
     return GaitType(
-        id=gait_id,
+        id=canonical,
         name=spec["name"],
         builtin=True,
         cycleTime=spec["cycleTime"],
@@ -92,8 +80,8 @@ def build_gait(gait_id: str) -> GaitType:
 
 
 def default_gait_library() -> list[GaitType]:
-    return [build_gait(gid) for gid in _GAIT_SPECS]
+    return [build_gait(gid) for gid in _GAIT_CATALOG]
 
 
 def list_gait_catalog() -> list[dict]:
-    return [{"id": gid, "name": _GAIT_SPECS[gid]["name"]} for gid in _GAIT_SPECS]
+    return [{"id": gid, "name": _GAIT_SPECS[gid]["name"]} for gid in _GAIT_CATALOG]

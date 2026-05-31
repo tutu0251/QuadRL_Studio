@@ -13,7 +13,7 @@ from domain.models import (
     StageCommand,
     TerminationConfig,
 )
-from planner.gait_defaults import build_gait
+from planner.gait_defaults import build_gait, resolve_gait_id
 
 
 @dataclass
@@ -44,22 +44,16 @@ _LOCO_REWARD_IDS = frozenset(
 
 
 _VEL_BY_GAIT = {
-    "stand": 0.0,
-    "recover": 0.0,
+    "none": 0.0,
     "walk": 0.4,
     "trot": 0.8,
-    "pace": 1.0,
-    "bound": 1.2,
     "gallop": 1.5,
 }
 
 _TIMESTEPS_BY_GAIT = {
-    "stand": 400_000,
-    "recover": 350_000,
+    "none": 400_000,
     "walk": 500_000,
     "trot": 550_000,
-    "pace": 500_000,
-    "bound": 550_000,
     "gallop": 650_000,
 }
 
@@ -83,7 +77,7 @@ def recommend_gait(gait_id: str) -> tuple[GaitType, list[str]]:
 
 
 def _recommend_reward_terms(stage: CurriculumStage) -> list[RewardTerm]:
-    is_stand = stage.gaitTypeId in ("stand", "recover")
+    is_stand = resolve_gait_id(stage.gaitTypeId) == "none"
     out: list[RewardTerm] = []
     for term in stage.rewardTerms:
         t = term.model_copy(deep=True)
@@ -101,7 +95,7 @@ def recommend_param_enabled(
     reward_terms: list[RewardTerm],
 ) -> dict[str, bool]:
     flags: dict[str, bool] = {}
-    is_stand = stage.gaitTypeId in ("stand", "recover")
+    is_stand = resolve_gait_id(stage.gaitTypeId) == "none"
 
     for key in ("name", "description", "gait_type", "timesteps"):
         flags[f"identity.{key}"] = True
@@ -168,7 +162,7 @@ def recommend_stage_params(
     rough: bool,
     machine: MachineProfile | None = None,
 ) -> StageRecommendation:
-    gait_id = stage.gaitTypeId
+    gait_id = resolve_gait_id(stage.gaitTypeId)
     vel = _VEL_BY_GAIT.get(gait_id, stage.targetLinVelX)
     scale = _machine_scale(machine)
     base_ts = _TIMESTEPS_BY_GAIT.get(gait_id, stage.timesteps)

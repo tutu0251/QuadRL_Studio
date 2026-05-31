@@ -15,12 +15,9 @@ from domain.models import (
 from planner.recommender import recommend_stage_params
 
 _STAGE_DEFS = [
-    ("stand", "Stand", "Learn stable balance before any commanded motion.", 400_000, 0.0),
-    ("recover", "Recover", "Recover posture after perturbations.", 350_000, 0.0),
+    ("none", "None", "Learn stable balance before any commanded motion.", 400_000, 0.0),
     ("walk", "Walk", "Comfortable walking with velocity tracking.", 500_000, 0.4),
-    ("trot", "Trot", "Diagonal gait at moderate speed.", 550_000, 0.8),
-    ("pace", "Pace / Lateral trot", "Lateral pair gait.", 500_000, 1.0),
-    ("bound", "Bound", "Front/rear pair bounding.", 550_000, 1.2),
+    ("trot", "Trot", "Diagonal gate type at moderate speed.", 550_000, 0.8),
     ("gallop", "Gallop", "Maximum speed gallop — final stage.", 650_000, 1.5),
 ]
 
@@ -66,12 +63,9 @@ def _disturbance_for_gait(gait_id: str, rough: bool) -> DisturbanceConfig:
     if not rough:
         return DisturbanceConfig()
     scale = {
-        "stand": 0.15,
-        "recover": 0.25,
+        "none": 0.15,
         "walk": 0.35,
-        "trot": 0.45,
-        "pace": 0.55,
-        "bound": 0.65,
+        "trot": 0.55,
         "gallop": 0.75,
     }.get(gait_id, 0.3)
     return DisturbanceConfig(
@@ -93,7 +87,7 @@ def _build_stage(
     lin_vel: float,
     rough: bool,
 ) -> CurriculumStage:
-    rewards = _stand_terms() if lin_vel == 0.0 and gait_id in ("stand", "recover") else _locomotion_terms(lin_vel)
+    rewards = _stand_terms() if lin_vel == 0.0 and gait_id == "none" else _locomotion_terms(lin_vel)
     cmd = StageCommand(
         targetLinVelX=lin_vel,
         targetLinVelY=0.0,
@@ -102,7 +96,7 @@ def _build_stage(
         gaitSpeedScale=1.0 + order * 0.05,
     )
     stage = CurriculumStage(
-        id=gait_id if order == 0 or gait_id != "stand" else f"{gait_id}_{order}",
+        id=gait_id,
         name=name,
         order=order,
         description=description,
@@ -174,16 +168,16 @@ CURRICULUM_CATALOG: list[dict] = [
     {
         "id": "stand_sprint",
         "name": "Stand → Sprint (flat)",
-        "description": "Seven gait stages from stand through gallop on flat terrain.",
-        "stageCount": 7,
+        "description": "Four gate types from none through gallop on flat terrain.",
+        "stageCount": 4,
         "totalTimesteps": sum(d[3] for d in _STAGE_DEFS),
         "terrainProfile": "flat",
     },
     {
         "id": "stand_sprint_rough",
         "name": "Stand → Sprint (rough terrain)",
-        "description": "Same gait progression with disturbances and rough terrain.",
-        "stageCount": 7,
+        "description": "Same gate-type progression with disturbances and rough terrain.",
+        "stageCount": 4,
         "totalTimesteps": int(sum(d[3] for d in _STAGE_DEFS) * 1.1),
         "terrainProfile": "rough",
     },
