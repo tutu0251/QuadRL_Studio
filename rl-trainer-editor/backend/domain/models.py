@@ -46,12 +46,46 @@ class TerminationConfig(BaseModel):
 
 
 class CurriculumAdvanceCriteria(BaseModel):
-    """When met, the trainer may advance to the next curriculum stage."""
-
     minMeanEpisodeReward: float = 0.0
     minEpisodeLengthFrac: float = 0.7
     maxFallRate: float = 0.25
     minTimestepsInStage: Optional[int] = None
+
+
+class GaitPhaseOffsets(BaseModel):
+    fl: float = 0.0
+    fr: float = 0.0
+    rl: float = 0.0
+    rr: float = 0.0
+
+
+class GaitType(BaseModel):
+    id: str
+    name: str
+    builtin: bool = True
+    cycleTime: float = 0.5
+    dutyFactor: float = 0.6
+    phaseOffsets: GaitPhaseOffsets = Field(default_factory=GaitPhaseOffsets)
+    swingHeight: Optional[float] = None
+    stepLength: Optional[float] = None
+    bodyHeight: Optional[float] = None
+
+
+class StageCommand(BaseModel):
+    targetLinVelX: float = 0.0
+    targetLinVelY: float = 0.0
+    targetAngVelZ: float = 0.0
+    targetBodyHeight: float = 0.35
+    gaitSpeedScale: float = 1.0
+
+
+class DisturbanceConfig(BaseModel):
+    enabled: bool = False
+    pushForceN: float = 0.0
+    pushIntervalSteps: int = 0
+    terrainRoughness: float = 0.0
+    lateralImpulseN: float = 0.0
+    randomOrientationNoiseRad: float = 0.0
 
 
 class CurriculumStage(BaseModel):
@@ -62,6 +96,9 @@ class CurriculumStage(BaseModel):
     timesteps: int = 300_000
     targetLinVelX: float = 0.0
     targetAngVelZ: float = 0.0
+    gaitTypeId: str = "stand"
+    command: StageCommand = Field(default_factory=StageCommand)
+    disturbance: DisturbanceConfig = Field(default_factory=DisturbanceConfig)
     rewardTerms: list[RewardTerm] = Field(default_factory=list)
     termination: TerminationConfig = Field(default_factory=TerminationConfig)
     advanceCriteria: CurriculumAdvanceCriteria = Field(
@@ -74,10 +111,33 @@ class CurriculumConfig(BaseModel):
     curriculumId: Optional[str] = None
     name: str = ""
     description: str = ""
+    terrainProfile: Literal["flat", "rough"] = "flat"
     stages: list[CurriculumStage] = Field(default_factory=list)
     currentStageIndex: int = 0
     loadPreviousCheckpoint: bool = True
     resetPolicyOnStageAdvance: bool = False
+
+
+class CurriculumEntry(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    terrainProfile: Literal["flat", "rough"] = "flat"
+    stages: list[CurriculumStage] = Field(default_factory=list)
+    loadPreviousCheckpoint: bool = True
+    resetPolicyOnStageAdvance: bool = False
+
+
+class TrainingCheckpointConfig(BaseModel):
+    resumeCheckpointPath: Optional[str] = None
+    checkpointDirectory: str = "checkpoints"
+
+
+class CheckpointInfo(BaseModel):
+    path: str
+    filename: str
+    sizeBytes: int
+    modifiedAt: str
 
 
 class RlTrainerModel(BaseModel):
@@ -86,13 +146,20 @@ class RlTrainerModel(BaseModel):
     id: str = Field(default_factory=new_id)
     projectName: str = ""
     robotName: str = "robot"
-    version: str = "1.0"
+    version: str = "2.0"
     selectedPresetId: Optional[str] = None
     recommendationNotes: list[str] = Field(default_factory=list)
     machineProfile: Optional[MachineProfile] = None
     rewardTerms: list[RewardTerm] = Field(default_factory=list)
     termination: TerminationConfig = Field(default_factory=TerminationConfig)
     curriculum: CurriculumConfig = Field(default_factory=CurriculumConfig)
+    gaitTypes: list[GaitType] = Field(default_factory=list)
+    curriculumLibrary: list[CurriculumEntry] = Field(default_factory=list)
+    activeCurriculumId: Optional[str] = None
+    trainingCheckpoint: TrainingCheckpointConfig = Field(
+        default_factory=TrainingCheckpointConfig
+    )
+    useRecommended: bool = True
     customParams: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -127,4 +194,9 @@ class RlTrainerPatch(BaseModel):
     rewardTerms: Optional[list[RewardTerm]] = None
     termination: Optional[TerminationConfig] = None
     curriculum: Optional[CurriculumConfig] = None
+    gaitTypes: Optional[list[GaitType]] = None
+    curriculumLibrary: Optional[list[CurriculumEntry]] = None
+    activeCurriculumId: Optional[str] = None
+    trainingCheckpoint: Optional[TrainingCheckpointConfig] = None
+    useRecommended: Optional[bool] = None
     customParams: Optional[dict[str, Any]] = None

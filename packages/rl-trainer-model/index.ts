@@ -2,6 +2,7 @@
 
 export type RewardTermType = "reward" | "penalty";
 export type CustomParamValue = number | string | boolean;
+export type TerrainProfile = "flat" | "rough";
 
 export interface MachineProfile {
   hostname: string;
@@ -39,6 +40,42 @@ export interface CurriculumAdvanceCriteria {
   minTimestepsInStage: number | null;
 }
 
+export interface GaitPhaseOffsets {
+  fl: number;
+  fr: number;
+  rl: number;
+  rr: number;
+}
+
+export interface GaitType {
+  id: string;
+  name: string;
+  builtin: boolean;
+  cycleTime: number;
+  dutyFactor: number;
+  phaseOffsets: GaitPhaseOffsets;
+  swingHeight?: number;
+  stepLength?: number;
+  bodyHeight?: number;
+}
+
+export interface StageCommand {
+  targetLinVelX: number;
+  targetLinVelY: number;
+  targetAngVelZ: number;
+  targetBodyHeight: number;
+  gaitSpeedScale: number;
+}
+
+export interface DisturbanceConfig {
+  enabled: boolean;
+  pushForceN: number;
+  pushIntervalSteps: number;
+  terrainRoughness: number;
+  lateralImpulseN: number;
+  randomOrientationNoiseRad: number;
+}
+
 export interface CurriculumStage {
   id: string;
   name: string;
@@ -47,6 +84,9 @@ export interface CurriculumStage {
   timesteps: number;
   targetLinVelX: number;
   targetAngVelZ: number;
+  gaitTypeId: string;
+  command: StageCommand;
+  disturbance: DisturbanceConfig;
   rewardTerms: RewardTerm[];
   termination: TerminationConfig;
   advanceCriteria: CurriculumAdvanceCriteria;
@@ -57,10 +97,33 @@ export interface CurriculumConfig {
   curriculumId: string | null;
   name: string;
   description: string;
+  terrainProfile: TerrainProfile;
   stages: CurriculumStage[];
   currentStageIndex: number;
   loadPreviousCheckpoint: boolean;
   resetPolicyOnStageAdvance: boolean;
+}
+
+export interface CurriculumEntry {
+  id: string;
+  name: string;
+  description: string;
+  terrainProfile: TerrainProfile;
+  stages: CurriculumStage[];
+  loadPreviousCheckpoint: boolean;
+  resetPolicyOnStageAdvance: boolean;
+}
+
+export interface TrainingCheckpointConfig {
+  resumeCheckpointPath: string | null;
+  checkpointDirectory: string;
+}
+
+export interface CheckpointInfo {
+  path: string;
+  filename: string;
+  sizeBytes: number;
+  modifiedAt: string;
 }
 
 export interface CurriculumInfo {
@@ -69,6 +132,7 @@ export interface CurriculumInfo {
   description: string;
   stageCount: number;
   totalTimesteps: number;
+  terrainProfile: TerrainProfile;
 }
 
 export interface RlTrainerModel {
@@ -82,17 +146,43 @@ export interface RlTrainerModel {
   rewardTerms: RewardTerm[];
   termination: TerminationConfig;
   curriculum: CurriculumConfig;
+  gaitTypes: GaitType[];
+  curriculumLibrary: CurriculumEntry[];
+  activeCurriculumId: string | null;
+  trainingCheckpoint: TrainingCheckpointConfig;
+  useRecommended: boolean;
   customParams: Record<string, CustomParamValue>;
   metadata: Record<string, unknown>;
 }
 
+export const GAIT_CATALOG_IDS = [
+  "stand",
+  "recover",
+  "walk",
+  "trot",
+  "pace",
+  "bound",
+  "gallop",
+] as const;
+
+export type GaitCatalogId = (typeof GAIT_CATALOG_IDS)[number];
+
 export const CURRICULUM_CATALOG: CurriculumInfo[] = [
   {
-    id: "stand_to_sprint",
-    name: "Stand still → Sprint",
-    description: "Five stages: balance, slow walk, walk, run, sprint (2.1M steps).",
-    stageCount: 5,
-    totalTimesteps: 2_100_000,
+    id: "stand_sprint",
+    name: "Stand → Sprint (flat)",
+    description: "Seven gait stages from stand through gallop on flat terrain.",
+    stageCount: 7,
+    totalTimesteps: 3_500_000,
+    terrainProfile: "flat",
+  },
+  {
+    id: "stand_sprint_rough",
+    name: "Stand → Sprint (rough terrain)",
+    description: "Same gait progression with disturbances and rough terrain.",
+    stageCount: 7,
+    totalTimesteps: 3_850_000,
+    terrainProfile: "rough",
   },
 ];
 
@@ -150,3 +240,39 @@ export const REWARD_CATEGORY_HINTS: Record<string, string> = {
   action_smoothness: "Penalizes action deltas",
   height: "Base height tracking",
 };
+
+export const GAIT_PARAM_HINTS: Record<string, string> = {
+  cycleTime: "Full gait cycle duration in seconds",
+  dutyFactor: "Stance phase fraction (0–1)",
+  swingHeight: "Foot clearance during swing phase (m)",
+  stepLength: "Nominal step length (m)",
+  bodyHeight: "Target body height (m)",
+};
+
+export function defaultStageCommand(linX = 0, angZ = 0): StageCommand {
+  return {
+    targetLinVelX: linX,
+    targetLinVelY: 0,
+    targetAngVelZ: angZ,
+    targetBodyHeight: 0.35,
+    gaitSpeedScale: 1,
+  };
+}
+
+export function defaultDisturbance(rough = false): DisturbanceConfig {
+  return {
+    enabled: rough,
+    pushForceN: rough ? 25 : 0,
+    pushIntervalSteps: rough ? 500 : 0,
+    terrainRoughness: rough ? 0.3 : 0,
+    lateralImpulseN: rough ? 10 : 0,
+    randomOrientationNoiseRad: rough ? 0.05 : 0,
+  };
+}
+
+export function defaultTrainingCheckpoint(): TrainingCheckpointConfig {
+  return {
+    resumeCheckpointPath: null,
+    checkpointDirectory: "checkpoints",
+  };
+}

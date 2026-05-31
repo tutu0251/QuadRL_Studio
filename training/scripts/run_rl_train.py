@@ -199,6 +199,22 @@ def _train_stage_sb3(
         tensorboard_log=str(tb_dir),
     )
 
+    training = config.get("training") or {}
+    resume_ckpt = training.get("resume_checkpoint")
+    if resume_ckpt:
+        project_root = run_root.parent.parent
+        resume_path = Path(resume_ckpt)
+        if not resume_path.is_absolute():
+            resume_path = project_root / resume_ckpt
+        load_path = resume_path if resume_path.is_file() else resume_path.with_suffix(".zip")
+        if load_path.is_file():
+            _log(f"[train] Resuming from checkpoint: {load_path}")
+            model = PPO.load(str(load_path), env=env, device=device)
+        else:
+            _log(f"[warn] Resume checkpoint not found: {resume_path} — training from scratch")
+    else:
+        _log("[train] No resume checkpoint — training from scratch")
+
     stage_label = stage.get("name", "training") if stage else "training"
     _log(f"[train] PPO learn: {stage_label} ({timesteps:,} timesteps)")
     progress_bar = _use_progress_bar()

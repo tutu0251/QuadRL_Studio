@@ -189,6 +189,94 @@ def set_curriculum_stage(name: str, stage_index: int):
     return core.get_model()
 
 
+@app.get("/api/projects/{name}/checkpoints")
+def list_checkpoints(name: str):
+    core = _get_core(name)
+    checkpoints = core.list_checkpoints()
+    return {"checkpoints": [c.model_dump() for c in checkpoints]}
+
+
+@app.post("/api/projects/{name}/curriculum/add")
+def add_curriculum(name: str, body: dict):
+    core = _get_core(name)
+    core.add_curriculum(body.get("name", "New curriculum"), body.get("terrainProfile", "flat"))
+    _save(name, core)
+    return core.get_model()
+
+
+@app.delete("/api/projects/{name}/curriculum/{entry_id}")
+def delete_curriculum(name: str, entry_id: str):
+    core = _get_core(name)
+    core.delete_curriculum(entry_id)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/curriculum/{entry_id}/duplicate")
+def duplicate_curriculum(name: str, entry_id: str):
+    core = _get_core(name)
+    core.duplicate_curriculum(entry_id)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/curriculum/stages/add")
+def add_stage(name: str, body: dict | None = None):
+    core = _get_core(name)
+    after = (body or {}).get("afterOrder")
+    core.add_stage(after)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.delete("/api/projects/{name}/curriculum/stages/{stage_id}")
+def delete_stage(name: str, stage_id: str):
+    core = _get_core(name)
+    core.delete_stage(stage_id)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/curriculum/stages/{stage_id}/duplicate")
+def duplicate_stage(name: str, stage_id: str):
+    core = _get_core(name)
+    core.duplicate_stage(stage_id)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/curriculum/stages/{stage_id}/reorder")
+def reorder_stage(name: str, stage_id: str, body: dict):
+    core = _get_core(name)
+    core.reorder_stage(stage_id, body.get("direction", "up"))
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/recommend/gait/{gait_id}")
+def recommend_gait(name: str, gait_id: str):
+    core = _get_core(name)
+    core.apply_gait_recommendation(gait_id)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/recommend/stage/{stage_id}")
+def recommend_stage(name: str, stage_id: str):
+    core = _get_core(name)
+    core.apply_stage_recommendation(stage_id)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/recommend/curriculum")
+def recommend_curriculum(name: str):
+    core = _get_core(name)
+    core.apply_curriculum_recommendation()
+    _save(name, core)
+    return core.get_model()
+
+
 @app.post("/api/projects/{name}/validate")
 def validate(name: str) -> ValidationResult:
     return RlTrainerValidator(_get_core(name).get_model()).validate()

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { CURRICULUM_CATALOG, type CurriculumInfo, type CurriculumStage } from "@rl-trainer-model";
 import { api } from "../../api/client";
-import { NumberField } from "../../components/NumberField";
 import { Toggle } from "../../components/Toggle";
 import { useTrainerStore } from "../../stores/trainerStore";
+import { CheckpointSelector } from "./CheckpointSelector";
 
 function formatSteps(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
@@ -15,21 +15,26 @@ export function CurriculumPanel() {
   const project = useTrainerStore((s) => s.project);
   const model = useTrainerStore((s) => s.model);
   const setModel = useTrainerStore((s) => s.setModel);
+  const setActiveTab = useTrainerStore((s) => s.setActiveTab);
+  const setSelectedStageId = useTrainerStore((s) => s.setSelectedStageId);
+  const selectedStageId = useTrainerStore((s) => s.selectedStageId);
   const log = useTrainerStore((s) => s.log);
   const [catalog, setCatalog] = useState<CurriculumInfo[]>(CURRICULUM_CATALOG);
+  const [newName, setNewName] = useState("");
 
   useEffect(() => {
     api.curricula().then((r) => setCatalog(r.curricula)).catch(() => {});
   }, []);
 
-  if (!model) return null;
+  if (!model || !project) return null;
 
   const cur = model.curriculum;
+  const library = model.curriculumLibrary ?? [];
   const stages = [...cur.stages].sort((a, b) => a.order - b.order);
   const totalSteps = stages.reduce((s, st) => s + st.timesteps, 0);
+  const tc = model.trainingCheckpoint ?? { resumeCheckpointPath: null, checkpointDirectory: "checkpoints" };
 
   const patchCurriculum = async (body: Partial<typeof cur>) => {
-    if (!project) return;
     try {
       setModel(await api.patchModel(project, { curriculum: { ...cur, ...body } }));
     } catch (e) {
@@ -37,125 +42,233 @@ export function CurriculumPanel() {
     }
   };
 
+  const patchCheckpoint = async (patch: Partial<typeof tc>) => {
+    try {
+      setModel(
+        await api.patchModel(project, {
+          trainingCheckpoint: { ...tc, ...patch },
+        })
+      );
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
   const applyCurriculum = async (id: string) => {
-    if (!project) return;
     try {
       const m = await api.applyCurriculum(project, id);
       setModel(m);
-      log(`Applied progressive curriculum: ${id}`);
+      log(`Applied curriculum template: ${id}`);
     } catch (e) {
       log(String(e));
     }
   };
 
-  const previewStage = async (index: number) => {
-    if (!project) return;
+  const selectLibraryEntry = async (entryId: string) => {
     try {
-      setModel(await api.setCurriculumStage(project, index));
-      log(`Preview stage ${index + 1}: ${stages[index]?.name ?? ""}`);
+      setModel(await api.patchModel(project, { activeCurriculumId: entryId }));
     } catch (e) {
       log(String(e));
     }
   };
 
-  const updateStage = async (index: number, patch: Partial<CurriculumStage>) => {
-    if (!project) return;
-    const next = stages.map((s, i) => (i === index ? { ...s, ...patch } : s));
-    await patchCurriculum({ stages: next });
+  const createCurriculum = async () => {
+    try {
+      setModel(await api.addCurriculum(project, { name: newName || "New curriculum" }));
+      setNewName("");
+      log("Created curriculum");
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
+  const deleteCurriculumEntry = async (entryId: string) => {
+    try {
+      setModel(await api.deleteCurriculum(project, entryId));
+      log("Deleted curriculum");
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
+  const duplicateCurriculumEntry = async (entryId: string) => {
+    try {
+      setModel(await api.duplicateCurriculum(project, entryId));
+      log("Duplicated curriculum");
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
+  const selectStage = (stage: CurriculumStage) => {
+    setSelectedStageId(stage.id);
+    setActiveTab("stage");
+  };
+
+  const duplicateStage = async (stageId: string) => {
+    try {
+      setModel(await api.duplicateStage(project, stageId));
+      log("Duplicated stage");
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
+  const deleteStage = async (stageId: string) => {
+    try {
+      setModel(await api.deleteStage(project, stageId));
+      if (selectedStageId === stageId) setSelectedStageId(null);
+      log("Deleted stage");
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
+  const reorderStage = async (stageId: string, direction: "up" | "down") => {
+    try {
+      setModel(await api.reorderStage(project, stageId, direction));
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
+  const addStage = async (afterOrder?: number) => {
+    try {
+      setModel(await api.addStage(project, afterOrder));
+      log("Added stage");
+    } catch (e) {
+      log(String(e));
+    }
+  };
+
+  const recommendAll = async () => {
+    try {
+      setModel(await api.recommendCurriculum(project));
+      log("Applied curriculum recommendations");
+    } catch (e) {
+      log(String(e));
+    }
   };
 
   return (
     <div className="tab-panel curriculum-panel">
-      <p className="panel-hint">
-        Train step-by-step: stand still → walk → run → sprint. Each stage has its own rewards,
-        velocity command, and timestep budget before advancing.
-      </p>
+      <div className="curriculum-layout">
+        <aside className="curriculum-library">
+          <h4 className="section-label">Curriculums</h4>
+          {library.map((entry) => (
+            <div
+              key={entry.id}
+              className={`library-item ${model.activeCurriculumId === entry.id ? "selected" : ""}`}
+            >
+              <button type="button" className="library-select" onClick={() => void selectLibraryEntry(entry.id)}>
+                <strong>{entry.name}</strong>
+                <span className="preset-meta">{entry.stages.length} stages · {entry.terrainProfile}</span>
+              </button>
+              <div className="library-actions">
+                <button type="button" className="icon-btn" title="Duplicate" onClick={() => void duplicateCurriculumEntry(entry.id)}>⧉</button>
+                <button type="button" className="icon-btn danger" title="Delete" onClick={() => void deleteCurriculumEntry(entry.id)}>✕</button>
+              </div>
+            </div>
+          ))}
+          <div className="library-create">
+            <input
+              className="param-input"
+              placeholder="New curriculum name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <button type="button" className="header-btn" onClick={() => void createCurriculum()}>+ Create</button>
+          </div>
+        </aside>
 
-      <div className="curriculum-templates">
-        <h4 className="section-label">Recommended curricula</h4>
-        {catalog.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={`preset-card ${cur.curriculumId === c.id ? "selected" : ""}`}
-            onClick={() => void applyCurriculum(c.id)}
-          >
-            <strong>{c.name}</strong>
-            <p>{c.description}</p>
-            <span className="preset-meta mono">
-              {c.stageCount} stages · {formatSteps(c.totalTimesteps)} steps
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <Toggle
-        label="Enable progressive curriculum"
-        checked={cur.enabled}
-        onChange={(v) => void patchCurriculum({ enabled: v })}
-      />
-      <Toggle
-        label="Load checkpoint from previous stage"
-        hint="Fine-tune policy when advancing instead of training from scratch"
-        checked={cur.loadPreviousCheckpoint}
-        onChange={(v) => void patchCurriculum({ loadPreviousCheckpoint: v })}
-      />
-
-      {cur.enabled && stages.length > 0 && (
-        <>
-          <div className="curriculum-summary">
-            <span>
-              Total: <strong className="mono">{formatSteps(totalSteps)}</strong> env steps
-            </span>
-            <span>
-              Active stage: <strong>{cur.currentStageIndex + 1}</strong> / {stages.length}
-            </span>
+        <div className="curriculum-main">
+          <div className="curriculum-templates">
+            <h4 className="section-label">Recommended templates</h4>
+            <div className="template-grid">
+              {catalog.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`preset-card ${cur.curriculumId === c.id ? "selected" : ""}`}
+                  onClick={() => void applyCurriculum(c.id)}
+                >
+                  <strong>{c.name}</strong>
+                  <p>{c.description}</p>
+                  <span className="preset-meta mono">
+                    {c.stageCount} stages · {formatSteps(c.totalTimesteps)} steps
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <ol className="curriculum-pipeline">
-            {stages.map((stage, i) => (
-              <li
-                key={stage.id}
-                className={`curriculum-stage ${
-                  i === cur.currentStageIndex ? "current" : i < cur.currentStageIndex ? "done" : ""
-                }`}
-              >
-                <div className="stage-header">
-                  <span className="stage-num">{i + 1}</span>
-                  <div className="stage-title">
-                    <strong>{stage.name}</strong>
-                    <span className="mono stage-vel">
-                      v={stage.targetLinVelX.toFixed(2)} m/s
-                    </span>
-                  </div>
-                  <button type="button" className="header-btn" onClick={() => void previewStage(i)}>
-                    Preview
-                  </button>
-                </div>
-                <p className="stage-desc">{stage.description}</p>
-                <div className="stage-fields">
-                  <NumberField
-                    label="timesteps"
-                    value={stage.timesteps}
-                    step={10_000}
-                    onChange={(v) => void updateStage(i, { timesteps: Math.max(10_000, Math.round(v)) })}
-                  />
-                  <NumberField
-                    label="target_lin_vel_x"
-                    value={stage.targetLinVelX}
-                    step={0.1}
-                    onChange={(v) => void updateStage(i, { targetLinVelX: v })}
-                  />
-                </div>
-                <p className="stage-advance mono">
-                  Advance when reward ≥ {stage.advanceCriteria.minMeanEpisodeReward}, fall rate ≤{" "}
-                  {stage.advanceCriteria.maxFallRate}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </>
-      )}
+          <Toggle
+            label="Enable progressive curriculum"
+            checked={cur.enabled}
+            onChange={(v) => void patchCurriculum({ enabled: v })}
+          />
+          <Toggle
+            label="Load checkpoint from previous stage"
+            hint="Fine-tune policy when advancing between stages"
+            checked={cur.loadPreviousCheckpoint}
+            onChange={(v) => void patchCurriculum({ loadPreviousCheckpoint: v })}
+          />
+          <Toggle
+            label="Reset policy on stage advance"
+            checked={cur.resetPolicyOnStageAdvance}
+            onChange={(v) => void patchCurriculum({ resetPolicyOnStageAdvance: v })}
+          />
+
+          <CheckpointSelector project={project} config={tc} onChange={(p) => void patchCheckpoint(p)} />
+
+          {cur.enabled && (
+            <>
+              <div className="curriculum-summary">
+                <span>
+                  Total: <strong className="mono">{formatSteps(totalSteps)}</strong> env steps
+                </span>
+                <span>
+                  Terrain: <strong>{cur.terrainProfile}</strong>
+                </span>
+                <button type="button" className="header-btn" onClick={() => void recommendAll()}>
+                  Auto-recommend all stages
+                </button>
+              </div>
+
+              <div className="pipeline-header">
+                <h4 className="section-label">Training order</h4>
+                <button type="button" className="header-btn" onClick={() => void addStage()}>+ Add stage</button>
+              </div>
+
+              <ol className="curriculum-pipeline">
+                {stages.map((stage, i) => (
+                  <li
+                    key={stage.id}
+                    className={`curriculum-stage ${selectedStageId === stage.id ? "selected" : ""}`}
+                  >
+                    <div className="stage-header">
+                      <span className="stage-num">{i + 1}</span>
+                      <button type="button" className="stage-title-btn" onClick={() => selectStage(stage)}>
+                        <strong>{stage.name}</strong>
+                        <span className="mono stage-vel">
+                          {stage.gaitTypeId} · v={stage.command?.targetLinVelX?.toFixed(2) ?? stage.targetLinVelX.toFixed(2)} m/s
+                        </span>
+                      </button>
+                      <div className="stage-actions">
+                        <button type="button" className="icon-btn" title="Move up" disabled={i === 0} onClick={() => void reorderStage(stage.id, "up")}>↑</button>
+                        <button type="button" className="icon-btn" title="Move down" disabled={i === stages.length - 1} onClick={() => void reorderStage(stage.id, "down")}>↓</button>
+                        <button type="button" className="icon-btn" title="Duplicate" onClick={() => void duplicateStage(stage.id)}>⧉</button>
+                        <button type="button" className="icon-btn danger" title="Delete" onClick={() => void deleteStage(stage.id)}>✕</button>
+                      </div>
+                    </div>
+                    <p className="stage-desc">{stage.description || `${formatSteps(stage.timesteps)} steps`}</p>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

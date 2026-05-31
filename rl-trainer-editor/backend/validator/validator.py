@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 from domain.models import RlTrainerModel, ValidationIssue, ValidationResult
 from storage import project_storage
@@ -16,6 +17,8 @@ _CATEGORY_OBS: dict[str, set[str]] = {
     "action_smoothness": set(),
 }
 
+_GAIT_IDS = {"stand", "recover", "walk", "trot", "pace", "bound", "gallop"}
+
 
 class RlTrainerValidator:
     def __init__(self, model: RlTrainerModel):
@@ -24,11 +27,12 @@ class RlTrainerValidator:
     def validate(self) -> ValidationResult:
         errors: list[ValidationIssue] = []
         warnings: list[ValidationIssue] = []
-        project = self._model.projectName
 
+        project = self._model.projectName
         cur = self._model.curriculum
         enabled_terms = [t for t in self._model.rewardTerms if t.enabled]
         has_curriculum = cur.enabled and len(cur.stages) >= 2
+
         if not has_curriculum and not enabled_terms and not self._model.customParams:
             errors.append(
                 ValidationIssue(
@@ -38,6 +42,27 @@ class RlTrainerValidator:
                 )
             )
 
+        gait_ids = {g.id for g in self._model.gaitTypes}
+
+        for gait in self._model.gaitTypes:
+            if gait.dutyFactor <= 0 or gait.dutyFactor > 1:
+                errors.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="invalid_duty_factor",
+                        message=f"Gait '{gait.id}' dutyFactor must be in (0, 1].",
+                    )
+                )
+            for leg, val in gait.phaseOffsets.model_dump().items():
+                if val < 0 or val >= 1:
+                    warnings.append(
+                        ValidationIssue(
+                            severity="warning",
+                            code="phase_offset_range",
+                            message=f"Gait '{gait.id}' phase offset {leg}={val} outside [0, 1).",
+                        )
+                    )
+
         if cur.enabled:
             if len(cur.stages) < 2:
                 errors.append(
@@ -45,6 +70,23 @@ class RlTrainerValidator:
                         severity="error",
                         code="curriculum_min_stages",
                         message="Progressive curriculum needs at least 2 stages.",
+                    )
+                )
+            if not cur.name.strip():
+                errors.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="empty_curriculum_name",
+                        message="Curriculum name cannot be empty.",
+                    )
+                )
+            orders = [s.order for s in cur.stages]
+            if len(orders) != len(set(orders)):
+                errors.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="duplicate_stage_order",
+                        message="Curriculum stages have duplicate order values.",
                     )
                 )
             for stage in cur.stages:
@@ -64,12 +106,53 @@ class RlTrainerValidator:
                             message=f"Stage '{stage.id}' has no reward terms.",
                         )
                     )
+                if stage.gaitTypeId and stage.gaitTypeId not in gait_ids:
+                    errors.append(
+                        ValidationIssue(
+                            severity="error",
+                            code="missing_gait_type",
+                            message=f"Stage '{stage.id}' references unknown gait '{stage.gaitTypeId}'.",
+                        )
+                    )
+                if (
+                    cur.terrainProfile == "rough"
+                    and not stage.disturbance.enabled
+                    and stage.gaitTypeId not in ("stand",)
+                ):
+                    warnings.append(
+                        ValidationIssue(
+                            severity="warning",
+                            code="rough_no_disturbance",
+                            message=f"Stage '{stage.id}' on rough terrain has disturbances disabled.",
+                        )
+                    )
             if cur.currentStageIndex >= len(cur.stages):
                 warnings.append(
                     ValidationIssue(
                         severity="warning",
                         code="curriculum_stage_index",
                         message="currentStageIndex is past the last stage.",
+                    )
+                )
+
+        tc = self._model.trainingCheckpoint
+        if tc.resumeCheckpointPath:
+            if project:
+                ckpt_path = project_storage.project_dir(project) / tc.resumeCheckpointPath
+                if not ckpt_path.is_file():
+                    warnings.append(
+                        ValidationIssue(
+                            severity="warning",
+                            code="missing_resume_checkpoint",
+                            message=f"Resume checkpoint not found: {tc.resumeCheckpointPath}",
+                        )
+                    )
+            if cur.resetPolicyOnStageAdvance:
+                warnings.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="resume_reset_conflict",
+                        message="Resume checkpoint selected while resetPolicyOnStageAdvance is enabled.",
                     )
                 )
 

@@ -1,10 +1,14 @@
 import type {
+  CheckpointInfo,
   CurriculumConfig,
+  CurriculumEntry,
   CurriculumInfo,
+  GaitType,
   MachineProfile,
   RlTrainerModel,
   RewardTerm,
   TerminationConfig,
+  TrainingCheckpointConfig,
   ValidationResult,
 } from "@rl-trainer-model";
 
@@ -33,6 +37,11 @@ export type ModelPatch = {
   rewardTerms?: RewardTerm[];
   termination?: TerminationConfig;
   curriculum?: CurriculumConfig;
+  gaitTypes?: GaitType[];
+  curriculumLibrary?: CurriculumEntry[];
+  activeCurriculumId?: string | null;
+  trainingCheckpoint?: TrainingCheckpointConfig;
+  useRecommended?: boolean;
   customParams?: Record<string, string | number | boolean>;
 };
 
@@ -65,6 +74,39 @@ export const api = {
     req<RlTrainerModel>(`/api/projects/${name}/curriculum/${curriculumId}`, { method: "POST" }),
   setCurriculumStage: (name: string, stageIndex: number) =>
     req<RlTrainerModel>(`/api/projects/${name}/curriculum/stage/${stageIndex}`, { method: "POST" }),
+  listCheckpoints: (name: string) =>
+    req<{ checkpoints: CheckpointInfo[] }>(`/api/projects/${name}/checkpoints`),
+  addCurriculum: (name: string, body: { name: string; terrainProfile?: string }) =>
+    req<RlTrainerModel>(`/api/projects/${name}/curriculum/add`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteCurriculum: (name: string, entryId: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/curriculum/${entryId}`, { method: "DELETE" }),
+  duplicateCurriculum: (name: string, entryId: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/curriculum/${entryId}/duplicate`, { method: "POST" }),
+  addStage: (name: string, afterOrder?: number) =>
+    req<RlTrainerModel>(`/api/projects/${name}/curriculum/stages/add`, {
+      method: "POST",
+      body: JSON.stringify({ afterOrder }),
+    }),
+  deleteStage: (name: string, stageId: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/curriculum/stages/${stageId}`, { method: "DELETE" }),
+  duplicateStage: (name: string, stageId: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/curriculum/stages/${stageId}/duplicate`, {
+      method: "POST",
+    }),
+  reorderStage: (name: string, stageId: string, direction: "up" | "down") =>
+    req<RlTrainerModel>(`/api/projects/${name}/curriculum/stages/${stageId}/reorder`, {
+      method: "POST",
+      body: JSON.stringify({ direction }),
+    }),
+  recommendGait: (name: string, gaitId: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/recommend/gait/${gaitId}`, { method: "POST" }),
+  recommendStage: (name: string, stageId: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/recommend/stage/${stageId}`, { method: "POST" }),
+  recommendCurriculum: (name: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/recommend/curriculum`, { method: "POST" }),
   refreshMachineProfile: (name: string) =>
     req<RlTrainerModel>(`/api/projects/${name}/machine-profile`, { method: "POST" }),
   validate: (name: string) =>

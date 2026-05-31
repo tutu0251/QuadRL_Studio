@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from domain.models import CurriculumConfig, CurriculumStage, RlTrainerModel
+from domain.models import CurriculumConfig, CurriculumStage, GaitType, RlTrainerModel
 from planner.curriculum import curriculum_total_timesteps
 from storage import project_storage
 
@@ -29,6 +29,28 @@ def _advance_criteria_export(c) -> dict:
     }
 
 
+def _disturbance_export(d) -> dict:
+    return {
+        "enabled": d.enabled,
+        "push_force_n": d.pushForceN,
+        "push_interval_steps": d.pushIntervalSteps,
+        "terrain_roughness": d.terrainRoughness,
+        "lateral_impulse_n": d.lateralImpulseN,
+        "random_orientation_noise_rad": d.randomOrientationNoiseRad,
+    }
+
+
+def _command_export(stage: CurriculumStage) -> dict:
+    cmd = stage.command
+    return {
+        "target_lin_vel_x": cmd.targetLinVelX,
+        "target_lin_vel_y": cmd.targetLinVelY,
+        "target_ang_vel_z": cmd.targetAngVelZ,
+        "target_body_height": cmd.targetBodyHeight,
+        "gait_speed_scale": cmd.gaitSpeedScale,
+    }
+
+
 def _stage_export(stage: CurriculumStage) -> dict:
     return {
         "id": stage.id,
@@ -36,13 +58,31 @@ def _stage_export(stage: CurriculumStage) -> dict:
         "order": stage.order,
         "description": stage.description,
         "timesteps": stage.timesteps,
-        "command": {
-            "target_lin_vel_x": stage.targetLinVelX,
-            "target_ang_vel_z": stage.targetAngVelZ,
-        },
+        "gait_type_id": stage.gaitTypeId,
+        "command": _command_export(stage),
+        "disturbance": _disturbance_export(stage.disturbance),
         "reward_terms": [_reward_term_export(t) for t in stage.rewardTerms],
         "termination": _termination_export(stage.termination),
         "advance_criteria": _advance_criteria_export(stage.advanceCriteria),
+    }
+
+
+def _gait_export(gait: GaitType) -> dict:
+    return {
+        "id": gait.id,
+        "name": gait.name,
+        "builtin": gait.builtin,
+        "cycle_time": gait.cycleTime,
+        "duty_factor": gait.dutyFactor,
+        "phase_offsets": {
+            "fl": gait.phaseOffsets.fl,
+            "fr": gait.phaseOffsets.fr,
+            "rl": gait.phaseOffsets.rl,
+            "rr": gait.phaseOffsets.rr,
+        },
+        "swing_height": gait.swingHeight,
+        "step_length": gait.stepLength,
+        "body_height": gait.bodyHeight,
     }
 
 
@@ -53,11 +93,21 @@ def _curriculum_export(cur: CurriculumConfig) -> dict:
         "curriculum_id": cur.curriculumId,
         "name": cur.name,
         "description": cur.description,
+        "terrain_profile": cur.terrainProfile,
         "current_stage_index": cur.currentStageIndex,
         "load_previous_checkpoint": cur.loadPreviousCheckpoint,
         "reset_policy_on_stage_advance": cur.resetPolicyOnStageAdvance,
         "total_timesteps": curriculum_total_timesteps(cur),
         "stages": [_stage_export(s) for s in stages],
+    }
+
+
+def _training_export(model: RlTrainerModel) -> dict:
+    tc = model.trainingCheckpoint
+    return {
+        "resume_checkpoint": tc.resumeCheckpointPath,
+        "start_from_scratch": tc.resumeCheckpointPath is None,
+        "checkpoint_directory": tc.checkpointDirectory,
     }
 
 
@@ -94,6 +144,8 @@ def export_rl_yaml(model: RlTrainerModel, project_name: str) -> Path:
             "reward_terms": [_reward_term_export(term) for term in model.rewardTerms],
             "termination": _termination_export(t),
         },
+        "gait_types": [_gait_export(g) for g in model.gaitTypes],
+        "training": _training_export(model),
         "curriculum": _curriculum_export(model.curriculum),
         "logging": {
             "tensorboard_root": "runs",

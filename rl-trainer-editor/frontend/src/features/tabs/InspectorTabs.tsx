@@ -1,20 +1,19 @@
 import { useTrainerStore } from "../../stores/trainerStore";
-import { RewardsPanel } from "../rewards/RewardsPanel";
-import { TerminationPanel } from "../termination/TerminationPanel";
-import { CustomPanel } from "../custom/CustomPanel";
 import { CurriculumPanel } from "../curriculum/CurriculumPanel";
+import { GaitTypePanel } from "../gait/GaitTypePanel";
+import { StageEditorPanel } from "../stage/StageEditorPanel";
 
 const TABS = [
   { id: "curriculum", label: "Curriculum" },
-  { id: "rewards", label: "Rewards" },
-  { id: "termination", label: "Termination" },
-  { id: "custom", label: "Custom" },
+  { id: "stage", label: "Stage" },
+  { id: "gait", label: "Gait" },
 ] as const;
 
 export function InspectorTabs() {
   const activeTab = useTrainerStore((s) => s.activeTab);
   const setActiveTab = useTrainerStore((s) => s.setActiveTab);
   const model = useTrainerStore((s) => s.model);
+  const validation = useTrainerStore((s) => s.validation);
 
   if (!model) {
     return (
@@ -26,6 +25,9 @@ export function InspectorTabs() {
       </div>
     );
   }
+
+  const warnCount = validation?.warnings.length ?? 0;
+  const errCount = validation?.errors.length ?? 0;
 
   return (
     <div className="unity-panel inspector-tabs">
@@ -40,12 +42,16 @@ export function InspectorTabs() {
             {t.label}
           </button>
         ))}
+        {validation && (
+          <span className={`tab-validation ${validation.valid ? "ok" : "err"}`}>
+            {validation.valid ? (warnCount ? `${warnCount} warn` : "OK") : `${errCount} err`}
+          </span>
+        )}
       </div>
       <div className="tab-content">
         {activeTab === "curriculum" && <CurriculumPanel />}
-        {activeTab === "rewards" && <RewardsPanel />}
-        {activeTab === "termination" && <TerminationPanel />}
-        {activeTab === "custom" && <CustomPanel />}
+        {activeTab === "stage" && <StageEditorPanel />}
+        {activeTab === "gait" && <GaitTypePanel />}
       </div>
     </div>
   );

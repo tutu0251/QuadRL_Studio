@@ -90,7 +90,7 @@ export function OverviewPanel() {
           value={model.curriculum.enabled ? String(model.curriculum.stages.length) : "—"}
           sub={
             model.curriculum.enabled
-              ? model.curriculum.name || model.curriculum.curriculumId || "enabled"
+              ? `${model.curriculum.name || model.curriculum.curriculumId || "enabled"} · ${model.curriculum.terrainProfile ?? "flat"}`
               : "single-stage"
           }
         />
@@ -126,7 +126,8 @@ export function OverviewPanel() {
                   <strong>{s.name}</strong>
                   <span className="mono">
                     {" "}
-                    · {s.targetLinVelX} m/s · {s.timesteps.toLocaleString()} steps
+                    · {s.gaitTypeId} · {(s.command?.targetLinVelX ?? s.targetLinVelX).toFixed(1)} m/s ·{" "}
+                    {s.timesteps.toLocaleString()} steps
                   </span>
                 </li>
               ))}

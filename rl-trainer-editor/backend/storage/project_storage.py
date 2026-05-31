@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -78,7 +79,10 @@ def load_trainer(name: str) -> RlTrainerModel:
     path = trainer_model_path(name)
     if not path.exists():
         raise FileNotFoundError(f"No RL trainer model for project: {name}")
-    return RlTrainerModel.model_validate_json(path.read_text())
+    from domain.migration import migrate_model
+
+    model = RlTrainerModel.model_validate_json(path.read_text())
+    return migrate_model(model)
 
 
 def has_trainer(name: str) -> bool:
@@ -124,3 +128,28 @@ def load_observation_kinds(name: str) -> set[str]:
         return kinds
     except (yaml.YAMLError, OSError):
         return set()
+
+
+def checkpoint_dir(name: str, directory: str = "checkpoints") -> Path:
+    return project_dir(name) / directory
+
+
+def list_checkpoints(name: str, directory: str = "checkpoints") -> list:
+    from domain.models import CheckpointInfo
+
+    ckpt_dir = checkpoint_dir(name, directory)
+    if not ckpt_dir.is_dir():
+        return []
+    out: list[CheckpointInfo] = []
+    for p in sorted(ckpt_dir.glob("*.zip"), key=lambda x: x.stat().st_mtime, reverse=True):
+        stat = p.stat()
+        rel = str(p.relative_to(project_dir(name)))
+        out.append(
+            CheckpointInfo(
+                path=rel,
+                filename=p.name,
+                sizeBytes=stat.st_size,
+                modifiedAt=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+            )
+        )
+    return out

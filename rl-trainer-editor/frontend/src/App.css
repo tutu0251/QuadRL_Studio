@@ -928,3 +928,195 @@ body {
   margin-top: 4px;
 }
 
+/* v2 curriculum / gait layout */
+.curriculum-layout,
+.gait-layout {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+}
+
+.curriculum-library,
+.gait-library {
+  flex: 0 0 180px;
+  border-right: 1px solid #333;
+  padding-right: 10px;
+}
+
+.curriculum-main,
+.gait-editor {
+  flex: 1;
+  min-width: 0;
+}
+
+.library-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.library-item.selected {
+  border-color: var(--ppo-accent);
+  background: #2a3533;
+}
+
+.library-select {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.library-select strong {
+  display: block;
+}
+
+.library-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.library-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.icon-btn {
+  background: #333;
+  border: 1px solid #444;
+  color: #ccc;
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.icon-btn.danger:hover:not(:disabled) {
+  background: #5a2020;
+  border-color: #833;
+}
+
+.template-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pipeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 8px;
+}
+
+.stage-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.stage-title-btn {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.curriculum-stage.selected {
+  border-color: var(--ppo-accent);
+  background: #2a3533;
+}
+
+.checkpoint-selector {
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #222;
+}
+
+.checkpoint-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checkpoint-select {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.stage-panel-header,
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stage-panel-header h3,
+.gait-editor h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.phase-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.catalog-add {
+  margin-top: 12px;
+}
+
+.catalog-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.tab-validation {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  align-self: center;
+}
+
+.tab-validation.ok {
+  background: #1e3a2f;
+  color: #7dcea0;
+}
+
+.tab-validation.err {
+  background: #3a1e1e;
+  color: #e08080;
+}
+
+.header-btn.danger {
+  border-color: #833;
+  color: #faa;
+}
+

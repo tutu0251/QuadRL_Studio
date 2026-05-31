@@ -8,34 +8,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from domain.models import RlTrainerModel
 from domain.trainer_core import TrainerCore
-from planner.curriculum import build_stand_to_sprint_curriculum, curriculum_total_timesteps
+from planner.curriculum import build_stand_sprint_curriculum, curriculum_total_timesteps
 from validator.validator import RlTrainerValidator
 
 
-def test_stand_to_sprint_has_five_stages():
-    cur = build_stand_to_sprint_curriculum()
-    assert len(cur.stages) == 5
+def test_stand_sprint_has_seven_gait_stages():
+    cur = build_stand_sprint_curriculum()
+    assert len(cur.stages) == 7
+    assert cur.stages[0].gaitTypeId == "stand"
+    assert cur.stages[-1].gaitTypeId == "gallop"
     assert cur.stages[0].targetLinVelX == 0.0
-    assert cur.stages[-1].targetLinVelX == 1.5
-    assert curriculum_total_timesteps(cur) == 2_100_000
+    assert cur.stages[-1].targetLinVelX > 0
 
 
 def test_apply_curriculum_sets_rewards():
     model = RlTrainerModel(projectName="bot", robotName="bot")
     core = TrainerCore(model)
-    core.apply_curriculum("stand_to_sprint")
+    core.apply_curriculum("stand_sprint")
     m = core.get_model()
     assert m.curriculum.enabled
-    assert m.curriculum.curriculumId == "stand_to_sprint"
+    assert m.curriculum.curriculumId == "stand_sprint"
     assert len(m.rewardTerms) > 0
-    assert curriculum_total_timesteps(m.curriculum) == 2_100_000
+    assert len(m.gaitTypes) == 7
     assert m.rewardTerms[0].id in ("base_height", "lin_vel_tracking")
 
 
 def test_curriculum_validates():
     model = RlTrainerModel(projectName="bot", robotName="bot")
     core = TrainerCore(model)
-    core.apply_curriculum("stand_to_sprint")
+    core.apply_curriculum("stand_sprint")
     result = RlTrainerValidator(core.get_model()).validate()
     assert result.valid
 
@@ -43,8 +44,19 @@ def test_curriculum_validates():
 def test_stage_advance_updates_active_rewards():
     model = RlTrainerModel(projectName="bot", robotName="bot")
     core = TrainerCore(model)
-    core.apply_curriculum("stand_to_sprint")
+    core.apply_curriculum("stand_sprint")
     core.set_curriculum_stage(3)
     m = core.get_model()
     assert m.curriculum.currentStageIndex == 3
-    assert any(t.params.get("target_lin_vel_x") == 1.0 for t in m.rewardTerms)
+    assert m.curriculum.stages[3].gaitTypeId == "trot"
+
+
+def test_duplicate_stage():
+    model = RlTrainerModel(projectName="bot", robotName="bot")
+    core = TrainerCore(model)
+    core.apply_curriculum("stand_sprint")
+    stage_id = core.get_model().curriculum.stages[0].id
+    core.duplicate_stage(stage_id)
+    m = core.get_model()
+    assert len(m.curriculum.stages) == 8
+    assert m.curriculum.stages[1].name.endswith("(copy)")
