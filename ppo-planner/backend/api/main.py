@@ -13,9 +13,16 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from api.task_manager import task_manager
-from domain.models import PpoParamsUpdate, PpoPlannerModel, RecommendationResponse, ValidationResult
+from domain.models import (
+    OutputPatch,
+    ParallelPatch,
+    PpoParamsUpdate,
+    PpoPlannerModel,
+    RecommendationResponse,
+    ValidationResult,
+)
 from domain.planner_core import PlannerCore
-from exporter.ppo_yaml_exporter import export_ppo_yaml
+from exporter.ppo_yaml_exporter import export_ppo_configs
 from profiler.machine_profiler import profile_machine
 from storage import project_storage
 from validator.validator import PpoValidator
@@ -151,6 +158,22 @@ def patch_params(name: str, body: PpoParamsUpdate):
     return core.get_model()
 
 
+@app.patch("/api/projects/{name}/parallel")
+def patch_parallel(name: str, body: ParallelPatch):
+    core = _get_core(name)
+    core.patch_parallel(body)
+    _save(name, core)
+    return core.get_model()
+
+
+@app.patch("/api/projects/{name}/output")
+def patch_output(name: str, body: OutputPatch):
+    core = _get_core(name)
+    core.patch_output(body)
+    _save(name, core)
+    return core.get_model()
+
+
 @app.post("/api/projects/{name}/recommend")
 def recommend(name: str) -> RecommendationResponse:
     core = _get_core(name)
@@ -181,9 +204,17 @@ async def _run_export(name: str, tid: str):
             task_manager.log(tid, "error", f"Validation failed: {len(result.errors)} errors")
             task_manager.set_status(tid, "failed", result.model_dump())
             return
-        path = export_ppo_yaml(model, name)
-        task_manager.log(tid, "info", f"Exported: {path}")
-        task_manager.set_status(tid, "completed", {"ppo_config": str(path)})
+        paths = export_ppo_configs(model, name)
+        for path in paths:
+            task_manager.log(tid, "info", f"Exported: {path}")
+        task_manager.set_status(
+            tid,
+            "completed",
+            {
+                "ppo_config": str(paths[0]),
+                "ppo_configs": [str(p) for p in paths],
+            },
+        )
     except Exception as e:
         task_manager.log(tid, "error", str(e))
         task_manager.set_status(tid, "failed", {"error": str(e)})

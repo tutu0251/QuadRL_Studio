@@ -116,6 +116,9 @@ export function MenuBar({
                 <strong>Validate</strong> checks ranges and batch divisibility before export.
               </li>
               <li>
+                <strong>Output</strong> tab sets checkpoints, best model tracking, and YAML/JSON export.
+              </li>
+              <li>
                 Disable <em>Auto-apply</em> in the inspector to keep manual overrides when
                 re-recommending.
               </li>

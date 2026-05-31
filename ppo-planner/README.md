@@ -18,7 +18,7 @@ Browser: `http://<host>:5177`
 
 1. Complete the four-editor pipeline (geometry → physics → control → sensor) for your robot, or create a project folder under `~/quadruped_dev_tool/projects/<name>/`.
 2. In **PPO Planner**, select the project (File menu) — loading bootstraps `ppo_model.json` with machine-based recommendations.
-3. Adjust hyperparameters in the inspector, or click **Recommend** to re-profile the host.
+3. Adjust hyperparameters, **Parallel**, and **Output** tabs in the inspector, or click **Recommend** to re-profile the host.
 4. **Validate** → **Export YAML** → `exports/ppo_<name>_config.yaml`
 
 ## Ports
@@ -40,13 +40,19 @@ Browser: `http://<host>:5177`
 
 | Signal | Effect |
 |--------|--------|
-| RAM &lt; 8 GB | Smaller `n_steps`, `batch_size`, single env |
+| RAM &lt; 8 GB | Smaller `n_steps`, `batch_size`, single env (dummy vec env) |
 | RAM 16–32 GB | Larger batch, up to 4 parallel envs |
 | RAM ≥ 32 GB | `n_steps=4096`, batch up to 256, up to 8 envs |
 | NVIDIA GPU | `device=cuda`, batch/env scaling by VRAM |
 | No GPU | `device=cpu`, capped batch and env count |
 
+**Parallel tab:** configure `num_envs`, `vec_env_type` (`subproc` / `dummy`), and `n_proc`. Recommend picks values from CPU/RAM/GPU and resolves conflicts (e.g. `n_proc > num_envs`, dummy + `n_proc`, subproc with one env).
+
+**Output tab:** checkpoint directory/frequency, best-model metric and paths, and export formats (YAML, JSON, minified JSON, TOML — select one or more).
+
 `batch_size` is adjusted so `n_steps × num_envs` divides evenly (SB3-friendly).
+
+Export writes every selected format under `exports/` (e.g. `ppo_<project>_config.yaml` and `.json` together). The training launcher prefers the YAML file when present.
 
 ## Shared types
 

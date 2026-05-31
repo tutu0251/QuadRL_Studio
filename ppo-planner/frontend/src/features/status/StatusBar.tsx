@@ -5,8 +5,8 @@ export function StatusBar({ connected }: { connected: boolean }) {
   const project = usePlannerStore((s) => s.project);
   const model = usePlannerStore((s) => s.model);
 
-  const rollout = model ? rolloutSize(model.params) : 0;
-  const batchOk = model ? batchDividesRollout(model.params) : true;
+  const rollout = model ? rolloutSize(model.params, model.parallel.numEnvs) : 0;
+  const batchOk = model ? batchDividesRollout(model.params, model.parallel.numEnvs) : true;
   const device = model ? resolvedDevice(model.params, model.machineProfile) : null;
 
   return (

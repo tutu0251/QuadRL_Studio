@@ -1,4 +1,11 @@
-import type { MachineProfile, PpoHyperparams, PpoPlannerModel, ValidationResult } from "@ppo-model";
+import type {
+  MachineProfile,
+  OutputPatch,
+  ParallelConfig,
+  PpoHyperparams,
+  PpoPlannerModel,
+  ValidationResult,
+} from "@ppo-model";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8004";
 
@@ -21,6 +28,7 @@ export const wsLogsUrl = () => {
 };
 
 export type PpoParamsPatch = Partial<PpoHyperparams> & { useRecommended?: boolean };
+export type ParallelPatch = Partial<ParallelConfig> & { useRecommended?: boolean };
 
 export const api = {
   health: () => req<{ status: string }>("/api/health"),
@@ -46,8 +54,18 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  patchParallel: (name: string, body: ParallelPatch) =>
+    req<PpoPlannerModel>(`/api/projects/${name}/parallel`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  patchOutput: (name: string, body: OutputPatch) =>
+    req<PpoPlannerModel>(`/api/projects/${name}/output`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   recommend: (name: string) =>
-    req<{ params: PpoHyperparams; notes: string[]; machine: MachineProfile }>(
+    req<{ params: PpoHyperparams; parallel: ParallelConfig; notes: string[]; machine: MachineProfile }>(
       `/api/projects/${name}/recommend`,
       { method: "POST" }
     ),
@@ -58,7 +76,7 @@ export const api = {
   exportPpo: (name: string) =>
     req<{ task_id: string }>(`/api/projects/${name}/export/ppo`, { method: "POST" }),
   getTask: (taskId: string) =>
-    req<{ task_id: string; status: string; result?: Record<string, string> }>(
+    req<{ task_id: string; status: string; result?: Record<string, string | string[]> }>(
       `/api/tasks/${taskId}`
     ),
 };

@@ -2,10 +2,22 @@ import { usePlannerStore } from "../../stores/plannerStore";
 import { MetricCard } from "../../components/MetricCard";
 import {
   batchDividesRollout,
+  bestModelSummary,
+  checkpointSummary,
+  exportConfigFilenames,
+  exportFormatsSummary,
   formatTimesteps,
+  parallelSummary,
   resolvedDevice,
   rolloutSize,
 } from "../../utils/ppoMetrics";
+
+const WORKFLOW = [
+  { step: 1, title: "Pipeline", body: "Complete geometry → physics → control → sensor editors" },
+  { step: 2, title: "Load project", body: "File menu — auto-bootstraps PPO config with machine defaults" },
+  { step: 3, title: "Tune & validate", body: "Recommend → adjust hyperparams, parallel, and output tabs" },
+  { step: 4, title: "Export", body: "Writes training config to exports/ for the training launcher" },
+] as const;
 
 export function OverviewPanel() {
   const model = usePlannerStore((s) => s.model);
@@ -13,71 +25,74 @@ export function OverviewPanel() {
 
   if (!model) {
     return (
-      <div className="overview-panel empty">
-        <div className="hero-card">
-          <h1>PPO Planner</h1>
-          <p className="hero-lead">
-            Tune stable-baselines3 PPO hyperparameters for your quadruped RL run. Defaults are
-            chosen from this machine&apos;s CPU, RAM, and GPU.
-          </p>
+      <div className="overview-panel overview-empty">
+        <div className="welcome-grid">
+          <div className="welcome-hero">
+            <p className="welcome-kicker">QuadRL Studio</p>
+            <h1>PPO Planner</h1>
+            <p className="welcome-lead">
+              Configure stable-baselines3 PPO hyperparameters, parallel envs, checkpoints, and
+              export format — tuned to your machine&apos;s CPU, RAM, and GPU.
+            </p>
+          </div>
+          <div className="welcome-card">
+            <h2>Workflow</h2>
+            <ol className="pipeline-steps">
+              {WORKFLOW.map((w) => (
+                <li key={w.step}>
+                  <span className="pipeline-num">{w.step}</span>
+                  <div>
+                    <strong>{w.title}</strong>
+                    <p>{w.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
-        <div className="workflow-card">
-          <h2>Workflow</h2>
-          <ol className="workflow-steps">
-            <li>
-              <span className="step-num">1</span>
-              <span>Complete the four editors → sensor RL export</span>
-            </li>
-            <li>
-              <span className="step-num">2</span>
-              <span>File → select project (auto-bootstraps PPO config)</span>
-            </li>
-            <li>
-              <span className="step-num">3</span>
-              <span>Recommend → adjust params → Validate → Export YAML</span>
-            </li>
-          </ol>
-        </div>
-        <p className="overview-footnote">
-          Export writes <code>exports/ppo_&lt;project&gt;_config.yaml</code> next to your robot
-          package.
+        <p className="welcome-footnote">
+          Export path: <code>exports/ppo_&lt;project&gt;_config.yaml</code>
         </p>
       </div>
     );
   }
 
   const p = model.params;
-  const rollout = rolloutSize(p);
-  const batchOk = batchDividesRollout(p);
+  const par = model.parallel;
+  const rollout = rolloutSize(p, par.numEnvs);
+  const batchOk = batchDividesRollout(p, par.numEnvs);
   const device = resolvedDevice(p, model.machineProfile);
+  const exportNames = exportConfigFilenames(model.projectName, model.exportFormat.formats);
+  const updates = rollout > 0 ? Math.floor(p.totalTimesteps / rollout) : 0;
 
   return (
-    <div className="overview-panel">
-      <header className="overview-header">
-        <div>
+    <div className="overview-panel overview-loaded">
+      <header className="dash-header">
+        <div className="dash-title-block">
+          <p className="dash-kicker">Training plan</p>
           <h2>{model.robotName}</h2>
-          <p className="overview-subtitle">
-            Project <span className="mono">{model.projectName}</span> · PPO · SB3-compatible
+          <p className="dash-subtitle">
+            <span className="mono">{model.projectName}</span> · PPO · SB3
           </p>
         </div>
-        <div className="overview-badges">
-          <span className={`badge badge-device badge-${device}`}>{device.toUpperCase()}</span>
-          <span className={`badge ${model.useRecommended ? "badge-auto" : "badge-manual"}`}>
+        <div className="dash-badges">
+          <span className={`pill pill-device pill-${device}`}>{device}</span>
+          <span className={`pill ${model.useRecommended ? "pill-auto" : "pill-manual"}`}>
             {model.useRecommended ? "Auto-tuned" : "Manual"}
           </span>
           {validation && (
-            <span className={`badge ${validation.valid ? "badge-ok" : "badge-err"}`}>
+            <span className={`pill ${validation.valid ? "pill-ok" : "pill-err"}`}>
               {validation.valid ? "Valid" : `${validation.errors.length} errors`}
             </span>
           )}
         </div>
       </header>
 
-      <div className="metric-grid">
+      <div className="dash-grid">
         <MetricCard
           label="Rollout buffer"
           value={String(rollout)}
-          sub={`${p.nSteps} × ${p.numEnvs} envs`}
+          sub={`${p.nSteps} × ${par.numEnvs} envs`}
           variant="accent"
         />
         <MetricCard
@@ -89,81 +104,98 @@ export function OverviewPanel() {
         <MetricCard
           label="Training steps"
           value={formatTimesteps(p.totalTimesteps)}
-          sub={`${p.totalTimesteps.toLocaleString()} total`}
+          sub={`~${updates.toLocaleString()} updates`}
         />
         <MetricCard
-          label="Updates / run"
-          value={rollout > 0 ? String(Math.floor(p.totalTimesteps / rollout)) : "—"}
-          sub={`${p.nEpochs} epochs each`}
+          label="Parallel"
+          value={String(par.numEnvs)}
+          sub={parallelSummary(par)}
         />
       </div>
 
-      {!batchOk && (
-        <div className="banner banner-warn" role="status">
-          Rollout size ({rollout}) is not divisible by batch_size ({p.batchSize}). Consider
-          adjusting batch_size or n_steps × num_envs.
+      {( !batchOk || (validation && !validation.valid) ) && (
+        <div className="alert-stack">
+          {!batchOk && (
+            <div className="alert alert-warn" role="status">
+              Rollout {rollout} is not divisible by batch_size {p.batchSize}.
+            </div>
+          )}
+          {validation && !validation.valid && (
+            <div className="alert alert-err" role="alert">
+              {validation.errors[0]?.message}
+              {validation.errors.length > 1 && ` (+${validation.errors.length - 1} more)`}
+            </div>
+          )}
         </div>
       )}
 
-      {validation && !validation.valid && (
-        <div className="banner banner-err" role="alert">
-          {validation.errors[0]?.message ?? "Validation failed"}
-          {validation.errors.length > 1 && ` (+${validation.errors.length - 1} more)`}
-        </div>
-      )}
+      <div className="dash-columns">
+        <section className="dash-card">
+          <h3>Output &amp; artifacts</h3>
+          <dl className="dash-dl">
+            <div>
+              <dt>Config export</dt>
+              <dd>
+                <ul className="dash-export-list">
+                  {exportNames.map((n) => (
+                    <li key={n} className="mono">
+                      exports/{n}
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+            <div>
+              <dt>Checkpoints</dt>
+              <dd>{checkpointSummary(model.checkpoint)}</dd>
+            </div>
+            <div>
+              <dt>Best model</dt>
+              <dd>{bestModelSummary(model.bestModel)}</dd>
+            </div>
+            <div>
+              <dt>Export formats</dt>
+              <dd>{exportFormatsSummary(model.exportFormat.formats)}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="dash-card">
+          <h3>Hyperparameter snapshot</h3>
+          <dl className="dash-dl dash-dl-compact">
+            <div>
+              <dt>learning_rate</dt>
+              <dd className="mono">{p.learningRate}</dd>
+            </div>
+            <div>
+              <dt>n_steps / batch / epochs</dt>
+              <dd className="mono">
+                {p.nSteps} / {p.batchSize} / {p.nEpochs}
+              </dd>
+            </div>
+            <div>
+              <dt>γ / λ / clip</dt>
+              <dd className="mono">
+                {p.gamma} / {p.gaeLambda} / {p.clipRange}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </div>
 
       {model.recommendationNotes.length > 0 && (
-        <section className="insight-card">
+        <section className="dash-card dash-insights">
           <h3>Machine recommendations</h3>
           <ul className="insight-list">
-            {model.recommendationNotes.map((n, i) => (
-              <li key={i}>
-                <span className="insight-dot" aria-hidden />
-                {n}
-              </li>
+            {model.recommendationNotes.slice(0, 6).map((n, i) => (
+              <li key={i}>{n}</li>
             ))}
+            {model.recommendationNotes.length > 6 && (
+              <li className="insight-more">+{model.recommendationNotes.length - 6} more notes</li>
+            )}
           </ul>
         </section>
       )}
-
-      <section className="params-preview-card">
-        <h3>Hyperparameter snapshot</h3>
-        <table className="params-table">
-          <tbody>
-            <tr>
-              <td>learning_rate</td>
-              <td className="mono">{p.learningRate}</td>
-            </tr>
-            <tr>
-              <td>n_steps / batch / epochs</td>
-              <td className="mono">
-                {p.nSteps} / {p.batchSize} / {p.nEpochs}
-              </td>
-            </tr>
-            <tr>
-              <td>γ / λ / clip</td>
-              <td className="mono">
-                {p.gamma} / {p.gaeLambda} / {p.clipRange}
-              </td>
-            </tr>
-            <tr>
-              <td>ent_coef / vf_coef</td>
-              <td className="mono">
-                {p.entCoef} / {p.vfCoef}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section className="export-hints">
-        <p className="export-hints-title">On export</p>
-        <ul>
-          <li>
-            <code>ppo_{model.projectName}_config.yaml</code>
-          </li>
-        </ul>
-      </section>
     </div>
   );
 }

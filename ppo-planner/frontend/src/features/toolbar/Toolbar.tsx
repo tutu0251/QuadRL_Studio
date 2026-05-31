@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { api } from "../../api/client";
 import { usePlannerStore } from "../../stores/plannerStore";
+import {
+  exportConfigFilenames,
+  exportToolbarLabel,
+  parallelSummary,
+  resolvedDevice,
+} from "../../utils/ppoMetrics";
 
 async function pollTask(taskId: string) {
   for (let i = 0; i < 120; i++) {
@@ -66,10 +72,14 @@ export function Toolbar() {
         return;
       }
       const { task_id } = await api.exportPpo(project);
-      log("Exporting ppo_<project>_config.yaml…");
+      log(
+        `Exporting ${exportConfigFilenames(project, model?.exportFormat.formats ?? ["yaml"]).join(", ")}…`
+      );
       const t = await pollTask(task_id);
-      if (t?.status === "completed") log(`Export complete: ${t.result?.ppo_config ?? ""}`);
-      else log("Export failed");
+      if (t?.status === "completed") {
+        const paths = t.result?.ppo_configs ?? [t.result?.ppo_config];
+        log(`Export complete: ${(paths as string[]).filter(Boolean).join(", ")}`);
+      } else log("Export failed");
     } catch (e) {
       log(String(e));
     } finally {
@@ -123,7 +133,7 @@ export function Toolbar() {
           disabled={!project || busy}
           onClick={() => void exportPpo()}
         >
-          Export YAML
+          {exportToolbarLabel(model?.exportFormat.formats ?? ["yaml"])}
         </button>
       </div>
 
@@ -132,8 +142,7 @@ export function Toolbar() {
       {busy && <span className="toolbar-busy">Working…</span>}
       {model && project && (
         <span className="toolbar-context mono">
-          {model.params.device} · {model.params.numEnvs} env
-          {model.params.numEnvs > 1 ? "s" : ""}
+          {resolvedDevice(model.params, model.machineProfile)} · {parallelSummary(model.parallel)}
         </span>
       )}
     </div>

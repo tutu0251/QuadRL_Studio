@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 import time
@@ -14,6 +15,8 @@ import yaml
 def _load_config(config_path: Path) -> dict:
     text = config_path.read_text(encoding="utf-8")
     body = "\n".join(line for line in text.splitlines() if not line.startswith("#"))
+    if config_path.suffix.lower() == ".json":
+        return json.loads(body) or {}
     return yaml.safe_load(body) or {}
 
 
@@ -67,6 +70,69 @@ def _write_run_manifest(run_root: Path, project_name: str, config_path: Path, cu
     )
 
 
+def _checkpoint_dir(project_dir: Path, config: dict) -> Path:
+    ckpt = config.get("checkpoint") or {}
+    rel = str(ckpt.get("directory", "checkpoints")).strip() or "checkpoints"
+    path = (project_dir / rel).resolve()
+    if project_dir.resolve() not in path.parents and path != project_dir.resolve():
+        path = project_dir / "checkpoints"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _checkpoint_basename(config: dict, stage: dict | None) -> str:
+    ckpt = config.get("checkpoint") or {}
+    template = str(ckpt.get("filename_template", "ppo_{stage_id}"))
+    stage_id = stage.get("id", "final") if stage else "final"
+    name = template.replace("{stage_id}", str(stage_id))
+    return re.sub(r"[^\w\-]+", "_", name).strip("_") or "ppo_final"
+
+
+def _build_learn_callbacks(config: dict, checkpoint_dir: Path, stage: dict | None) -> list:
+    ckpt = config.get("checkpoint") or {}
+    if not ckpt.get("enabled", True):
+        return []
+    frequency = str(ckpt.get("frequency", "end_only"))
+    if frequency not in ("steps", "rollout"):
+        return []
+    try:
+        from stable_baselines3.common.callbacks import CheckpointCallback
+    except ImportError:
+        return []
+
+    hp = config.get("hyperparameters") or {}
+    par = config.get("parallel") or {}
+    n_steps = int(hp.get("n_steps", 2048))
+    num_envs = max(1, int(par.get("num_envs", 1)))
+    freq_steps = int(ckpt.get("frequency_steps", 50_000))
+    if frequency == "rollout":
+        freq_steps = max(1, n_steps * num_envs)
+    prefix = _checkpoint_basename(config, stage)
+    return [
+        CheckpointCallback(
+            save_freq=max(1, freq_steps),
+            save_path=str(checkpoint_dir),
+            name_prefix=prefix,
+            save_replay_buffer=False,
+            save_vecnormalize=False,
+        )
+    ]
+
+
+def _save_best_model_copy(config: dict, checkpoint_dir: Path, source_ckpt: Path) -> None:
+    best = config.get("best_model") or {}
+    if not best.get("enabled", True):
+        return
+    rel = str(best.get("directory", "checkpoints")).strip() or "checkpoints"
+    best_dir = checkpoint_dir if rel == str(config.get("checkpoint", {}).get("directory", "checkpoints")) else checkpoint_dir.parent / rel
+    best_dir.mkdir(parents=True, exist_ok=True)
+    filename = str(best.get("filename", "best_model")).strip() or "best_model"
+    dest = best_dir / f"{filename}.zip"
+    if source_ckpt.with_suffix(".zip").exists():
+        dest.write_bytes(source_ckpt.with_suffix(".zip").read_bytes())
+        _log(f"[train] Best model copy: {dest} (metric={best.get('metric', 'mean_episode_reward')})")
+
+
 def _train_stage_sb3(
     config: dict,
     stage: dict | None,
@@ -117,10 +183,19 @@ def _train_stage_sb3(
     progress_bar = _use_progress_bar()
     if not progress_bar:
         _log("[train] progress_bar disabled (install tqdm and rich for a live bar)")
-    model.learn(total_timesteps=timesteps, progress_bar=progress_bar)
-    ckpt = checkpoint_dir / f"ppo_{stage.get('id', 'final') if stage else 'final'}.zip"
-    model.save(str(ckpt.with_suffix("")))
-    _log(f"[train] Checkpoint saved: {ckpt}")
+    callbacks = _build_learn_callbacks(config, checkpoint_dir, stage)
+    model.learn(
+        total_timesteps=timesteps,
+        progress_bar=progress_bar,
+        callback=callbacks or None,
+    )
+    if not (config.get("checkpoint") or {}).get("enabled", True):
+        _log("[train] Checkpoints disabled in config — skipping save")
+        return
+    ckpt_base = checkpoint_dir / _checkpoint_basename(config, stage)
+    model.save(str(ckpt_base))
+    _log(f"[train] Checkpoint saved: {ckpt_base}.zip")
+    _save_best_model_copy(config, checkpoint_dir, ckpt_base)
 
 
 def _dry_run_stage(
@@ -165,8 +240,7 @@ def main() -> int:
         return 1
 
     config = _load_config(config_path)
-    checkpoint_dir = project_dir / "checkpoints"
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir = _checkpoint_dir(project_dir, config)
 
     run_root = project_dir / "runs" / _run_timestamp()
     run_root.mkdir(parents=True, exist_ok=True)

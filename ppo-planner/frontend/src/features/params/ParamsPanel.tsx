@@ -19,7 +19,6 @@ const LABELS: Record<keyof PpoHyperparams, string> = {
   vfCoef: "vf_coef",
   maxGradNorm: "max_grad_norm",
   totalTimesteps: "total_timesteps",
-  numEnvs: "num_envs",
   device: "device",
 };
 
@@ -30,13 +29,14 @@ function stepFor(key: keyof PpoHyperparams): number {
   return 0.1;
 }
 
-export function ParamsPanel() {
+export function ParamsPanel({ embedded = false }: { embedded?: boolean }) {
   const project = usePlannerStore((s) => s.project);
   const model = usePlannerStore((s) => s.model);
   const setModel = usePlannerStore((s) => s.setModel);
   const log = usePlannerStore((s) => s.log);
 
   if (!model) {
+    if (embedded) return null;
     return (
       <div className="unity-panel params-panel">
         <div className="panel-header">Hyperparameters</div>
@@ -57,8 +57,9 @@ export function ParamsPanel() {
     }
   };
 
-  const rollout = rolloutSize(model.params);
-  const batchOk = batchDividesRollout(model.params);
+  const numEnvs = model.parallel.numEnvs;
+  const rollout = rolloutSize(model.params, numEnvs);
+  const batchOk = batchDividesRollout(model.params, numEnvs);
 
   const renderField = (key: keyof PpoHyperparams) => {
     if (key === "device") {
@@ -89,23 +90,15 @@ export function ParamsPanel() {
         hint={PPO_PARAM_HINTS[key]}
         value={v}
         step={stepFor(key)}
-        min={key === "numEnvs" ? 1 : undefined}
         status={key === "batchSize" && !batchOk ? "warn" : undefined}
         onChange={(n) => void patch({ [key]: n } as Partial<PpoHyperparams>)}
       />
     );
   };
 
-  return (
-    <div className="unity-panel params-panel">
-      <div className="panel-header">
-        <span>Hyperparameters</span>
-        <span className={`panel-header-meta ${batchOk ? "meta-ok" : "meta-warn"}`}>
-          rollout {rollout}
-        </span>
-      </div>
-
-      <div className="params-toolbar">
+  const body = (
+    <>
+      <div className={embedded ? "params-toolbar tab-toolbar" : "params-toolbar"}>
         <Toggle
           label="Auto-apply recommendations"
           hint="When enabled, Recommend overwrites params for this machine"
@@ -114,7 +107,7 @@ export function ParamsPanel() {
         />
       </div>
 
-      <div className="params-scroll">
+      <div className={embedded ? "params-scroll tab-scroll" : "params-scroll"}>
         {PPO_PARAM_GROUPS.map((g, i) => (
           <CollapsibleSection
             key={g.id}
@@ -127,6 +120,22 @@ export function ParamsPanel() {
           </CollapsibleSection>
         ))}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="tab-panel params-panel-embedded">{body}</div>;
+  }
+
+  return (
+    <div className="unity-panel params-panel">
+      <div className="panel-header">
+        <span>Hyperparameters</span>
+        <span className={`panel-header-meta ${batchOk ? "meta-ok" : "meta-warn"}`}>
+          rollout {rollout}
+        </span>
+      </div>
+      {body}
     </div>
   );
 }

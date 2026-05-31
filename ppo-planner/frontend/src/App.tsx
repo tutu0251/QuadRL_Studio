@@ -4,7 +4,7 @@ import { usePlannerStore } from "./stores/plannerStore";
 import { MenuBar } from "./features/menu/MenuBar";
 import { Toolbar } from "./features/toolbar/Toolbar";
 import { MachinePanel } from "./features/machine/MachinePanel";
-import { ParamsPanel } from "./features/params/ParamsPanel";
+import { InspectorTabs } from "./features/tabs/InspectorTabs";
 import { OverviewPanel } from "./features/overview/OverviewPanel";
 import { ConsolePanel } from "./features/console/ConsolePanel";
 import { StatusBar } from "./features/status/StatusBar";
@@ -144,7 +144,7 @@ export default function App() {
           </main>
           <ResizeHandle axis="horizontal" onResize={(d) => resizeRight(-d)} />
           <aside className="right-dock" style={{ width: rightWidth }}>
-            <ParamsPanel />
+            <InspectorTabs />
           </aside>
         </div>
 
