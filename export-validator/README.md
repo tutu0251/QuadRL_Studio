@@ -28,6 +28,27 @@ Environment:
 |----------|---------|
 | `QUADRL_PROJECTS_DIR` | `~/quadruped_dev_tool/projects` |
 
+## Sensor editor validation
+
+Validates `sens_*` RL exports by:
+
+1. Generating the full colcon workspace under `workspace/` (requires geometry → physics → control → sensor exports)
+2. Building with `colcon build --symlink-install`
+3. Launching headless Gazebo via `training_readiness.launch.py` (robot + bridge + controllers)
+4. Listing ROS topics and verifying each observation topic from `sens_*_observations.yaml` publishes
+
+```bash
+chmod +x export-validator/scripts/validate_sensor_runtime.sh
+./export-validator/scripts/validate_sensor_runtime.sh my_robot
+```
+
+Options:
+
+- `--no-build` — skip colcon build when workspace already exists
+- `--no-generate` — skip workspace generation (requires existing `workspace/`)
+
+The Sensor Editor runs this automatically after **Export RL package** when Gazebo/ROS is installed.
+
 ## Integration
 
 The Control Editor Gazebo validation delegates to this module when the runtime stack is installed. Export still succeeds when validation is skipped (Gazebo/ROS not present).

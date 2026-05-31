@@ -128,3 +128,20 @@ def check_control_runtime_stack() -> dict[str, Any]:
     details["available"] = len(missing) == 0
     details["missing"] = missing
     return details
+
+
+def check_sensor_runtime_stack() -> dict[str, Any]:
+    details = check_control_runtime_stack()
+    missing = list(details.get("missing") or [])
+    details["rosGzBridge"] = False
+    if details.get("rosSetup"):
+        try:
+            proc = bash_ros_cmd("ros2 pkg prefix ros_gz_bridge", timeout=10)
+            details["rosGzBridge"] = proc.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            details["rosGzBridge"] = False
+        if not details["rosGzBridge"] and "ros_gz_bridge" not in missing:
+            missing.append("ros_gz_bridge")
+    details["missing"] = missing
+    details["available"] = len(missing) == 0
+    return details

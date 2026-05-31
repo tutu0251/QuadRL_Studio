@@ -62,6 +62,17 @@ for key, obs in spec["observations"].items():
 
 Run `ros2 run ros_gz_bridge parameter_bridge` with the generated `sens_*_bridge.yaml` mappings (adjust `gz_topic_name` after first spawn if world/model paths differ).
 
+### Sensor runtime validation
+
+After **Export RL package**, the backend runs a headless workspace check when Gazebo and ROS 2 are installed: it launches the full training workspace, lists ROS topics, and confirms each observation topic from `sens_*_observations.yaml` publishes. Results appear in the console as **Sensor runtime validation: passed / skipped / failed**.
+
+Manual CLI:
+
+```bash
+chmod +x export-validator/scripts/validate_sensor_runtime.sh
+./export-validator/scripts/validate_sensor_runtime.sh my_robot
+```
+
 ## API
 
 Docs: `http://<host>:8003/docs`

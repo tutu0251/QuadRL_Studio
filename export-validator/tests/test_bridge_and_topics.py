@@ -5,6 +5,7 @@ from bridge_and_topics import (
     analyze_launch_logs,
     bridge_to_parameter_bridge_args,
     load_observations_doc,
+    observation_topics,
     parse_joint_states,
     patch_gz_world_in_topic,
 )
@@ -39,6 +40,17 @@ def test_parse_joint_states():
 
 def test_patch_gz_world_in_topic():
     assert patch_gz_world_in_topic("/world/default/imu", "flat") == "/world/flat/imu"
+
+
+def test_observation_topics():
+    doc = {
+        "observations": {
+            "imu": {"topic": "/imu", "kind": "imu"},
+            "lf": {"topic": "/contacts/lf", "kind": "contact"},
+        }
+    }
+    topics = observation_topics(doc)
+    assert topics == [("imu", "/imu", "imu"), ("lf", "/contacts/lf", "contact")]
 
 
 def test_bridge_to_parameter_bridge_args_patches_world():

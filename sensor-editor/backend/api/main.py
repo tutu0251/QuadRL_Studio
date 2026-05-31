@@ -217,7 +217,39 @@ async def _run_export(name: str, tid: str):
         payload = export_all(model, name)
         for k, v in payload.items():
             task_manager.log(tid, "info", f"{k}: {v}")
-        task_manager.set_status(tid, "completed", payload)
+
+        from storage import project_storage
+        from validator.runtime_validator import validate_sensor_export
+
+        runtime_validation = await asyncio.to_thread(validate_sensor_export, name)
+        out = {**payload, "sensorValidation": runtime_validation.model_dump()}
+        status = (runtime_validation.details or {}).get("status", "unknown")
+        if status == "skipped":
+            msg = next(
+                (w.message for w in runtime_validation.warnings if "skipped" in w.code),
+                "Sensor validation skipped (not installed)",
+            )
+            task_manager.log(tid, "warning", msg)
+            task_manager.set_status(tid, "completed", out)
+            return
+        if runtime_validation.valid:
+            msg = "Sensor runtime validation passed"
+            if runtime_validation.warnings:
+                msg += f" ({len(runtime_validation.warnings)} warning(s))"
+            task_manager.log(tid, "info", msg)
+            for w in runtime_validation.warnings[:5]:
+                task_manager.log(tid, "warning", w.message)
+            task_manager.set_status(tid, "completed", out)
+            return
+
+        task_manager.log(
+            tid,
+            "warning",
+            f"Sensor runtime validation failed: {len(runtime_validation.errors)} error(s)",
+        )
+        for err in runtime_validation.errors[:10]:
+            task_manager.log(tid, "error", err.message)
+        task_manager.set_status(tid, "failed", out)
     except Exception as e:
         task_manager.log(tid, "error", str(e))
         task_manager.set_status(tid, "failed", {"error": str(e)})

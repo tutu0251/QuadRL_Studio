@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Validate sensor-editor exports via full training workspace runtime checks.
+# Validate sensor-editor export via colcon workspace (training_readiness launch).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECTS_DIR="${QUADRL_PROJECTS_DIR:-$HOME/quadruped_dev_tool/projects}"
 PROJECT="${1:-}"
+AUTO_BUILD=1
+AUTO_GENERATE=1
 
 usage() {
   cat <<'EOF'
-Usage: validate_sensor_runtime.sh <project_name>
+Usage: validate_sensor_runtime.sh <project_name> [--no-build] [--no-generate]
 
-Runs headless sensor validation through the project's full colcon workspace
-(training_readiness.launch.py). Requires a built workspace from workspace-generator.
+Runs headless sensor validation through the project's colcon workspace
+(training_readiness.launch.py). Auto-generates/builds the workspace when missing
+unless --no-build or --no-generate is passed.
 
 Environment:
   QUADRL_PROJECTS_DIR   Projects root (default: ~/quadruped_dev_tool/projects)
@@ -21,10 +24,28 @@ Example:
 EOF
 }
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  usage
-  exit 0
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --no-build)
+      AUTO_BUILD=0
+      shift
+      ;;
+    --no-generate)
+      AUTO_GENERATE=0
+      shift
+      ;;
+    *)
+      if [[ -z "$PROJECT" ]]; then
+        PROJECT="$1"
+      fi
+      shift
+      ;;
+  esac
+done
 
 if [[ -z "$PROJECT" ]]; then
   echo "Project name required." >&2
@@ -47,7 +68,12 @@ sys.path.insert(0, "${ROOT}/backend")
 from sensor_runtime import validate_sensor_runtime
 
 exports = Path("${EXPORTS}")
-result = validate_sensor_runtime(exports, "${PROJECT}")
+result = validate_sensor_runtime(
+    exports,
+    "${PROJECT}",
+    auto_build=bool(${AUTO_BUILD}),
+    auto_generate=bool(${AUTO_GENERATE}),
+)
 print(result.model_dump_json(indent=2))
 status = (result.details or {}).get("status", "unknown")
 raise SystemExit(0 if result.valid or status == "skipped" else 1)

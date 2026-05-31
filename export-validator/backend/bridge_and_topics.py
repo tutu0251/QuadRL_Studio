@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import re
+import shlex
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -17,12 +19,71 @@ PLUGIN_FAILURE_PATTERNS = (
 )
 SPAWN_SUCCESS_MARKERS = ("OK creation of entity",)
 REQUIRED_CONTROLLERS = ("joint_state_broadcaster", "joint_trajectory_controller")
+CONTROLLER_READY_MARKERS = (
+    "Configured and activated joint_state_broadcaster",
+    "Activating controller 'joint_state_broadcaster'",
+)
+BRIDGE_READY_MARKERS = (
+    "ros_gz_bridge",
+    "parameter_bridge",
+    "Passing to a list of bridges",
+)
+TOPIC_TIMEOUT_IMU_S = 18.0
+TOPIC_TIMEOUT_CONTACT_S = 22.0
+TOPIC_TIMEOUT_LIDAR_S = 25.0
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def load_observations_doc(text: str) -> dict[str, Any]:
     if text.startswith("#"):
         text = "\n".join(line for line in text.splitlines() if not line.startswith("#"))
     return yaml.safe_load(text) or {}
+
+
+def read_launch_log(log_path: Path) -> str:
+    if not log_path.is_file():
+        return ""
+    return _ANSI_ESCAPE_RE.sub("", log_path.read_text(errors="replace"))
+
+
+def topic_timeout(kind: str) -> float:
+    if kind == "imu":
+        return TOPIC_TIMEOUT_IMU_S
+    if kind == "lidar":
+        return TOPIC_TIMEOUT_LIDAR_S
+    return TOPIC_TIMEOUT_CONTACT_S
+
+
+def topic_publishes(topic: str, setup: Path, timeout_s: float, env: dict[str, str]) -> tuple[bool, str]:
+    from ev_ros_env import bash_ros_cmd
+
+    quoted = shlex.quote(topic)
+    script = f"ros2 topic echo {quoted} --once --spin-time 12 --qos-reliability reliable"
+    proc = bash_ros_cmd(script, setup=setup, timeout=timeout_s, env=env)
+    out = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode == 0 and out.strip() and "---" in out:
+        return True, out.strip().splitlines()[0][:200]
+    if "average rate" in out:
+        return True, out.strip().splitlines()[0][:200]
+    return False, out.strip()[-300:] if out.strip() else "no messages"
+
+
+def parse_ros_topic_list(text: str) -> set[str]:
+    return {line.strip() for line in text.splitlines() if line.strip().startswith("/")}
+
+
+def observation_topics(obs_doc: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """Return (key, topic, kind) tuples from observations YAML."""
+    items: list[tuple[str, str, str]] = []
+    for key, spec in (obs_doc.get("observations") or {}).items():
+        if not isinstance(spec, dict):
+            continue
+        topic = str(spec.get("topic", "")).strip()
+        if not topic:
+            continue
+        kind = str(spec.get("kind", "contact"))
+        items.append((str(key), topic, kind))
+    return items
 
 
 def patch_gz_world_in_topic(topic: str, world_name: str) -> str:

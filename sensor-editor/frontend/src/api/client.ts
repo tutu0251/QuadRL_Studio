@@ -84,9 +84,11 @@ export const api = {
   exportRl: (name: string) =>
     req<{ task_id: string }>(`/api/projects/${name}/export/rl`, { method: "POST" }),
   getTask: (taskId: string) =>
-    req<{ task_id: string; status: string; result?: Record<string, string> }>(
-      `/api/tasks/${taskId}`
-    ),
+    req<{
+      task_id: string;
+      status: string;
+      result?: Record<string, unknown> & { sensorValidation?: ValidationResult };
+    }>(`/api/tasks/${taskId}`),
 };
 
 export type { SensorKind };

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SensorKind } from "@sensor-model";
+import type { SensorKind, ValidationResult } from "@sensor-model";
 import { api } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
 
@@ -10,6 +10,33 @@ async function pollTask(taskId: string) {
     if (t.status === "completed" || t.status === "failed") return t;
   }
   return null;
+}
+
+function logValidationResult(
+  log: (msg: string) => void,
+  label: string,
+  v: ValidationResult,
+  focusConsole?: () => void
+) {
+  const status = v.details?.status as string | undefined;
+  if (status === "skipped") {
+    const skipMsg = v.warnings.find((w) => w.code.includes("skipped"))?.message;
+    log(skipMsg ?? `${label} skipped (not installed)`);
+    return;
+  }
+  if (v.valid) {
+    log(`${label} passed${v.warnings.length ? ` — ${v.warnings.length} warning(s)` : ""}`);
+  } else {
+    log(`${label} failed — ${v.errors.length} error(s)`);
+    v.errors.forEach((e) => log(`  [${e.code}] ${e.message}`));
+    focusConsole?.();
+  }
+  v.warnings.slice(0, 5).forEach((w) => log(`  ⚠ ${w.message}`));
+  const topics = v.details?.topics as Record<string, string> | undefined;
+  if (topics) {
+    const ok = Object.values(topics).filter((t) => t === "ok").length;
+    log(`  topics: ${ok}/${Object.keys(topics).length} publishing`);
+  }
 }
 
 const SENSOR_KINDS: SensorKind[] = ["imu", "contact", "lidar"];
@@ -79,6 +106,18 @@ export function Toolbar() {
       if (t?.status === "completed") {
         log("Export complete");
         if (t.result) Object.entries(t.result).forEach(([k, v]) => log(`  ${k}: ${v}`));
+        if (t.result?.sensorValidation) {
+          logValidationResult(log, "Sensor runtime validation", t.result.sensorValidation as ValidationResult);
+        }
+      } else if (t?.status === "failed") {
+        log("Export failed");
+        if (t.result?.sensorValidation) {
+          logValidationResult(
+            log,
+            "Sensor runtime validation",
+            t.result.sensorValidation as ValidationResult
+          );
+        }
       } else {
         log("Export failed");
       }
