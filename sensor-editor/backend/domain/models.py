@@ -21,6 +21,7 @@ class SensorKind(str, Enum):
     IMU = "imu"
     CONTACT = "contact"
     LIDAR = "lidar"
+    ODOM = "odom"
 
 
 class SensorPose(BaseModel):
@@ -44,6 +45,13 @@ class LidarConfig(BaseModel):
     verticalSamples: int = 1
 
 
+class OdomConfig(BaseModel):
+    dimensions: int = 3
+    odomFrame: str = ""
+    robotBaseFrame: str = ""
+    noiseStddev: float = 0.0
+
+
 class SensorInstance(BaseModel):
     id: str = Field(default_factory=new_id)
     kind: SensorKind
@@ -56,6 +64,7 @@ class SensorInstance(BaseModel):
     imu: Optional[ImuConfig] = None
     contact: Optional[ContactConfig] = None
     lidar: Optional[LidarConfig] = None
+    odom: Optional[OdomConfig] = None
 
 
 class SensorModel(BaseModel):
@@ -116,6 +125,7 @@ class SensorCreate(BaseModel):
     imu: Optional[ImuConfig] = None
     contact: Optional[ContactConfig] = None
     lidar: Optional[LidarConfig] = None
+    odom: Optional[OdomConfig] = None
 
 
 class SensorUpdate(BaseModel):
@@ -128,6 +138,7 @@ class SensorUpdate(BaseModel):
     imu: Optional[ImuConfig] = None
     contact: Optional[ContactConfig] = None
     lidar: Optional[LidarConfig] = None
+    odom: Optional[OdomConfig] = None
 
 
 class TopicConfigUpdate(BaseModel):

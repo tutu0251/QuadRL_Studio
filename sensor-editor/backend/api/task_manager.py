@@ -41,6 +41,18 @@ class TaskManager:
             task.status = status
             if result is not None:
                 task.result = result
+            for q in self._subscribers:
+                try:
+                    q.put_nowait(
+                        {
+                            "type": "status",
+                            "task_id": task_id,
+                            "status": status,
+                            "result": result,
+                        }
+                    )
+                except asyncio.QueueFull:
+                    pass
 
     def get(self, task_id: str) -> Optional[AsyncTaskStatus]:
         return self._tasks.get(task_id)

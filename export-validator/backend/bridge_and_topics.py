@@ -51,6 +51,8 @@ def topic_timeout(kind: str) -> float:
         return TOPIC_TIMEOUT_IMU_S
     if kind == "lidar":
         return TOPIC_TIMEOUT_LIDAR_S
+    if kind == "odom":
+        return TOPIC_TIMEOUT_IMU_S
     return TOPIC_TIMEOUT_CONTACT_S
 
 

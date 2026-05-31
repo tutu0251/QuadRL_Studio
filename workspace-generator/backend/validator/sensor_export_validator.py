@@ -16,12 +16,14 @@ _KNOWN_BRIDGE_TYPES = {
     "imu": ("sensor_msgs/msg/Imu", "gz.msgs.IMU"),
     "contact": ("ros_gz_interfaces/msg/Contacts", "gz.msgs.Contacts"),
     "lidar": ("sensor_msgs/msg/LaserScan", "gz.msgs.LaserScan"),
+    "odom": ("nav_msgs/msg/Odometry", "gz.msgs.Odometry"),
 }
 
 _MSG_TYPE_TO_BRIDGE = {
     "sensor_msgs/Imu": "sensor_msgs/msg/Imu",
     "ros_gz_interfaces/Contacts": "ros_gz_interfaces/msg/Contacts",
     "sensor_msgs/LaserScan": "sensor_msgs/msg/LaserScan",
+    "nav_msgs/Odometry": "nav_msgs/msg/Odometry",
 }
 
 
@@ -59,6 +61,20 @@ def _urdf_sensor_names(urdf_root: ET.Element) -> set[str]:
             if name:
                 names.add(name)
     return names
+
+
+def _urdf_qrl_sensor_ids(urdf_root: ET.Element) -> set[str]:
+    ids: set[str] = set()
+    for gz in urdf_root.findall("gazebo"):
+        for sensor in gz.findall("sensor"):
+            sid = sensor.get("qrl_sensor_id")
+            if sid:
+                ids.add(sid)
+        for plugin in gz.findall("plugin"):
+            sid = plugin.get("qrl_sensor_id")
+            if sid:
+                ids.add(sid)
+    return ids
 
 
 def _urdf_link_names(urdf_root: ET.Element) -> set[str]:
@@ -99,11 +115,12 @@ def validate_sensor_exports(paths: ProjectPaths) -> dict[str, Any]:
         }
 
     urdf_sensors = _urdf_sensor_names(urdf_root)
+    urdf_qrl_ids = _urdf_qrl_sensor_ids(urdf_root)
     urdf_links = _urdf_link_names(urdf_root)
     fixed_parents = _fixed_joint_parent_map(urdf_root)
     details["urdf_sensor_count"] = len(urdf_sensors)
 
-    if not urdf_sensors:
+    if not urdf_sensors and not urdf_qrl_ids:
         errors.append("sens RL URDF has no Gazebo sensor blocks")
 
     plugin_ok = False
@@ -194,7 +211,11 @@ def validate_sensor_exports(paths: ProjectPaths) -> dict[str, Any]:
             errors.append(f"Bridge parent_link not in URDF: {parent_link}")
 
         sensor_name = entry.get("sensor_name")
-        if sensor_name and sensor_name not in urdf_sensors:
+        sensor_id = entry.get("sensor_id")
+        sensor_kind = str(entry.get("sensor_kind") or "")
+        if sensor_id and sensor_id not in urdf_qrl_ids:
+            errors.append(f"Bridge sensor_id not in URDF qrl-managed sensors/plugins: {sensor_id}")
+        elif sensor_name and sensor_name not in urdf_sensors and sensor_kind != "odom":
             errors.append(f"Bridge sensor_name not in URDF Gazebo sensors: {sensor_name}")
 
         if gz_model and gz_topic and f"/model/{gz_model}/" not in gz_topic:

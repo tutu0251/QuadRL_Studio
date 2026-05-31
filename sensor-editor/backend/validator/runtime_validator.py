@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from domain.models import ValidationIssue, ValidationResult
 from storage import project_storage
+
+LogFn = Callable[[str], None]
 
 EXPORT_VALIDATOR_BACKEND = Path(__file__).resolve().parents[3] / "export-validator" / "backend"
 
@@ -59,7 +62,7 @@ def _map_export_validator_result(result: Any) -> ValidationResult:
     )
 
 
-def validate_sensor_export(project_name: str) -> ValidationResult:
+def validate_sensor_export(project_name: str, *, on_log: LogFn | None = None) -> ValidationResult:
     """Validate sensor exports via export-validator workspace runtime."""
     backend = EXPORT_VALIDATOR_BACKEND
     if not (backend / "sensor_runtime.py").is_file():
@@ -111,5 +114,6 @@ def validate_sensor_export(project_name: str) -> ValidationResult:
         project_name,
         auto_build=True,
         auto_generate=True,
+        on_log=on_log,
     )
     return _map_export_validator_result(result)

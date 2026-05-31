@@ -2,9 +2,17 @@ import { useEffect, useRef } from "react";
 import { useEditorStore } from "../../stores/editorStore";
 
 function parseLevel(line: string): "info" | "warn" | "error" | "default" {
-  if (line.includes("[error]") || line.includes("failed")) return "error";
-  if (line.includes("⚠") || line.includes("warning") || line.includes("not implemented")) return "warn";
-  if (line.includes("complete") || line.includes("Connected") || line.includes("Valid")) return "info";
+  if (line.includes("[error]") || /\bExport failed\b/.test(line)) return "error";
+  if (line.includes("⚠") || line.includes("[warning]") || line.includes("not implemented")) return "warn";
+  if (
+    line.includes("Export complete") ||
+    line.includes("validation passed") ||
+    line.includes("[info]") ||
+    line.includes("Connected") ||
+    line.includes("Valid")
+  ) {
+    return "info";
+  }
   return "default";
 }
 

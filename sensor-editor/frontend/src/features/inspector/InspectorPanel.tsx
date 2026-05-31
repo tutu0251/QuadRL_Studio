@@ -207,6 +207,49 @@ export function InspectorPanel() {
               />
             </>
           )}
+
+          {sensor.kind === "odom" && sensor.odom && (
+            <>
+              <div className="inspector-row">
+                <span className="field-label">Odom frame</span>
+                <input
+                  className="field-input"
+                  placeholder={`${model.gzModelName}/odom`}
+                  value={sensor.odom.odomFrame}
+                  onChange={(e) =>
+                    void patchSensor({ odom: { ...sensor.odom!, odomFrame: e.target.value } })
+                  }
+                />
+              </div>
+              <div className="inspector-row">
+                <span className="field-label">Base frame</span>
+                <input
+                  className="field-input"
+                  value={sensor.odom.robotBaseFrame || sensor.parentLink}
+                  onChange={(e) =>
+                    void patchSensor({ odom: { ...sensor.odom!, robotBaseFrame: e.target.value } })
+                  }
+                />
+              </div>
+              <NumberField
+                label="Dimensions"
+                value={sensor.odom.dimensions}
+                step={1}
+                min={2}
+                max={3}
+                onChange={(v) =>
+                  void patchSensor({ odom: { ...sensor.odom!, dimensions: Math.round(v) } })
+                }
+              />
+              <NumberField
+                label="Noise σ"
+                value={sensor.odom.noiseStddev}
+                step={0.01}
+                min={0}
+                onChange={(v) => void patchSensor({ odom: { ...sensor.odom!, noiseStddev: v } })}
+              />
+            </>
+          )}
         </section>
       ) : selection?.kind === "link" ? (
         <div className="panel-empty-state">

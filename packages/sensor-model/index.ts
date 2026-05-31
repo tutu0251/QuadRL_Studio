@@ -1,7 +1,7 @@
 /** Sensor editor types — SI units, angles in rad. */
 
 export type SimTarget = "gz_fortress";
-export type SensorKind = "imu" | "contact" | "lidar";
+export type SensorKind = "imu" | "contact" | "lidar" | "odom";
 
 export interface SensorPose {
   xyz: [number, number, number];
@@ -24,6 +24,13 @@ export interface LidarConfig {
   verticalSamples: number;
 }
 
+export interface OdomConfig {
+  dimensions: number;
+  odomFrame: string;
+  robotBaseFrame: string;
+  noiseStddev: number;
+}
+
 export interface SensorInstance {
   id: string;
   kind: SensorKind;
@@ -36,6 +43,7 @@ export interface SensorInstance {
   imu?: ImuConfig;
   contact?: ContactConfig;
   lidar?: LidarConfig;
+  odom?: OdomConfig;
 }
 
 export interface SensorModel {
@@ -77,6 +85,7 @@ export const SENSOR_KIND_LABELS: Record<SensorKind, string> = {
   imu: "IMU",
   contact: "Contact",
   lidar: "Lidar",
+  odom: "Odometry",
 };
 
 export const DEFAULT_IMU: ImuConfig = { enableOrientation: true };
@@ -87,4 +96,10 @@ export const DEFAULT_LIDAR: LidarConfig = {
   maxRange: 30.0,
   horizontalFov: 6.28318,
   verticalSamples: 1,
+};
+export const DEFAULT_ODOM: OdomConfig = {
+  dimensions: 3,
+  odomFrame: "",
+  robotBaseFrame: "",
+  noiseStddev: 0.0,
 };

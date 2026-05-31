@@ -1,10 +1,12 @@
 """Append Gazebo sensor blocks to ctrl URDF → sens_*_rl.urdf."""
 from __future__ import annotations
 
+import copy
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from domain.models import LidarConfig, SensorInstance, SensorKind, SensorModel
+from domain.link_preservation import assert_link_topology_unchanged
+from domain.models import LidarConfig, OdomConfig, SensorInstance, SensorKind, SensorModel
 
 QRL_ATTR = "qrl_sensor_id"
 
@@ -79,6 +81,25 @@ def _build_lidar_children(sensor: SensorInstance) -> list[ET.Element]:
     return [lidar]
 
 
+def _build_odom_plugin(sensor: SensorInstance, model: SensorModel) -> ET.Element:
+    cfg: OdomConfig = sensor.odom or OdomConfig()
+    plugin = ET.Element(
+        "plugin",
+        filename="ignition-gazebo-odometry-publisher-system",
+        name="ignition::gazebo::systems::OdometryPublisher",
+    )
+    plugin.set(QRL_ATTR, sensor.id)
+    odom_frame = cfg.odomFrame or f"{model.gzModelName}/odom"
+    base_frame = cfg.robotBaseFrame or sensor.parentLink
+    ET.SubElement(plugin, "odom_frame").text = odom_frame
+    ET.SubElement(plugin, "robot_base_frame").text = base_frame
+    ET.SubElement(plugin, "odom_publish_frequency").text = str(int(sensor.updateRate))
+    ET.SubElement(plugin, "dimensions").text = str(cfg.dimensions)
+    if cfg.noiseStddev > 0:
+        ET.SubElement(plugin, "noise_stddev").text = str(cfg.noiseStddev)
+    return plugin
+
+
 def _gazebo_sensor_type(kind: SensorKind) -> str:
     if kind == SensorKind.LIDAR:
         return "gpu_lidar"
@@ -105,11 +126,14 @@ def _build_sensor_element(sensor: SensorInstance) -> ET.Element:
     return sel
 
 
-def _strip_qrl_sensors(root: ET.Element) -> None:
+def _strip_qrl_managed(root: ET.Element) -> None:
     for gz in list(root.findall("gazebo")):
         for sensor in list(gz.findall("sensor")):
             if sensor.get(QRL_ATTR):
                 gz.remove(sensor)
+        for plugin in list(gz.findall("plugin")):
+            if plugin.get(QRL_ATTR):
+                gz.remove(plugin)
         if len(gz) == 0 and gz.get("reference"):
             root.remove(gz)
 
@@ -122,6 +146,13 @@ def _find_or_create_gazebo(root: ET.Element, link: str) -> ET.Element:
     return gz
 
 
+def _find_or_create_model_gazebo(root: ET.Element) -> ET.Element:
+    for gz in root.findall("gazebo"):
+        if gz.get("reference") is None:
+            return gz
+    return ET.SubElement(root, "gazebo")
+
+
 def merge_sensors_into_urdf(
     model: SensorModel,
     ctrl_urdf_path: Path,
@@ -129,11 +160,16 @@ def merge_sensors_into_urdf(
 ) -> Path:
     tree = ET.parse(ctrl_urdf_path)
     root = tree.getroot()
-    _strip_qrl_sensors(root)
+    before_root = copy.deepcopy(root)
+    _strip_qrl_managed(root)
 
     by_link: dict[str, list[SensorInstance]] = {}
+    odom_sensors: list[SensorInstance] = []
     for s in model.sensors:
         if not s.enabled:
+            continue
+        if s.kind == SensorKind.ODOM:
+            odom_sensors.append(s)
             continue
         by_link.setdefault(s.parentLink, []).append(s)
 
@@ -141,6 +177,13 @@ def merge_sensors_into_urdf(
         gz = _find_or_create_gazebo(root, link)
         for sensor in sensors:
             gz.append(_build_sensor_element(sensor))
+
+    if odom_sensors:
+        gz_model = _find_or_create_model_gazebo(root)
+        for sensor in odom_sensors:
+            gz_model.append(_build_odom_plugin(sensor, model))
+
+    assert_link_topology_unchanged(before_root, root, step="sensor URDF merge")
 
     _indent(root)
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -21,6 +21,11 @@ def _fields_for(sensor: SensorInstance) -> list[str]:
         return fields
     if sensor.kind == SensorKind.CONTACT:
         return ["contacts"]
+    if sensor.kind == SensorKind.ODOM:
+        dims = sensor.odom.dimensions if sensor.odom else 3
+        if dims == 2:
+            return ["linear_velocity_x", "angular_velocity_z"]
+        return ["linear_velocity_x", "linear_velocity_y", "angular_velocity_z"]
     return ["ranges", "angle_min", "angle_max"]
 
 
