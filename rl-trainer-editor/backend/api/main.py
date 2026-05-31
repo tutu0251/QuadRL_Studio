@@ -86,6 +86,13 @@ def get_machine_profile() -> dict:
     return profile_machine().model_dump()
 
 
+@app.get("/api/machine/memory")
+def get_machine_memory() -> dict:
+    from profiler.machine_profiler import sample_ram_usage
+
+    return sample_ram_usage()
+
+
 @app.get("/api/curricula")
 def get_curricula():
     return {"curricula": list_curricula()}

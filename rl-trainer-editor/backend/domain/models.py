@@ -22,6 +22,10 @@ class MachineProfile(BaseModel):
     cpuCountLogical: int = 1
     cpuCountPhysical: int = 1
     ramGb: float = 0.0
+    ramUsedGb: float = 0.0
+    ramTotalMb: int = 0
+    ramUsedMb: int = 0
+    ramAvailableMb: int = 0
     gpuAvailable: bool = False
     gpuName: str = ""
     vramGb: float = 0.0
@@ -104,6 +108,7 @@ class CurriculumStage(BaseModel):
     advanceCriteria: CurriculumAdvanceCriteria = Field(
         default_factory=CurriculumAdvanceCriteria
     )
+    paramEnabled: dict[str, bool] = Field(default_factory=dict)
 
 
 class CurriculumConfig(BaseModel):

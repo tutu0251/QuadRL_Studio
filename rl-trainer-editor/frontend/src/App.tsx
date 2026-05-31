@@ -24,8 +24,8 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consoleOpen, setConsoleOpen] = useState(true);
-  const [leftWidth, resizeLeft] = useClampedSize(320, 260, 420);
-  const [rightWidth, resizeRight] = useClampedSize(420, 360, 640);
+  const [leftWidth, resizeLeft] = useClampedSize(220, 200, 300);
+  const [rightWidth, resizeRight] = useClampedSize(240, 200, 320);
   const [consoleHeight, resizeConsole] = useClampedSize(140, 88, 360);
 
   const refreshProjects = useCallback(async () => {
@@ -115,16 +115,16 @@ export default function App() {
 
       <div className="editor-body">
         <div className="editor-main">
-          <aside className="left-dock" style={{ width: leftWidth }}>
+          <aside className="left-dock side-dock" style={{ width: leftWidth }}>
             <MachinePanel />
           </aside>
           <ResizeHandle axis="horizontal" onResize={resizeLeft} />
-          <main className="center-dock">
-            <OverviewPanel />
+          <main className="center-dock editor-dock">
+            <InspectorTabs />
           </main>
           <ResizeHandle axis="horizontal" onResize={(d) => resizeRight(-d)} />
-          <aside className="right-dock" style={{ width: rightWidth }}>
-            <InspectorTabs />
+          <aside className="right-dock side-dock" style={{ width: rightWidth }}>
+            <OverviewPanel compact />
           </aside>
         </div>
 

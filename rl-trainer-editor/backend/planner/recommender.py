@@ -9,6 +9,7 @@ from domain.models import (
     DisturbanceConfig,
     GaitType,
     MachineProfile,
+    RewardTerm,
     StageCommand,
     TerminationConfig,
 )
@@ -22,7 +23,24 @@ class StageRecommendation:
     timesteps: int
     termination: TerminationConfig
     advanceCriteria: CurriculumAdvanceCriteria
+    paramEnabled: dict[str, bool]
+    rewardTerms: list[RewardTerm]
     notes: list[str]
+
+
+_STAND_REWARD_IDS = frozenset(
+    {"base_height", "orientation_upright", "foot_contact", "velocity_penalty"}
+)
+_LOCO_REWARD_IDS = frozenset(
+    {
+        "lin_vel_tracking",
+        "ang_vel_tracking",
+        "orientation_penalty",
+        "torque_penalty",
+        "base_height",
+        "gait_symmetry",
+    }
+)
 
 
 _VEL_BY_GAIT = {
@@ -62,6 +80,87 @@ def recommend_gait(gait_id: str) -> tuple[GaitType, list[str]]:
     gait = build_gait(gait_id)
     notes = [f"Applied canonical parameters for gait '{gait.name}'."]
     return gait, notes
+
+
+def _recommend_reward_terms(stage: CurriculumStage) -> list[RewardTerm]:
+    is_stand = stage.gaitTypeId in ("stand", "recover")
+    out: list[RewardTerm] = []
+    for term in stage.rewardTerms:
+        t = term.model_copy(deep=True)
+        if is_stand:
+            t.enabled = term.id in _STAND_REWARD_IDS
+        else:
+            t.enabled = term.id in _LOCO_REWARD_IDS
+        out.append(t)
+    return out
+
+
+def recommend_param_enabled(
+    stage: CurriculumStage,
+    rough: bool,
+    reward_terms: list[RewardTerm],
+) -> dict[str, bool]:
+    flags: dict[str, bool] = {}
+    is_stand = stage.gaitTypeId in ("stand", "recover")
+
+    for key in ("name", "description", "gait_type", "timesteps"):
+        flags[f"identity.{key}"] = True
+
+    cmd = stage.command
+    for key in (
+        "target_lin_vel_x",
+        "target_lin_vel_y",
+        "target_ang_vel_z",
+        "target_body_height",
+        "gait_speed_scale",
+    ):
+        flags[f"command.{key}"] = True
+    if is_stand:
+        flags["command.target_lin_vel_y"] = False
+        flags["command.target_ang_vel_z"] = False
+    if cmd.targetLinVelY == 0:
+        flags["command.target_lin_vel_y"] = False
+    if cmd.targetAngVelZ == 0:
+        flags["command.target_ang_vel_z"] = False
+
+    flags["disturbance.enabled"] = rough
+    for key in (
+        "push_force_n",
+        "push_interval_steps",
+        "terrain_roughness",
+        "lateral_impulse_n",
+        "orientation_noise_rad",
+    ):
+        flags[f"disturbance.{key}"] = rough
+
+    for key in (
+        "max_episode_steps",
+        "fall_base_height_threshold",
+        "max_tilt_rad",
+        "max_joint_torque",
+        "timeout_truncation",
+    ):
+        flags[f"termination.{key}"] = True
+    flags["termination.max_joint_torque"] = stage.termination.maxJointTorque is not None
+
+    for key in (
+        "min_mean_episode_reward",
+        "min_episode_length_frac",
+        "max_fall_rate",
+    ):
+        flags[f"advance.{key}"] = True
+
+    for term in reward_terms:
+        flags[f"reward.{term.id}.weight"] = term.enabled
+        for pk in term.params:
+            active = term.enabled
+            if pk == "target_ang_vel_z" and cmd.targetAngVelZ == 0:
+                active = False
+            if pk == "target_lin_vel_y":
+                active = False
+            flags[f"reward.{term.id}.{pk}"] = active
+
+    return flags
 
 
 def recommend_stage_params(
@@ -108,6 +207,8 @@ def recommend_stage_params(
         minEpisodeLengthFrac=max(0.55, 0.85 - stage.order * 0.04),
         maxFallRate=min(0.35, 0.15 + stage.order * 0.03),
     )
+    reward_terms = _recommend_reward_terms(stage)
+    param_enabled = recommend_param_enabled(stage, rough, reward_terms)
     notes = [
         f"Recommended stage '{stage.name}': vel={vel:.2f} m/s, "
         f"timesteps={timesteps:,}, rough={rough}."
@@ -118,6 +219,8 @@ def recommend_stage_params(
         timesteps=timesteps,
         termination=termination,
         advanceCriteria=advance,
+        paramEnabled=param_enabled,
+        rewardTerms=reward_terms,
         notes=notes,
     )
 
@@ -135,6 +238,8 @@ def recommend_curriculum_timesteps(
         stage.disturbance = rec.disturbance
         stage.termination = rec.termination
         stage.advanceCriteria = rec.advanceCriteria
+        stage.rewardTerms = rec.rewardTerms
+        stage.paramEnabled = rec.paramEnabled
         stage.targetLinVelX = rec.command.targetLinVelX
         notes.extend(rec.notes)
     return notes

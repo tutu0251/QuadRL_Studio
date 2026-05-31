@@ -64,6 +64,7 @@ def _stage_export(stage: CurriculumStage) -> dict:
         "reward_terms": [_reward_term_export(t) for t in stage.rewardTerms],
         "termination": _termination_export(stage.termination),
         "advance_criteria": _advance_criteria_export(stage.advanceCriteria),
+        "param_enabled": dict(stage.paramEnabled),
     }
 
 

@@ -9,16 +9,47 @@ import subprocess
 from domain.models import MachineProfile, utc_now_iso
 
 
-def _ram_gb() -> float:
+def _ram_stats() -> tuple[float, float, int, int, int]:
+    """Return (total_gb, used_gb, total_mb, used_mb, available_mb) from /proc/meminfo."""
     try:
         with open("/proc/meminfo", encoding="utf-8") as f:
+            mem_total_kb = 0
+            mem_available_kb = 0
             for line in f:
                 if line.startswith("MemTotal:"):
-                    kb = int(line.split()[1])
-                    return round(kb / (1024 * 1024), 1)
+                    mem_total_kb = int(line.split()[1])
+                elif line.startswith("MemAvailable:"):
+                    mem_available_kb = int(line.split()[1])
+            if mem_total_kb > 0:
+                used_kb = max(0, mem_total_kb - mem_available_kb)
+                total_mb = mem_total_kb // 1024
+                used_mb = used_kb // 1024
+                available_mb = mem_available_kb // 1024
+                total_gb = mem_total_kb / (1024 * 1024)
+                used_gb = used_kb / (1024 * 1024)
+                return total_gb, used_gb, total_mb, used_mb, available_mb
     except OSError:
         pass
-    return 0.0
+    return 0.0, 0.0, 0, 0, 0
+
+
+def _ram_gb() -> tuple[float, float]:
+    total_gb, used_gb, _, _, _ = _ram_stats()
+    return total_gb, used_gb
+
+
+def sample_ram_usage() -> dict:
+    """Lightweight RAM sample for realtime graph polling."""
+    total_gb, used_gb, total_mb, used_mb, available_mb = _ram_stats()
+    return {
+        "ramTotalGb": round(total_gb, 4),
+        "ramUsedGb": round(used_gb, 4),
+        "ramAvailableGb": round(max(0.0, total_gb - used_gb), 4),
+        "ramTotalMb": total_mb,
+        "ramUsedMb": used_mb,
+        "ramAvailableMb": available_mb,
+        "sampledAt": utc_now_iso(),
+    }
 
 
 def _physical_cpu_count() -> int:
@@ -87,13 +118,18 @@ def profile_machine() -> MachineProfile:
 
     logical = os.cpu_count() or 1
     physical = _physical_cpu_count()
+    ram_total, ram_used, total_mb, used_mb, available_mb = _ram_stats()
 
     return MachineProfile(
         hostname=platform.node(),
         platform=f"{platform.system()} {platform.release()} ({platform.machine()})",
         cpuCountLogical=logical,
         cpuCountPhysical=physical,
-        ramGb=_ram_gb(),
+        ramGb=round(ram_total, 2),
+        ramUsedGb=round(ram_used, 4),
+        ramTotalMb=total_mb,
+        ramUsedMb=used_mb,
+        ramAvailableMb=available_mb,
         gpuAvailable=gpu_ok,
         gpuName=gpu_name,
         vramGb=vram,

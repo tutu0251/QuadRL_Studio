@@ -130,6 +130,8 @@ def _build_stage(
     stage.timesteps = recommended.timesteps
     stage.termination = recommended.termination
     stage.advanceCriteria = recommended.advanceCriteria
+    stage.rewardTerms = recommended.rewardTerms
+    stage.paramEnabled = recommended.paramEnabled
     return stage
 
 

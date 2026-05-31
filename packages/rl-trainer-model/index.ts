@@ -10,10 +10,24 @@ export interface MachineProfile {
   cpuCountLogical: number;
   cpuCountPhysical: number;
   ramGb: number;
+  ramUsedGb: number;
+  ramTotalMb?: number;
+  ramUsedMb?: number;
+  ramAvailableMb?: number;
   gpuAvailable: boolean;
   gpuName: string;
   vramGb: number;
   profiledAt: string;
+}
+
+export interface RamMemorySample {
+  ramTotalGb: number;
+  ramUsedGb: number;
+  ramAvailableGb: number;
+  ramTotalMb: number;
+  ramUsedMb: number;
+  ramAvailableMb: number;
+  sampledAt: string;
 }
 
 export interface RewardTerm {
@@ -90,6 +104,8 @@ export interface CurriculumStage {
   rewardTerms: RewardTerm[];
   termination: TerminationConfig;
   advanceCriteria: CurriculumAdvanceCriteria;
+  /** Per-field enable flags (dot keys e.g. command.target_lin_vel_x). Omitted = enabled. */
+  paramEnabled?: Record<string, boolean>;
 }
 
 export interface CurriculumConfig {
@@ -248,6 +264,74 @@ export const GAIT_PARAM_HINTS: Record<string, string> = {
   stepLength: "Nominal step length (m)",
   bodyHeight: "Target body height (m)",
 };
+
+export const STAGE_PARAM_HINTS: Record<string, string> = {
+  "identity.name": "Human-readable stage label shown in the curriculum pipeline.",
+  "identity.description": "Short note describing what this stage teaches.",
+  "identity.gait_type": "Gait library entry linked to this stage (stand, walk, trot, …).",
+  "identity.timesteps": "PPO environment steps to train before advancing or finishing this stage.",
+  "command.target_lin_vel_x": "Commanded forward body velocity (m/s) the policy should track.",
+  "command.target_lin_vel_y": "Commanded lateral velocity (m/s); usually 0 for straight locomotion.",
+  "command.target_ang_vel_z": "Commanded yaw rate (rad/s) for turning behavior.",
+  "command.target_body_height": "Target base height (m) during the stage.",
+  "command.gait_speed_scale": "Multiplier on gait cycle speed; higher = faster footfall timing.",
+  "disturbance.enabled": "Master switch for pushes, terrain roughness, and orientation noise.",
+  "disturbance.push_force_n": "Periodic push magnitude applied to the base (Newtons).",
+  "disturbance.push_interval_steps": "Sim steps between random pushes.",
+  "disturbance.terrain_roughness": "Ground unevenness scale (0 = flat, 1 = very rough).",
+  "disturbance.lateral_impulse_n": "Side impulse strength for lateral stability training (N).",
+  "disturbance.orientation_noise_rad": "Random orientation perturbation magnitude (radians).",
+  "termination.max_episode_steps": "Maximum steps per episode before timeout.",
+  "termination.fall_base_height_threshold": "End episode if base drops below this height (m).",
+  "termination.max_tilt_rad": "Maximum body tilt from upright (rad) before failure.",
+  "termination.max_joint_torque": "Optional torque limit (N·m); 0 disables this check.",
+  "termination.timeout_truncation": "Treat max-step timeout as truncation (not failure) for the learner.",
+  "advance.min_mean_episode_reward": "Rolling mean reward required to auto-advance to the next stage.",
+  "advance.min_episode_length_frac": "Mean episode length as a fraction of max_episode_steps.",
+  "advance.max_fall_rate": "Maximum allowed fraction of episodes ending in a fall.",
+};
+
+export const REWARD_PARAM_HINTS: Record<string, string> = {
+  weight: "Scale this term in the total reward sum.",
+  target_lin_vel_x: "Velocity reward target for forward speed (m/s).",
+  target_ang_vel_z: "Velocity reward target for yaw rate (rad/s).",
+  target_height: "Desired base height (m) for height tracking rewards.",
+  sigma: "Tracking tolerance — smaller = stricter, larger = more forgiving.",
+  min_contacts: "Minimum feet on ground required for contact rewards.",
+  max_impulse: "Foot impact threshold (N·s) for impact penalties.",
+};
+
+export const REWARD_TERM_HINTS: Record<string, string> = {
+  lin_vel_tracking: "Reward matching commanded forward velocity.",
+  ang_vel_tracking: "Reward matching commanded yaw rate.",
+  base_height: "Reward maintaining target body height.",
+  orientation_upright: "Reward keeping the body upright.",
+  orientation_penalty: "Penalty for excessive body tilt.",
+  velocity_penalty: "Penalty for unwanted base velocity (used in stand stages).",
+  foot_contact: "Reward maintaining sufficient foot contacts.",
+  torque_penalty: "Penalty for high joint torques (energy efficiency).",
+  gait_symmetry: "Reward symmetric footfall timing across legs.",
+  action_smoothness: "Penalty for abrupt action changes between steps.",
+  impact_penalty: "Penalty for hard foot impacts.",
+};
+
+export function stageParamKey(section: string, name: string): string {
+  return `${section}.${name}`;
+}
+
+export function rewardParamKey(termId: string, param: string): string {
+  return `reward.${termId}.${param}`;
+}
+
+export function isStageParamEnabled(
+  stage: Pick<CurriculumStage, "paramEnabled">,
+  key: string,
+  fallback = true
+): boolean {
+  const flags = stage.paramEnabled;
+  if (!flags || !(key in flags)) return fallback;
+  return Boolean(flags[key]);
+}
 
 export function defaultStageCommand(linX = 0, angZ = 0): StageCommand {
   return {

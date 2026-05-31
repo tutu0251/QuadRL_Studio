@@ -1,56 +1,51 @@
 import { useTrainerStore } from "../../stores/trainerStore";
 import { CurriculumPanel } from "../curriculum/CurriculumPanel";
 import { GaitTypePanel } from "../gait/GaitTypePanel";
-import { StageEditorPanel } from "../stage/StageEditorPanel";
 
 const TABS = [
-  { id: "curriculum", label: "Curriculum" },
-  { id: "stage", label: "Stage" },
-  { id: "gait", label: "Gait" },
+  { id: "curriculum", label: "Curriculum", hint: "Stages & training order" },
+  { id: "gait", label: "Gait", hint: "Cycle time & phase offsets" },
 ] as const;
 
 export function InspectorTabs() {
   const activeTab = useTrainerStore((s) => s.activeTab);
   const setActiveTab = useTrainerStore((s) => s.setActiveTab);
   const model = useTrainerStore((s) => s.model);
-  const validation = useTrainerStore((s) => s.validation);
 
   if (!model) {
     return (
-      <div className="unity-panel params-panel">
-        <div className="panel-header">Configuration</div>
-        <div className="panel-empty-state">
-          <p className="empty-desc">Select a project to configure RL training</p>
+      <div className="unity-panel inspector-tabs editor-primary">
+        <div className="editor-empty-state">
+          <div className="editor-empty-icon" aria-hidden>
+            ◇
+          </div>
+          <h2>Open a project</h2>
+          <p>Use File → select project to configure curriculum stages and gait types.</p>
         </div>
       </div>
     );
   }
 
-  const warnCount = validation?.warnings.length ?? 0;
-  const errCount = validation?.errors.length ?? 0;
-
   return (
-    <div className="unity-panel inspector-tabs">
-      <div className="tab-bar">
+    <div className="unity-panel inspector-tabs editor-primary">
+      <div className="tab-bar tab-bar-segmented" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
+            role="tab"
+            aria-selected={activeTab === t.id}
+            title={t.hint}
             className={`tab-btn ${activeTab === t.id ? "active" : ""}`}
             onClick={() => setActiveTab(t.id)}
           >
             {t.label}
           </button>
         ))}
-        {validation && (
-          <span className={`tab-validation ${validation.valid ? "ok" : "err"}`}>
-            {validation.valid ? (warnCount ? `${warnCount} warn` : "OK") : `${errCount} err`}
-          </span>
-        )}
       </div>
-      <div className="tab-content">
+
+      <div className="tab-content editor-tab-content">
         {activeTab === "curriculum" && <CurriculumPanel />}
-        {activeTab === "stage" && <StageEditorPanel />}
         {activeTab === "gait" && <GaitTypePanel />}
       </div>
     </div>

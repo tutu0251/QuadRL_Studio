@@ -258,6 +258,8 @@ class TrainerCore:
                 s.timesteps = rec.timesteps
                 s.termination = rec.termination
                 s.advanceCriteria = rec.advanceCriteria
+                s.rewardTerms = rec.rewardTerms
+                s.paramEnabled = rec.paramEnabled
                 s.targetLinVelX = rec.command.targetLinVelX
                 self._model.curriculum.stages[i] = s
                 self._model.recommendationNotes.extend(rec.notes)

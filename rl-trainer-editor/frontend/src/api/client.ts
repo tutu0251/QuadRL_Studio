@@ -5,6 +5,7 @@ import type {
   CurriculumInfo,
   GaitType,
   MachineProfile,
+  RamMemorySample,
   RlTrainerModel,
   RewardTerm,
   TerminationConfig,
@@ -48,6 +49,7 @@ export type ModelPatch = {
 export const api = {
   health: () => req<{ status: string }>("/api/health"),
   machine: () => req<MachineProfile>("/api/machine"),
+  machineMemory: () => req<RamMemorySample>("/api/machine/memory"),
   curricula: () => req<{ curricula: CurriculumInfo[] }>("/api/curricula"),
   listProjects: () =>
     req<{
