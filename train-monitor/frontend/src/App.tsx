@@ -40,7 +40,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dryRun, setDryRun] = useState(false);
-  const [simBackend, setSimBackend] = useState<"auto" | "mock" | "ros">("auto");
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [tbStatus, setTbStatus] = useState<TensorBoardStatus | null>(null);
@@ -78,8 +77,13 @@ export default function App() {
       setTrainStatus(status);
       setTbStatus(tb);
 
-      const activeRun = selectedRunId ?? runList.runs[0]?.run_id ?? null;
-      if (!selectedRunId && activeRun) {
+      const trainingNow = status.state === "running" || status.state === "starting";
+      const activeRun =
+        (trainingNow && status.run_id) ||
+        selectedRunId ||
+        runList.runs[0]?.run_id ||
+        null;
+      if (activeRun && activeRun !== selectedRunId) {
         setSelectedRunId(activeRun);
       }
       await refreshScalars(name, activeRun);
@@ -143,11 +147,27 @@ export default function App() {
   useEffect(() => {
     if (!project) return;
     const ms = trainingActive ? 2000 : 8000;
+    const runId =
+      trainingActive && trainStatus?.run_id ? trainStatus.run_id : selectedRunId;
     const id = window.setInterval(() => {
-      refreshScalars(project, selectedRunId).catch(() => {});
+      refreshScalars(project, runId).catch(() => {});
     }, ms);
     return () => window.clearInterval(id);
-  }, [project, selectedRunId, trainingActive, refreshScalars]);
+  }, [project, selectedRunId, trainingActive, trainStatus?.run_id, refreshScalars]);
+
+  useEffect(() => {
+    if (!project || !trainingActive || !trainStatus?.run_id) return;
+    if (trainStatus.run_id === selectedRunId) return;
+    setSelectedRunId(trainStatus.run_id);
+    refreshScalars(project, trainStatus.run_id).catch(() => {});
+  }, [
+    project,
+    trainingActive,
+    trainStatus?.run_id,
+    selectedRunId,
+    setSelectedRunId,
+    refreshScalars,
+  ]);
 
   const loadProject = async (name: string) => {
     setError(null);
@@ -195,7 +215,8 @@ export default function App() {
     setBusy(true);
     setError(null);
     try {
-      const status = await api.trainStart(project, { dry_run: dryRun, sim_backend: simBackend });
+      setScalars([]);
+      const status = await api.trainStart(project, { dry_run: dryRun });
       setTrainStatus(status);
       log("Training started");
       await refreshProjectData(project);
@@ -225,7 +246,7 @@ export default function App() {
     if (!project || !selectedCheckpoint) return;
     setBusy(true);
     try {
-      const status = await api.trainResume(project, selectedCheckpoint, dryRun, simBackend);
+      const status = await api.trainResume(project, selectedCheckpoint, dryRun);
       setTrainStatus(status);
       log(`Resuming from ${selectedCheckpoint}`);
       await refreshProjectData(project);
@@ -328,10 +349,8 @@ export default function App() {
             ready={exports?.ready_for_training ?? false}
             selectedCheckpoint={selectedCheckpoint}
             dryRun={dryRun}
-            simBackend={simBackend}
             recommendedSim={workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "mock"}
             onDryRunChange={setDryRun}
-            onSimBackendChange={setSimBackend}
             onStart={startTraining}
             onStop={stopTraining}
             onResume={resumeTraining}

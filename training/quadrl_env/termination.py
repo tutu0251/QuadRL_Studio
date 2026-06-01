@@ -8,6 +8,17 @@ import numpy as np
 from quadrl_env.sim_state import SimState
 
 
+def _optional_positive_float(d: dict[str, Any], key: str, *, default: float) -> float | None:
+    """Threshold from config, or None when disabled (null / 0 / negative)."""
+    if key not in d:
+        return default
+    val = d[key]
+    if val is None:
+        return None
+    f = float(val)
+    return f if f > 0 else None
+
+
 class TerminationEngine:
     def __init__(self, termination: dict[str, Any]) -> None:
         self._termination = termination or {}
@@ -38,10 +49,11 @@ class TerminationEngine:
         if state.tilt_rad > max_tilt:
             return True, False, "max_tilt"
 
-        max_torque = float(self._termination.get("max_joint_torque", 200.0))
-        est_torque = float(np.max(np.abs(state.joint_vel))) * 10.0
-        if est_torque > max_torque:
-            return True, False, "max_joint_torque"
+        max_torque = _optional_positive_float(self._termination, "max_joint_torque", default=200.0)
+        if max_torque is not None:
+            est_torque = float(np.max(np.abs(state.joint_vel))) * 10.0
+            if est_torque > max_torque:
+                return True, False, "max_joint_torque"
 
         for term in self._terms:
             reason = self._check_term(term, state, step_reward=step_reward, cumulative_reward=cumulative_reward)

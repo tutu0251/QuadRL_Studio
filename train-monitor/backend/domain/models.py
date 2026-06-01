@@ -62,7 +62,6 @@ class TrainStartRequest(BaseModel):
     dry_run: bool = False
     resume_checkpoint: Optional[str] = None
     config_path: Optional[str] = None
-    sim_backend: Optional[Literal["auto", "mock", "ros"]] = None
 
 
 class WorkspaceOperationRequest(BaseModel):

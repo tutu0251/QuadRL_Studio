@@ -162,7 +162,9 @@ export function MetricsPanel({
       <div className="tb-chart-grid">
         {scalars.length === 0 ? (
           <p className="panel-hint metrics-empty">
-            No scalar metrics yet — start training or select a run with TensorBoard event files.
+            {trainingActive
+              ? "Waiting for metrics — PPO logs one point per rollout (~2k env steps). With the ROS sim this is often 1–2 minutes before the first chart appears."
+              : "No scalar metrics yet — start training or select a run with TensorBoard event files."}
           </p>
         ) : (
           sortedScalars.map((s, i) => <TensorBoardChart key={s.tag} series={s} colorIndex={i} />)

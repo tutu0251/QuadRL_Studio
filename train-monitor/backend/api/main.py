@@ -168,7 +168,6 @@ async def train_start(name: str, body: TrainStartRequest):
             dry_run=body.dry_run,
             resume_checkpoint=body.resume_checkpoint,
             config_path=body.config_path,
-            sim_backend=body.sim_backend,
         )
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -254,7 +253,6 @@ async def train_resume(name: str, body: TrainStartRequest):
             dry_run=body.dry_run,
             resume_checkpoint=body.resume_checkpoint,
             config_path=body.config_path,
-            sim_backend=body.sim_backend,
         )
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc

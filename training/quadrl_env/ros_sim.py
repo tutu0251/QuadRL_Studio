@@ -19,6 +19,10 @@ from quadrl_env.sim_state import SimState
 _rclpy_refcount = 0
 _gazebo_refcount = 0
 _shared_launch_proc: subprocess.Popen[str] | None = None
+_ros_executor = None
+_ros_spin_thread: threading.Thread | None = None
+_ros_executor_lock = threading.Lock()
+_ros_executor_nodes = 0
 
 
 def _ensure_rclpy_initialized() -> None:
@@ -38,6 +42,32 @@ def _release_rclpy() -> None:
     _rclpy_refcount = max(0, _rclpy_refcount - 1)
     if _rclpy_refcount == 0 and rclpy.ok():
         rclpy.shutdown()
+
+
+def _register_ros_node(node: Any) -> None:
+    """Attach node to a single process-wide executor (EvalCallback uses a second env)."""
+    global _ros_executor, _ros_spin_thread, _ros_executor_nodes
+    from rclpy.executors import SingleThreadedExecutor
+
+    with _ros_executor_lock:
+        if _ros_executor is None:
+            _ros_executor = SingleThreadedExecutor()
+            _ros_spin_thread = threading.Thread(target=_ros_executor.spin, daemon=True)
+            _ros_spin_thread.start()
+        _ros_executor.add_node(node)
+        _ros_executor_nodes += 1
+
+
+def _unregister_ros_node(node: Any) -> None:
+    global _ros_executor, _ros_executor_nodes
+    with _ros_executor_lock:
+        if _ros_executor is None or node is None:
+            return
+        try:
+            _ros_executor.remove_node(node)
+        except Exception:
+            pass
+        _ros_executor_nodes = max(0, _ros_executor_nodes - 1)
 
 
 def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
@@ -95,7 +125,6 @@ class RosSimBackend:
         self._env_id = env_id
         self._mock = MockSimBackend(artifacts, seed=env_id)
         self._launch_proc: subprocess.Popen[str] | None = None
-        self._spin_thread: threading.Thread | None = None
         self._latest_joint_pos: np.ndarray | None = None
         self._latest_joint_vel: np.ndarray | None = None
         self._sensor_cache: dict[str, np.ndarray] = {}
@@ -189,12 +218,12 @@ class RosSimBackend:
 
         self._launch_proc = _acquire_gazebo(self._artifacts)
 
-        self._spin_thread = threading.Thread(target=rclpy.spin, args=(self._node,), daemon=True)
-        self._spin_thread.start()
+        _register_ros_node(self._node)
         self._started = True
 
     def close(self) -> None:
         if self._node is not None:
+            _unregister_ros_node(self._node)
             self._node.destroy_node()
             self._node = None
             _release_rclpy()

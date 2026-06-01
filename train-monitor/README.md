@@ -30,7 +30,7 @@ Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUAD
 ## Features
 
 - **Workspace** — generate colcon workspace, build, validate exports, full `setup_robot` pipeline (no shell required)
-- **Training control** — start, stop, resume; choose sim backend (`auto` / `mock` / `ros`)
+- **Training control** — start, stop, resume (sim backend auto: Gazebo when workspace + ROS are ready, else mock)
 - **Export browser** — lists all editor export files (geometry, physics, control, sensor, PPO, RL) with YAML/text preview
 - **Checkpoints** — scans `checkpoints/*.zip` with size and modified time
 - **Runs** — reads `runs/<timestamp>/run_info.yaml` and monitor state

@@ -33,8 +33,6 @@ def make_quadruped_env(
 ) -> QuadrupedEnv:
     artifacts = load_project_artifacts(project_dir, rl_config=config)
     resolved = backend or resolve_sim_backend(project_dir)
-    if resolved == "ros" and env_id > 0:
-        resolved = "mock"
     return QuadrupedEnv(artifacts, stage=stage, backend=resolved, env_id=env_id)
 
 

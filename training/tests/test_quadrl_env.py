@@ -17,6 +17,7 @@ from quadrl_env.observations import ObservationBuilder
 from quadrl_env.project_config import load_project_artifacts
 from quadrl_env.rewards import RewardEngine
 from quadrl_env.sim_state import SimState
+from quadrl_env.termination import TerminationEngine
 
 
 def _write_minimal_project(root: Path, name: str) -> Path:
@@ -83,6 +84,30 @@ def test_reward_engine_positive_on_tracking():
     ]
     total, _ = RewardEngine(terms).compute(state, command={"target_lin_vel_x": 0.5}, action=np.zeros(3), last_action=np.zeros(3))
     assert total > 0.5
+
+
+def test_termination_skips_null_max_joint_torque():
+    engine = TerminationEngine(
+        {
+            "max_episode_steps": 1000,
+            "fall_base_height_threshold": 0.05,
+            "max_tilt_rad": 2.0,
+            "max_joint_torque": None,
+        }
+    )
+    state = SimState(
+        joint_pos=np.zeros(12),
+        joint_vel=np.full(12, 100.0),
+        base_lin_vel=np.zeros(3),
+        base_ang_vel=np.zeros(3),
+        projected_gravity=np.array([0.0, 0.0, -1.0]),
+        base_height=0.35,
+        episode_step=10,
+    )
+    terminated, truncated, reason = engine.check(state, step_reward=0.0, cumulative_reward=0.0)
+    assert not terminated
+    assert not truncated
+    assert reason == ""
 
 
 def test_quadruped_env_episode():

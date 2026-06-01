@@ -144,6 +144,18 @@ def _make_vec_env(project_dir: Path, config: dict, stage: dict | None, num_envs:
     return VecMonitor(DummyVecEnv(fns))
 
 
+def _make_eval_vec_env(project_dir: Path, config: dict, stage: dict | None):
+    """Eval env with distinct env_id so ROS nodes do not collide with the train env."""
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
+
+    from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
+
+    backend = resolve_sim_backend(project_dir)
+    eval_env_id = 1 if backend == "ros" else 0
+    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=eval_env_id, backend=backend)]
+    return VecMonitor(DummyVecEnv(fns))
+
+
 def _build_learn_callbacks(
     config: dict,
     checkpoint_dir: Path,
@@ -248,7 +260,7 @@ def _train_stage_sb3(
     num_envs = max(1, int((config.get("parallel") or {}).get("num_envs", 1)))
 
     env = _make_vec_env(project_dir, config, stage, num_envs)
-    eval_env = _make_vec_env(project_dir, config, stage, 1)
+    eval_env = _make_eval_vec_env(project_dir, config, stage)
 
     device = str(config.get("device", "auto"))
     if device == "auto":
