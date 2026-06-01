@@ -53,6 +53,6 @@ Your SB3 + ROS2 env loader should:
 ## Tests
 
 ```bash
-cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest
-PYTHONPATH=backend .venv/bin/pytest tests/ -q
+./scripts/ensure_venv.sh
+PYTHONPATH=rl-trainer-editor/backend .venv/bin/python -m pytest rl-trainer-editor/tests/ -q
 ```

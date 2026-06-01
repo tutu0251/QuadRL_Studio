@@ -1,0 +1,11 @@
+# QuadRL Studio — unified Python deps (per-subproject files remain source of truth)
+-r geometry-editor/backend/requirements.txt
+-r physics-editor/backend/requirements.txt
+-r control-editor/backend/requirements.txt
+-r sensor-editor/backend/requirements.txt
+-r ppo-planner/backend/requirements.txt
+-r rl-trainer-editor/backend/requirements.txt
+-r train-monitor/backend/requirements.txt
+-r training/requirements.txt
+-r workspace-generator/requirements.txt
+-r export-validator/requirements.txt

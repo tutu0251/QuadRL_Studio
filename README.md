@@ -14,6 +14,26 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | RL Trainer Editor | [`rl-trainer-editor/`](rl-trainer-editor/) | v1 — rewards, termination, curriculum (PPO settings via PPO Planner) |
 | Train Monitor | [`train-monitor/`](train-monitor/) | v1 — start/stop/resume training, checkpoints, TensorBoard, export browser |
 
+## Python environment
+
+One virtual environment at the repo root serves all backends, training, workspace-generator, and export-validator:
+
+```bash
+./scripts/ensure_venv.sh
+source .venv/bin/activate   # optional for interactive shells
+```
+
+`start_*.sh` and `start_all.sh` call this automatically. Per-subproject `*/backend/requirements.txt` files are aggregated by [`requirements.txt`](requirements.txt).
+
+**IDE:** set the Python interpreter to `QuadRL_Studio/.venv/bin/python`.
+
+**Migration:** if you previously used per-folder venvs, remove them to reclaim disk:
+
+```bash
+find . -path '*/.venv' -type d -prune
+# review the list, then: find . -path '*/.venv' -type d -prune -exec rm -rf {} +
+```
+
 ## Quick start (Sensor Editor)
 
 ```bash
@@ -110,8 +130,8 @@ See [`train-monitor/README.md`](train-monitor/README.md) for API and training wo
 After exporting from all editors and generating the workspace:
 
 ```bash
-cd training && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python scripts/run_rl_train.py ~/quadruped_dev_tool/projects/<project>
+./scripts/ensure_venv.sh
+.venv/bin/python training/scripts/run_rl_train.py ~/quadruped_dev_tool/projects/<project>
 ```
 
 Uses `rl_*` + `ppo_*` + sensor/control exports (mock sim by default; `QUADRL_SIM_BACKEND=ros` for Gazebo). See [`training/README.md`](training/README.md).

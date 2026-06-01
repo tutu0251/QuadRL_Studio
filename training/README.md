@@ -13,10 +13,10 @@ PPO training launcher that loads **all QuadRL editor exports** for quadruped loc
 
 ## Install
 
+From the repo root (see also root [`README.md`](../README.md#python-environment)):
+
 ```bash
-cd training
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+./scripts/ensure_venv.sh
 ```
 
 For Gazebo training on the robot machine, also source ROS Humble and build the project workspace:
@@ -29,7 +29,7 @@ export QUADRL_SIM_BACKEND=ros
 ## Run
 
 ```bash
-.venv/bin/python scripts/run_rl_train.py ~/quadruped_dev_tool/projects/<project>
+.venv/bin/python training/scripts/run_rl_train.py ~/quadruped_dev_tool/projects/<project>
 ```
 
 Options:
@@ -50,7 +50,6 @@ Train Monitor (`train-monitor/`) calls this script automatically.
 ## Tests
 
 ```bash
-cd training
-.venv/bin/pip install -r requirements.txt
-PYTHONPATH=. .venv/bin/python -m pytest tests/ -q
+./scripts/ensure_venv.sh
+PYTHONPATH=training .venv/bin/python -m pytest training/tests/ -q
 ```

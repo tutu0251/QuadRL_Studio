@@ -39,10 +39,10 @@ if [[ ! -f "$URDF" ]]; then
   exit 1
 fi
 
-PYTHON="${BACKEND}/.venv/bin/python"
-if [[ ! -x "$PYTHON" ]]; then
-  PYTHON=python3
-fi
+QUADRL_ROOT="$(cd "$ROOT/.." && pwd)"
+# shellcheck source=../../scripts/ensure_venv.sh
+source "$QUADRL_ROOT/scripts/ensure_venv.sh"
+PYTHON="$QUADRL_PYTHON"
 
 exec "$PYTHON" - <<PY
 import json

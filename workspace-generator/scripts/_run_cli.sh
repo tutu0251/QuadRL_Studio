@@ -2,14 +2,11 @@
 # Bootstrap venv and run workspace-generator CLI.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BACKEND="$ROOT/backend"
-VENV="$BACKEND/.venv"
-
-if [[ ! -x "$VENV/bin/python" ]]; then
-  python3 -m venv "$VENV"
-  "$VENV/bin/pip" install -q -r "$ROOT/requirements.txt"
-fi
+WG="$(cd "$(dirname "$0")/.." && pwd)"
+QUADRL_ROOT="$(cd "$WG/.." && pwd)"
+BACKEND="$WG/backend"
+# shellcheck source=../../scripts/ensure_venv.sh
+source "$QUADRL_ROOT/scripts/ensure_venv.sh"
 
 export PYTHONPATH="$BACKEND${PYTHONPATH:+:$PYTHONPATH}"
-exec "$VENV/bin/python" "$BACKEND/cli.py" "$@"
+exec "$QUADRL_PYTHON" "$BACKEND/cli.py" "$@"

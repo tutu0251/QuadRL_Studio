@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "$ROOT/backend"
-if [[ ! -d .venv ]]; then
-  python3 -m venv .venv
-  .venv/bin/pip install -q -r requirements.txt
-fi
-export PYTHONPATH="$ROOT/backend${PYTHONPATH:+:$PYTHONPATH}"
+TM="$(cd "$(dirname "$0")" && pwd)"
+QUADRL_ROOT="$(cd "$TM/.." && pwd)"
+# shellcheck source=../scripts/ensure_venv.sh
+source "$QUADRL_ROOT/scripts/ensure_venv.sh"
+cd "$TM/backend"
+export PYTHONPATH="$TM/backend${PYTHONPATH:+:$PYTHONPATH}"
 echo "Starting Train Monitor API on 0.0.0.0:8006 (DEV — no auth)"
-exec .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8006
+exec "$QUADRL_UVICORN" main:app --host 0.0.0.0 --port 8006

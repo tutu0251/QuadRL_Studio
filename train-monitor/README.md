@@ -19,11 +19,10 @@ Browser: `http://<host>:5179`
 ## Prerequisites
 
 1. Export training configs from **PPO Planner** and **RL Trainer Editor** (`exports/ppo_<name>_config.yaml`, `exports/rl_<name>_config.yaml`).
-2. Optional: install training deps for real SB3 runs:
+2. Optional: install Python deps for real SB3 runs (from repo root):
 
 ```bash
-cd ../training
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd /path/to/QuadRL_Studio && ./scripts/ensure_venv.sh
 ```
 
 Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUADRL_PROJECTS_DIR`).

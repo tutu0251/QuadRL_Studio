@@ -91,7 +91,6 @@ rm -f /dev/shm/fastrtps*
 ## Tests
 
 ```bash
-cd workspace-generator
-backend/.venv/bin/pip install -r requirements.txt
-PYTHONPATH=backend backend/.venv/bin/pytest tests/ -q
+./scripts/ensure_venv.sh
+PYTHONPATH=workspace-generator/backend .venv/bin/python -m pytest workspace-generator/tests/ -q
 ```

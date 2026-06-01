@@ -2,17 +2,15 @@
 # End-to-end API smoke test for Geometry Editor v2
 set -euo pipefail
 GE="$(cd "$(dirname "$0")/.." && pwd)"
+QUADRL_ROOT="$(cd "$GE/.." && pwd)"
+# shellcheck source=../../scripts/ensure_venv.sh
+source "$QUADRL_ROOT/scripts/ensure_venv.sh"
 cd "$GE/backend"
-
-if [[ ! -d .venv ]]; then
-  python3 -m venv .venv
-  .venv/bin/pip install -q -r requirements.txt
-fi
 
 export PYTHONPATH="$GE/backend${PYTHONPATH:+:$PYTHONPATH}"
 
 # Start uvicorn in background
-.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8765 &
+"$QUADRL_UVICORN" main:app --host 127.0.0.1 --port 8765 &
 PID=$!
 trap 'kill $PID 2>/dev/null || true' EXIT
 sleep 2
