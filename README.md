@@ -110,12 +110,14 @@ See [`train-monitor/README.md`](train-monitor/README.md) for API and training wo
 To run **all** editor backends and frontends on the training machine (single command):
 
 ```bash
-chmod +x start_all_on_training_machine.sh
-./start_all_on_training_machine.sh
+chmod +x start_all.sh
+./start_all.sh
 ```
 
 If you need to override the hostname/IP that the browser should use to reach APIs (defaults to the first `hostname -I` address):
 
 ```bash
-QUADRL_HOST=<training_machine_ip_or_dns_name> ./start_all_on_training_machine.sh
+QUADRL_HOST=<training_machine_ip_or_dns_name> ./start_all.sh
 ```
+
+(`./start_all_on_training_machine.sh` is an alias for the same script.)
