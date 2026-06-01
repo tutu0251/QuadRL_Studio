@@ -104,3 +104,18 @@ After exporting PPO and RL configs:
 Browser: `http://<ubuntu_ip>:5179` — start/stop/resume training, browse all editor exports, track checkpoints and runs, view TensorBoard metrics.
 
 See [`train-monitor/README.md`](train-monitor/README.md) for API and training workflow.
+
+## Run everything on the training machine
+
+To run **all** editor backends and frontends on the training machine (single command):
+
+```bash
+chmod +x start_all_on_training_machine.sh
+./start_all_on_training_machine.sh
+```
+
+If you need to override the hostname/IP that the browser should use to reach APIs (defaults to the first `hostname -I` address):
+
+```bash
+QUADRL_HOST=<training_machine_ip_or_dns_name> ./start_all_on_training_machine.sh
+```
