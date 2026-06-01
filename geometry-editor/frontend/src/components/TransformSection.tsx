@@ -1,6 +1,9 @@
 import type { Quat, Vec3 } from "@robot-model";
+import { ROBOT_PARAM_HINTS } from "@robot-model";
 import { Vector3Field } from "./Vector3Field";
 import { eulerDegToQuat, quatToEulerDeg } from "../utils/euler";
+
+const H = ROBOT_PARAM_HINTS;
 
 interface Props {
   position: Vec3;
@@ -53,6 +56,7 @@ export function TransformSection({
         z={position.z}
         onChange={updatePos}
         step={positionStep}
+        hint={H.position}
       />
       <Vector3Field
         label="Rotation"
@@ -61,6 +65,7 @@ export function TransformSection({
         z={euler.z}
         onChange={updateRot}
         step={rotationStep}
+        hint={H.rotation}
       />
       {scale && onScaleChange && (
         <Vector3Field
@@ -71,6 +76,7 @@ export function TransformSection({
           onChange={updateScale}
           step={scaleStep}
           axisLabels={scaleLabels}
+          hint={H.scale}
         />
       )}
     </div>

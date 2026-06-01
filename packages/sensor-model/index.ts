@@ -103,3 +103,31 @@ export const DEFAULT_ODOM: OdomConfig = {
   robotBaseFrame: "",
   noiseStddev: 0.0,
 };
+
+/** Tooltip descriptions for sensor editor parameters. */
+export const SENSOR_PARAM_HINTS: Record<string, string> = {
+  topicPrefix: "ROS 2 topic namespace prefix prepended to all sensor topics.",
+  gzModelName: "Gazebo Sim model name used in topic paths and plugin configuration.",
+  updateRateDefault: "Default publish rate (Hz) for newly added sensors.",
+  enabled: "When off, the sensor is not exported to the sensor URDF/SDF.",
+  parentLink: "URDF link the sensor is rigidly attached to.",
+  rosTopic: "Full ROS 2 topic name for this sensor's messages.",
+  updateRate: "Sensor publish rate (Hz) for this instance.",
+  poseX: "Sensor position offset along link X (m).",
+  poseY: "Sensor position offset along link Y (m).",
+  poseZ: "Sensor position offset along link Z (m).",
+  roll: "Sensor roll orientation offset relative to the link frame (rad).",
+  pitch: "Sensor pitch orientation offset relative to the link frame (rad).",
+  yaw: "Sensor yaw orientation offset relative to the link frame (rad).",
+  enableOrientation: "Publish orientation quaternion from IMU (in addition to angular velocity).",
+  collisionName: "Gazebo collision element name monitored by the contact sensor.",
+  samples: "Number of horizontal lidar rays per scan.",
+  minRange: "Minimum valid range measurement (m).",
+  maxRange: "Maximum valid range measurement (m).",
+  horizontalFov: "Horizontal field of view (rad); 2π = full circle.",
+  verticalSamples: "Number of vertical lidar channels.",
+  odomFrame: "Odometry parent frame ID (empty = auto from GZ model name).",
+  robotBaseFrame: "Child base link frame for the odometry transform.",
+  dimensions: "Odometry state dimensionality (2 = planar, 3 = full SE(2)/SE(3)).",
+  noiseStddev: "Gaussian noise standard deviation added to odometry measurements.",
+};

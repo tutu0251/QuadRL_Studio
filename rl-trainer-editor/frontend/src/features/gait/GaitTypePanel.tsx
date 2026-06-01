@@ -98,6 +98,7 @@ function GaitTypeCard({
               <NumberField
                 key={leg}
                 label={leg.toUpperCase()}
+                hint={GAIT_PARAM_HINTS.phaseOffset}
                 value={gait.phaseOffsets[leg]}
                 step={0.05}
                 onChange={(v) => patchPhase(leg, v)}

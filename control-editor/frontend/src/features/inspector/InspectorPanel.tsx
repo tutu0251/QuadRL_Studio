@@ -1,15 +1,21 @@
 import {
+  CONTROL_PARAM_HINTS,
   DEFAULT_SIM_CONTROLLER,
   DEFAULT_SIM_PLUGIN,
   DEFAULT_SIM_PLUGIN_CLASS,
   DEFAULT_SIM_PLUGIN_FILENAME,
+  JOINT_PARAM_HINTS,
   PROFILE_IMPLEMENTED,
   PROFILE_LABELS,
   SIM_CONTROLLER_LABELS,
 } from "@control-model";
+import { FieldLabel } from "../../components/FieldLabel";
 import { NumberField } from "../../components/NumberField";
 import { api } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
+
+const H = JOINT_PARAM_HINTS;
+const C = CONTROL_PARAM_HINTS;
 
 export function InspectorPanel() {
   const project = useEditorStore((s) => s.project);
@@ -64,28 +70,32 @@ export function InspectorPanel() {
       <section className="inspector-section">
         <h3>Simulation</h3>
         <div className="inspector-row">
-          <span className="field-label">Gazebo bridge</span>
-          <span className="field-value">{DEFAULT_SIM_PLUGIN}</span>
+          <FieldLabel label="Gazebo bridge" hint={C.simPlugin} />
+          <span className="field-value" title={C.simPlugin}>
+            {DEFAULT_SIM_PLUGIN}
+          </span>
         </div>
         <div className="inspector-row">
-          <span className="field-label">Plugin file</span>
-          <span className="field-value mono">
+          <FieldLabel label="Plugin file" hint={C.simPlugin} />
+          <span className="field-value mono" title={C.simPlugin}>
             {model.simPluginFilename ?? DEFAULT_SIM_PLUGIN_FILENAME}
           </span>
         </div>
         <div className="inspector-row">
-          <span className="field-label">Plugin class</span>
-          <span className="field-value mono">
+          <FieldLabel label="Plugin class" hint={C.simPlugin} />
+          <span className="field-value mono" title={C.simPlugin}>
             {model.simPluginClass ?? DEFAULT_SIM_PLUGIN_CLASS}
           </span>
         </div>
         <div className="inspector-row">
-          <span className="field-label">Hardware</span>
-          <span className="field-value mono">{model.hardwarePlugin}</span>
+          <FieldLabel label="Hardware" hint={C.hardwarePlugin} />
+          <span className="field-value mono" title={C.hardwarePlugin}>
+            {model.hardwarePlugin}
+          </span>
         </div>
         <div className="inspector-row">
-          <span className="field-label">Sim controller</span>
-          <span className="field-value">
+          <FieldLabel label="Sim controller" hint={C.controllerType} />
+          <span className="field-value" title={C.controllerType}>
             {SIM_CONTROLLER_LABELS[model.controllerType] ??
               SIM_CONTROLLER_LABELS[DEFAULT_SIM_CONTROLLER]}
           </span>
@@ -95,8 +105,10 @@ export function InspectorPanel() {
           <span className="mono">joint_trajectory_controller/JointTrajectoryController</span>
         </p>
         <div className="inspector-row">
-          <span className="field-label">Update rate</span>
-          <span className="field-value">{model.updateRate} Hz</span>
+          <FieldLabel label="Update rate" hint={C.updateRate} />
+          <span className="field-value" title={C.updateRate}>
+            {model.updateRate} Hz
+          </span>
         </div>
       </section>
 
@@ -111,24 +123,27 @@ export function InspectorPanel() {
             <span className="field-label">Child link</span>
             <span className="field-value mono">{joint.childLinkName}</span>
           </div>
-          <NumberField label="Kp" value={joint.kp} step={1} min={0} onChange={(v) => void patchJoint({ kp: v })} />
-          <NumberField label="Kd" value={joint.kd} step={0.1} min={0} onChange={(v) => void patchJoint({ kd: v })} />
+          <NumberField label="Kp" hint={H.kp} value={joint.kp} step={1} min={0} onChange={(v) => void patchJoint({ kp: v })} />
+          <NumberField label="Kd" hint={H.kd} value={joint.kd} step={0.1} min={0} onChange={(v) => void patchJoint({ kd: v })} />
           <NumberField
             label="Default pos"
+            hint={H.defaultPosition}
             value={joint.defaultPosition}
             step={0.01}
             onChange={(v) => void patchJoint({ defaultPosition: v })}
           />
           <NumberField
             label="Action scale"
+            hint={H.actionScale}
             value={joint.actionScale}
             step={0.01}
             min={0}
             onChange={(v) => void patchJoint({ actionScale: v })}
           />
-          <NumberField label="Effort" value={joint.effort} step={1} min={0} onChange={(v) => void patchJoint({ effort: v })} />
+          <NumberField label="Effort" hint={H.effort} value={joint.effort} step={1} min={0} onChange={(v) => void patchJoint({ effort: v })} />
           <NumberField
             label="Velocity"
+            hint={H.velocity}
             value={joint.velocity}
             step={0.1}
             min={0}
@@ -138,12 +153,14 @@ export function InspectorPanel() {
             <>
               <NumberField
                 label="Lower"
+                hint={H.lowerLimit}
                 value={joint.lowerLimit}
                 step={0.01}
                 onChange={(v) => void patchJoint({ lowerLimit: v })}
               />
               <NumberField
                 label="Upper"
+                hint={H.upperLimit}
                 value={joint.upperLimit}
                 step={0.01}
                 onChange={(v) => void patchJoint({ upperLimit: v })}

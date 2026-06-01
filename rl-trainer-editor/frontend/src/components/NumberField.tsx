@@ -19,8 +19,15 @@ export function NumberField({
 }) {
   return (
     <div className={`param-field ${status ? `param-${status}` : ""}`}>
-      <span className="param-label" title={hint}>
-        {label}
+      <span className="param-label-row">
+        <span className="param-label" title={hint}>
+          {label}
+        </span>
+        {hint ? (
+          <span className="param-hint-icon" title={hint} aria-label={hint}>
+            ⓘ
+          </span>
+        ) : null}
       </span>
       <input
         type="number"

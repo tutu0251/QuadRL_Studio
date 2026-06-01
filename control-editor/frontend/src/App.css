@@ -423,6 +423,30 @@ body {
   flex-shrink: 0;
 }
 
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.field-label-row .field-label {
+  width: auto;
+}
+
+.param-hint-icon {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #666;
+  cursor: help;
+  line-height: 1;
+}
+
+.param-hint-icon:hover {
+  color: #6eb5ff;
+}
+
 .field-value {
   color: #ddd;
 }

@@ -1,4 +1,5 @@
 import type { Inertial } from "@robot-model";
+import { ROBOT_PARAM_HINTS } from "@robot-model";
 
 type InertiaKey = "ixx" | "ixy" | "ixz" | "iyy" | "iyz" | "izz";
 
@@ -41,11 +42,14 @@ export function InertiaTensorField({
             className="inertia-cell"
             style={{ gridRow: row, gridColumn: col }}
           >
-            <span className="inertia-cell-label">{LABELS[key]}</span>
+            <span className="inertia-cell-label" title={ROBOT_PARAM_HINTS[key]}>
+              {LABELS[key]}
+            </span>
             <input
               type="number"
               step={0.0001}
               value={value[key]}
+              title={ROBOT_PARAM_HINTS[key]}
               onChange={(e) => onChange({ ...value, [key]: parseFloat(e.target.value) || 0 })}
               aria-label={LABELS[key]}
             />

@@ -1,5 +1,5 @@
 import type { RewardTerm } from "@rl-trainer-model";
-import { REWARD_CATEGORY_HINTS } from "@rl-trainer-model";
+import { REWARD_CATEGORY_HINTS, REWARD_PARAM_HINTS, REWARD_TERM_HINTS } from "@rl-trainer-model";
 import { api } from "../../api/client";
 import { NumberField } from "../../components/NumberField";
 import { Toggle } from "../../components/Toggle";
@@ -48,6 +48,7 @@ export function RewardsPanel() {
           <div className="reward-term-header">
             <Toggle
               label={term.id}
+              hint={REWARD_TERM_HINTS[term.id]}
               checked={term.enabled}
               onChange={(v) => updateTerm(i, { enabled: v })}
             />
@@ -58,12 +59,20 @@ export function RewardsPanel() {
           </div>
           <NumberField
             label="weight"
+            hint={REWARD_PARAM_HINTS.weight}
             value={term.weight}
             step={0.01}
             onChange={(v) => updateTerm(i, { weight: v })}
           />
           {Object.entries(term.params).map(([key, val]) => (
-            <NumberField key={key} label={key} value={val} step={0.01} onChange={(v) => updateParam(i, key, v)} />
+            <NumberField
+              key={key}
+              label={key}
+              hint={REWARD_PARAM_HINTS[key]}
+              value={val}
+              step={0.01}
+              onChange={(v) => updateParam(i, key, v)}
+            />
           ))}
         </div>
       ))}

@@ -74,13 +74,19 @@ export function OutputPanel() {
           onChange={(v) => void patch({ checkpoint: { directory: v } })}
         />
         <div className="param-field">
-          <span className="param-label" title={CHECKPOINT_HINTS.frequency}>
-            frequency
+          <span className="param-label-row">
+            <span className="param-label" title={CHECKPOINT_HINTS.frequency}>
+              frequency
+            </span>
+            <span className="param-hint-icon" title={CHECKPOINT_HINTS.frequency} aria-label={CHECKPOINT_HINTS.frequency}>
+              ⓘ
+            </span>
           </span>
           <select
             className="param-input param-select"
             value={ckpt.frequency}
             disabled={!ckpt.enabled}
+            title={CHECKPOINT_HINTS.frequency}
             onChange={(e) =>
               void patch({
                 checkpoint: { frequency: e.target.value as CheckpointFrequency },
@@ -145,13 +151,19 @@ export function OutputPanel() {
           onChange={(v) => void patch({ bestModel: { enabled: v } })}
         />
         <div className="param-field">
-          <span className="param-label" title={BEST_MODEL_HINTS.metric}>
-            metric
+          <span className="param-label-row">
+            <span className="param-label" title={BEST_MODEL_HINTS.metric}>
+              metric
+            </span>
+            <span className="param-hint-icon" title={BEST_MODEL_HINTS.metric} aria-label={BEST_MODEL_HINTS.metric}>
+              ⓘ
+            </span>
           </span>
           <select
             className="param-input param-select"
             value={best.metric}
             disabled={!best.enabled}
+            title={BEST_MODEL_HINTS.metric}
             onChange={(e) =>
               void patch({ bestModel: { metric: e.target.value as BestModelMetric } })
             }
@@ -164,13 +176,19 @@ export function OutputPanel() {
           </select>
         </div>
         <div className="param-field">
-          <span className="param-label" title={BEST_MODEL_HINTS.mode}>
-            mode
+          <span className="param-label-row">
+            <span className="param-label" title={BEST_MODEL_HINTS.mode}>
+              mode
+            </span>
+            <span className="param-hint-icon" title={BEST_MODEL_HINTS.mode} aria-label={BEST_MODEL_HINTS.mode}>
+              ⓘ
+            </span>
           </span>
           <select
             className="param-input param-select"
             value={best.mode}
             disabled={!best.enabled}
+            title={BEST_MODEL_HINTS.mode}
             onChange={(e) => void patch({ bestModel: { mode: e.target.value as BestModelMode } })}
           >
             <option value="max">max</option>

@@ -40,18 +40,14 @@ export function ParallelPanel() {
         <span className={batchOk ? "ok" : "warn"}>{batchOk ? "batch OK" : "batch mismatch"}</span>
       </div>
 
-      <div className="param-field">
-        <span className="param-label" title={PARALLEL_HINTS.numEnvs}>
-          num_envs
-        </span>
-        <NumberField
-          label="num_envs"
-          value={par.numEnvs}
-          step={1}
-          min={1}
-          onChange={(v) => void patch({ numEnvs: Math.max(1, Math.round(v)) })}
-        />
-      </div>
+      <NumberField
+        label="num_envs"
+        hint={PARALLEL_HINTS.numEnvs}
+        value={par.numEnvs}
+        step={1}
+        min={1}
+        onChange={(v) => void patch({ numEnvs: Math.max(1, Math.round(v)) })}
+      />
 
       {model.machineProfile && par.numEnvs > recommendedMax && (
         <p className="inline-warn" role="status">
@@ -60,12 +56,18 @@ export function ParallelPanel() {
       )}
 
       <div className="param-field">
-        <span className="param-label" title={PARALLEL_HINTS.vecEnvType}>
-          vec_env_type
+        <span className="param-label-row">
+          <span className="param-label" title={PARALLEL_HINTS.vecEnvType}>
+            vec_env_type
+          </span>
+          <span className="param-hint-icon" title={PARALLEL_HINTS.vecEnvType} aria-label={PARALLEL_HINTS.vecEnvType}>
+            ⓘ
+          </span>
         </span>
         <select
           className="param-input param-select"
           value={par.vecEnvType}
+          title={PARALLEL_HINTS.vecEnvType}
           onChange={(e) => void patch({ vecEnvType: e.target.value as VecEnvType })}
         >
           <option value="subproc">subproc</option>
@@ -73,18 +75,14 @@ export function ParallelPanel() {
         </select>
       </div>
 
-      <div className="param-field">
-        <span className="param-label" title={PARALLEL_HINTS.nProc}>
-          n_proc
-        </span>
-        <NumberField
-          label="n_proc"
-          value={par.nProc ?? 0}
-          step={1}
-          disabled={nProcDisabled}
-          onChange={(v) => void patch({ nProc: v > 0 ? Math.round(v) : null })}
-        />
-      </div>
+      <NumberField
+        label="n_proc"
+        hint={PARALLEL_HINTS.nProc}
+        value={par.nProc ?? 0}
+        step={1}
+        disabled={nProcDisabled}
+        onChange={(v) => void patch({ nProc: v > 0 ? Math.round(v) : null })}
+      />
 
       {nProcDisabled && (
         <p className="inline-warn" role="status">

@@ -96,8 +96,7 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
     .length;
   const gaitEnabled = paramEnabled(stage, "identity.gait_type");
   const timestepsEnabled = paramEnabled(stage, "identity.timesteps");
-  const titleTooltip =
-    stage.description.trim() || STAGE_PARAM_HINTS["identity.description"] || "Stage description";
+  const nameTooltip = STAGE_PARAM_HINTS["identity.name"];
 
   const updateStages = async (next: CurriculumStage[]) => {
     try {
@@ -155,7 +154,7 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
           type="text"
           className="inspector-inline-title-input"
           value={stage.name}
-          title={titleTooltip}
+          title={nameTooltip}
           aria-label="Stage name"
           onChange={(e) => patchStage({ name: e.target.value })}
         />
@@ -179,6 +178,7 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
             step={10_000}
             min={10_000}
             aria-label="Timesteps"
+            title={hint("identity.timesteps")}
             onChange={(e) =>
               patchStage({ timesteps: Math.max(10_000, Math.round(parseFloat(e.target.value) || 0)) })
             }

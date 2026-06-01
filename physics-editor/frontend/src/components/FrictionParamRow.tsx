@@ -1,4 +1,5 @@
 import type { CollisionFriction } from "@robot-model";
+import { FieldLabel } from "./FieldLabel";
 
 type FrictionFlag = "useMu" | "useMu2" | "useKp" | "useKd";
 type FrictionValue = "mu" | "mu2" | "kp" | "kd";
@@ -12,6 +13,7 @@ export function FrictionParamRow({
   panelEnabled,
   step = 0.01,
   min,
+  hint,
 }: {
   label: string;
   flag: FrictionFlag;
@@ -21,6 +23,7 @@ export function FrictionParamRow({
   panelEnabled: boolean;
   step?: number;
   min?: number;
+  hint?: string;
 }) {
   const paramOn = panelEnabled && friction[flag];
   const inputDisabled = !paramOn;
@@ -44,7 +47,7 @@ export function FrictionParamRow({
         {paramOn ? "ON" : "—"}
       </button>
       <label className="friction-param-field">
-        <span className="field-label">{label}</span>
+        <FieldLabel label={label} hint={hint} />
         <input
           type="number"
           step={step}

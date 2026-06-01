@@ -65,12 +65,20 @@ export function ParamsPanel({ embedded = false }: { embedded?: boolean }) {
     if (key === "device") {
       return (
         <div className="param-field" key={key}>
-          <span className="param-label" title={PPO_PARAM_HINTS.device}>
-            {LABELS.device}
+          <span className="param-label-row">
+            <span className="param-label" title={PPO_PARAM_HINTS.device}>
+              {LABELS.device}
+            </span>
+            {PPO_PARAM_HINTS.device ? (
+              <span className="param-hint-icon" title={PPO_PARAM_HINTS.device} aria-label={PPO_PARAM_HINTS.device}>
+                ⓘ
+              </span>
+            ) : null}
           </span>
           <select
             className="param-input param-select"
             value={model.params.device}
+            title={PPO_PARAM_HINTS.device}
             onChange={(e) =>
               void patch({ device: e.target.value as PpoHyperparams["device"] })
             }

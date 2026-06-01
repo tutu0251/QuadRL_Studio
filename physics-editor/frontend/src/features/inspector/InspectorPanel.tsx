@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CollisionFriction, Inertial, Link, RobotModel } from "@robot-model";
+import { ROBOT_PARAM_HINTS } from "@robot-model";
 import { api } from "../../api/client";
 import { Foldout } from "../../components/Foldout";
 import { FrictionParamRow } from "../../components/FrictionParamRow";
@@ -7,6 +8,8 @@ import { InertiaTensorField } from "../../components/InertiaTensorField";
 import { NumberField } from "../../components/NumberField";
 import { Vector3Field } from "../../components/Vector3Field";
 import { useEditorStore } from "../../stores/editorStore";
+
+const H = ROBOT_PARAM_HINTS;
 
 function inertialDirty(a: Inertial, b: Inertial): boolean {
   return JSON.stringify(a) !== JSON.stringify(b);
@@ -44,8 +47,8 @@ function InertialSection({
 
   return (
     <Foldout title="Inertial (SI)" defaultOpen>
-      <NumberField label="Mass" value={draft.mass} onChange={(mass) => setDraft({ ...draft, mass })} step={0.01} min={0.001} hint="kg" />
-      <Vector3Field label="COM" value={draft.com} onChange={(com) => setDraft({ ...draft, com })} />
+      <NumberField label="Mass" value={draft.mass} onChange={(mass) => setDraft({ ...draft, mass })} step={0.01} min={0.001} hint={H.mass} />
+      <Vector3Field label="COM" value={draft.com} onChange={(com) => setDraft({ ...draft, com })} hint={H.com} />
       <InertiaTensorField
         value={draft}
         onChange={(tensor) => setDraft({ ...draft, ...tensor })}
@@ -59,7 +62,7 @@ function InertialSection({
         </button>
       </div>
       <div className="estimate-row">
-        <NumberField label="Density" value={density} onChange={setDensity} step={10} hint="kg/m³ for auto-estimate" />
+        <NumberField label="Density" value={density} onChange={setDensity} step={10} hint={H.density} />
         <button
           type="button"
           className="small-btn"
@@ -100,13 +103,15 @@ function FrictionSection({ link, project, onSaved }: { link: Link; project: stri
           type="button"
           className={`param-toggle panel-toggle ${fr.enabled ? "on" : "off"}`}
           onClick={() => setFr({ ...fr, enabled: !fr.enabled })}
-          title={fr.enabled ? "Export collision friction for this link" : "Ignore entire friction block"}
+          title={H.useCollisionFriction}
           aria-pressed={fr.enabled}
         >
           {fr.enabled ? "ON" : "—"}
         </button>
         <div className="friction-panel-master-label">
-          <span className="master-title">Use collision friction</span>
+          <span className="master-title" title={H.useCollisionFriction}>
+            Use collision friction
+          </span>
           <span className="master-hint">
             {fr.enabled ? "Enable per-parameter toggles below" : "Whole panel ignored on export"}
           </span>
@@ -122,6 +127,7 @@ function FrictionSection({ link, project, onSaved }: { link: Link; project: stri
           panelEnabled={fr.enabled}
           step={0.05}
           min={0}
+          hint={H.mu}
         />
         <FrictionParamRow
           label="μ₂"
@@ -132,6 +138,7 @@ function FrictionSection({ link, project, onSaved }: { link: Link; project: stri
           panelEnabled={fr.enabled}
           step={0.05}
           min={0}
+          hint={H.mu2}
         />
         <FrictionParamRow
           label="kp"
@@ -141,6 +148,7 @@ function FrictionSection({ link, project, onSaved }: { link: Link; project: stri
           onChange={setFr}
           panelEnabled={fr.enabled}
           step={1000}
+          hint={H.frictionKp}
         />
         <FrictionParamRow
           label="kd"
@@ -150,12 +158,14 @@ function FrictionSection({ link, project, onSaved }: { link: Link; project: stri
           onChange={setFr}
           panelEnabled={fr.enabled}
           step={0.1}
+          hint={H.frictionKd}
         />
       </div>
-      <label className="checkbox-field">
+      <label className="checkbox-field" title={H.isFoot}>
         <input
           type="checkbox"
           checked={link.isFoot}
+          title={H.isFoot}
           onChange={(e) => void api.setFoot(project, link.id, e.target.checked).then(onSaved)}
         />
         Mark as foot link (validation)
@@ -187,10 +197,10 @@ function JointDynamicsSection({ model, project, onSaved }: { model: RobotModel; 
 
   return (
     <Foldout title={`Joint · ${joint.name}`} defaultOpen={false}>
-      <NumberField label="Damping" value={dyn.damping} onChange={(damping) => setDyn({ ...dyn, damping })} />
-      <NumberField label="Friction" value={dyn.friction} onChange={(friction) => setDyn({ ...dyn, friction })} />
-      <NumberField label="Effort" value={dyn.effort} onChange={(effort) => setDyn({ ...dyn, effort })} hint="N·m" />
-      <NumberField label="Velocity" value={dyn.velocity} onChange={(velocity) => setDyn({ ...dyn, velocity })} hint="rad/s or m/s" />
+      <NumberField label="Damping" value={dyn.damping} onChange={(damping) => setDyn({ ...dyn, damping })} hint={H.damping} />
+      <NumberField label="Friction" value={dyn.friction} onChange={(friction) => setDyn({ ...dyn, friction })} hint={H.jointFriction} />
+      <NumberField label="Effort" value={dyn.effort} onChange={(effort) => setDyn({ ...dyn, effort })} hint={H.effort} />
+      <NumberField label="Velocity" value={dyn.velocity} onChange={(velocity) => setDyn({ ...dyn, velocity })} hint={H.velocity} />
       <button
         type="button"
         className="small-btn primary full-width"

@@ -104,3 +104,17 @@ export interface TemplateInfo {
   category: string;
   description?: string;
 }
+
+/** Tooltip descriptions for geometry editor parameters. */
+export const ROBOT_PARAM_HINTS: Record<string, string> = {
+  mass: "Link mass in kilograms (SI).",
+  position: "Translation offset in the parent or link frame (m).",
+  rotation: "Orientation as Euler angles (degrees) in the parent or link frame.",
+  scale: "Primitive dimensions — box W×H×D, cylinder/capsule radius×length (m).",
+  defaultValue: "Default joint position at reset (rad or m).",
+  lowerLimit: "Minimum joint angle or displacement (rad or m).",
+  upperLimit: "Maximum joint angle or displacement (rad or m).",
+  axis: "Joint rotation or translation axis unit vector in the joint frame.",
+  jointType: "Kinematic joint type — revolute (1-DoF rotation), prismatic (1-DoF slide), etc.",
+  parent: "Parent link or joint this entity attaches to in the kinematic tree.",
+};

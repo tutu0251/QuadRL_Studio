@@ -274,6 +274,7 @@ export const GAIT_PARAM_HINTS: Record<string, string> = {
   swingHeight: "Foot clearance during swing phase (m)",
   stepLength: "Nominal step length (m)",
   bodyHeight: "Target body height (m)",
+  phaseOffset: "Foot phase offset within the gait cycle (0–1); controls footfall timing relative to other legs.",
 };
 
 export const STAGE_PARAM_HINTS: Record<string, string> = {

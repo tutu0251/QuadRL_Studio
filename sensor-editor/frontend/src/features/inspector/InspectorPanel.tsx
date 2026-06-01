@@ -1,7 +1,10 @@
-import { SENSOR_KIND_LABELS } from "@sensor-model";
+import { SENSOR_KIND_LABELS, SENSOR_PARAM_HINTS } from "@sensor-model";
+import { FieldLabel } from "../../components/FieldLabel";
 import { NumberField } from "../../components/NumberField";
 import { api } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
+
+const H = SENSOR_PARAM_HINTS;
 
 export function InspectorPanel() {
   const project = useEditorStore((s) => s.project);
@@ -55,6 +58,9 @@ export function InspectorPanel() {
     void patchSensor({ pose });
   };
 
+  const poseHints = [H.poseX, H.poseY, H.poseZ] as const;
+  const rpyHints = [H.roll, H.pitch, H.yaw] as const;
+
   return (
     <div className="unity-panel inspector-panel">
       <div className="panel-header">Inspector</div>
@@ -62,23 +68,26 @@ export function InspectorPanel() {
       <section className="inspector-section">
         <h3>ROS topics</h3>
         <div className="inspector-row">
-          <span className="field-label">Prefix</span>
+          <FieldLabel label="Prefix" hint={H.topicPrefix} />
           <input
             className="field-input"
             value={model.topicPrefix}
+            title={H.topicPrefix}
             onChange={(e) => void patchTopicConfig({ topicPrefix: e.target.value })}
           />
         </div>
         <div className="inspector-row">
-          <span className="field-label">GZ model</span>
+          <FieldLabel label="GZ model" hint={H.gzModelName} />
           <input
             className="field-input"
             value={model.gzModelName}
+            title={H.gzModelName}
             onChange={(e) => void patchTopicConfig({ gzModelName: e.target.value })}
           />
         </div>
         <NumberField
           label="Default Hz"
+          hint={H.updateRateDefault}
           value={model.updateRateDefault}
           step={1}
           min={1}
@@ -93,18 +102,20 @@ export function InspectorPanel() {
             <span className="kind-badge">{SENSOR_KIND_LABELS[sensor.kind]}</span>
           </h3>
           <div className="inspector-row">
-            <span className="field-label">Enabled</span>
+            <FieldLabel label="Enabled" hint={H.enabled} />
             <input
               type="checkbox"
               checked={sensor.enabled}
+              title={H.enabled}
               onChange={(e) => void patchSensor({ enabled: e.target.checked })}
             />
           </div>
           <div className="inspector-row">
-            <span className="field-label">Parent link</span>
+            <FieldLabel label="Parent link" hint={H.parentLink} />
             <select
               className="field-input"
               value={sensor.parentLink}
+              title={H.parentLink}
               onChange={(e) => void patchSensor({ parentLink: e.target.value })}
             >
               {model.linkNames.map((l) => (
@@ -115,15 +126,17 @@ export function InspectorPanel() {
             </select>
           </div>
           <div className="inspector-row">
-            <span className="field-label">ROS topic</span>
+            <FieldLabel label="ROS topic" hint={H.rosTopic} />
             <input
               className="field-input"
               value={sensor.rosTopic}
+              title={H.rosTopic}
               onChange={(e) => void patchSensor({ rosTopic: e.target.value })}
             />
           </div>
           <NumberField
             label="Update Hz"
+            hint={H.updateRate}
             value={sensor.updateRate}
             step={1}
             min={1}
@@ -134,6 +147,7 @@ export function InspectorPanel() {
             <NumberField
               key={label}
               label={label}
+              hint={poseHints[i]}
               value={sensor.pose.xyz[i]}
               step={0.01}
               onChange={(v) => patchPose("xyz", i, v)}
@@ -143,6 +157,7 @@ export function InspectorPanel() {
             <NumberField
               key={label}
               label={label}
+              hint={rpyHints[i]}
               value={sensor.pose.rpy[i]}
               step={0.01}
               onChange={(v) => patchPose("rpy", i, v)}
@@ -151,10 +166,11 @@ export function InspectorPanel() {
 
           {sensor.kind === "imu" && sensor.imu && (
             <div className="inspector-row">
-              <span className="field-label">Orientation</span>
+              <FieldLabel label="Orientation" hint={H.enableOrientation} />
               <input
                 type="checkbox"
                 checked={sensor.imu.enableOrientation}
+                title={H.enableOrientation}
                 onChange={(e) =>
                   void patchSensor({ imu: { ...sensor.imu!, enableOrientation: e.target.checked } })
                 }
@@ -164,10 +180,11 @@ export function InspectorPanel() {
 
           {sensor.kind === "contact" && sensor.contact && (
             <div className="inspector-row">
-              <span className="field-label">Collision</span>
+              <FieldLabel label="Collision" hint={H.collisionName} />
               <input
                 className="field-input"
                 value={sensor.contact.collisionName}
+                title={H.collisionName}
                 onChange={(e) =>
                   void patchSensor({ contact: { ...sensor.contact!, collisionName: e.target.value } })
                 }
@@ -179,6 +196,7 @@ export function InspectorPanel() {
             <>
               <NumberField
                 label="Samples"
+                hint={H.samples}
                 value={sensor.lidar.samples}
                 step={1}
                 min={1}
@@ -186,6 +204,7 @@ export function InspectorPanel() {
               />
               <NumberField
                 label="Min range"
+                hint={H.minRange}
                 value={sensor.lidar.minRange}
                 step={0.1}
                 min={0}
@@ -193,6 +212,7 @@ export function InspectorPanel() {
               />
               <NumberField
                 label="Max range"
+                hint={H.maxRange}
                 value={sensor.lidar.maxRange}
                 step={0.5}
                 min={0.1}
@@ -200,6 +220,7 @@ export function InspectorPanel() {
               />
               <NumberField
                 label="H. FOV"
+                hint={H.horizontalFov}
                 value={sensor.lidar.horizontalFov}
                 step={0.1}
                 min={0.1}
@@ -211,21 +232,23 @@ export function InspectorPanel() {
           {sensor.kind === "odom" && sensor.odom && (
             <>
               <div className="inspector-row">
-                <span className="field-label">Odom frame</span>
+                <FieldLabel label="Odom frame" hint={H.odomFrame} />
                 <input
                   className="field-input"
                   placeholder={`${model.gzModelName}/odom`}
                   value={sensor.odom.odomFrame}
+                  title={H.odomFrame}
                   onChange={(e) =>
                     void patchSensor({ odom: { ...sensor.odom!, odomFrame: e.target.value } })
                   }
                 />
               </div>
               <div className="inspector-row">
-                <span className="field-label">Base frame</span>
+                <FieldLabel label="Base frame" hint={H.robotBaseFrame} />
                 <input
                   className="field-input"
                   value={sensor.odom.robotBaseFrame || sensor.parentLink}
+                  title={H.robotBaseFrame}
                   onChange={(e) =>
                     void patchSensor({ odom: { ...sensor.odom!, robotBaseFrame: e.target.value } })
                   }
@@ -233,6 +256,7 @@ export function InspectorPanel() {
               </div>
               <NumberField
                 label="Dimensions"
+                hint={H.dimensions}
                 value={sensor.odom.dimensions}
                 step={1}
                 min={2}
@@ -243,6 +267,7 @@ export function InspectorPanel() {
               />
               <NumberField
                 label="Noise σ"
+                hint={H.noiseStddev}
                 value={sensor.odom.noiseStddev}
                 step={0.01}
                 min={0}

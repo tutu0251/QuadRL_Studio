@@ -88,3 +88,22 @@ export const PROFILE_IMPLEMENTED: Record<TrainingProfile, boolean> = {
   ProfileB: false,
   ProfileC: false,
 };
+
+/** Tooltip descriptions for control editor parameters. */
+export const JOINT_PARAM_HINTS: Record<string, string> = {
+  kp: "Position-loop proportional gain for the simulated PD controller.",
+  kd: "Position-loop derivative gain for the simulated PD controller.",
+  defaultPosition: "Nominal joint angle at reset (rad) used as the action offset center.",
+  actionScale: "RL action multiplier applied before sending position commands.",
+  effort: "Maximum actuator torque or force limit (N·m or N).",
+  velocity: "Maximum joint velocity limit (rad/s or m/s).",
+  lowerLimit: "Minimum joint position limit (rad or m).",
+  upperLimit: "Maximum joint position limit (rad or m).",
+};
+
+export const CONTROL_PARAM_HINTS: Record<string, string> = {
+  updateRate: "ros2_control controller manager update rate (Hz).",
+  simPlugin: "Gazebo–ROS 2 bridge plugin loaded in simulation.",
+  hardwarePlugin: "ros2_control hardware interface plugin for Gazebo Sim.",
+  controllerType: "Primary simulation controller used for position commands.",
+};

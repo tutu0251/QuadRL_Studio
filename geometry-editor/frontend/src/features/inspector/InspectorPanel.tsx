@@ -1,8 +1,12 @@
 import type { Joint, Link, PrimitiveShape, RobotModel } from "@robot-model";
+import { ROBOT_PARAM_HINTS } from "@robot-model";
 import { useEditorStore } from "../../stores/editorStore";
 import { api } from "../../api/client";
+import { FieldLabel } from "../../components/FieldLabel";
 import { Foldout } from "../../components/Foldout";
 import { TransformSection } from "../../components/TransformSection";
+
+const H = ROBOT_PARAM_HINTS;
 
 function shapeScaleFromDimensions(shape: PrimitiveShape): { x: number; y: number; z: number } {
   const d = shape.dimensions;
@@ -47,8 +51,8 @@ function parentLinkNameForJoint(model: RobotModel, joint: Joint): string | null 
 function ParentNameField({ name }: { name: string | null }) {
   return (
     <div className="inspector-row">
-      <span className="field-label">Parent</span>
-      <input className="inspector-readonly" value={name ?? "—"} readOnly />
+      <FieldLabel label="Parent" hint={H.parent} />
+      <input className="inspector-readonly" value={name ?? "—"} readOnly title={H.parent} />
     </div>
   );
 }
@@ -283,8 +287,8 @@ function JointInspector({
       <Foldout title="Joint">
         <ParentNameField name={parentLinkNameForJoint(model, joint)} />
         <div className="inspector-row">
-          <span className="field-label">Type</span>
-          <select value={joint.type} onChange={(e) => update({ type: e.target.value })}>
+          <FieldLabel label="Type" hint={H.jointType} />
+          <select value={joint.type} title={H.jointType} onChange={(e) => update({ type: e.target.value })}>
             <option value="fixed">Fixed</option>
             <option value="revolute">Revolute</option>
             <option value="continuous">Continuous</option>
@@ -292,31 +296,34 @@ function JointInspector({
           </select>
         </div>
         <div className="inspector-row">
-          <span className="field-label">Default</span>
+          <FieldLabel label="Default" hint={H.defaultValue} />
           <input
             type="number"
             step="0.01"
             value={joint.defaultValue}
+            title={H.defaultValue}
             onChange={(e) => update({ defaultValue: +e.target.value })}
           />
         </div>
         {joint.type === "revolute" && (
           <>
             <div className="inspector-row">
-              <span className="field-label">Lower</span>
+              <FieldLabel label="Lower" hint={H.lowerLimit} />
               <input
                 type="number"
                 step="0.01"
                 value={joint.lowerLimit}
+                title={H.lowerLimit}
                 onChange={(e) => update({ lowerLimit: +e.target.value })}
               />
             </div>
             <div className="inspector-row">
-              <span className="field-label">Upper</span>
+              <FieldLabel label="Upper" hint={H.upperLimit} />
               <input
                 type="number"
                 step="0.01"
                 value={joint.upperLimit}
+                title={H.upperLimit}
                 onChange={(e) => update({ upperLimit: +e.target.value })}
               />
             </div>
@@ -324,6 +331,7 @@ function JointInspector({
         )}
         <Vector3FieldInline
           label="Axis"
+          hint={H.axis}
           values={joint.axis}
           onChange={(axis) => update({ axis })}
         />
@@ -334,16 +342,18 @@ function JointInspector({
 
 function Vector3FieldInline({
   label,
+  hint,
   values,
   onChange,
 }: {
   label: string;
+  hint?: string;
   values: { x: number; y: number; z: number };
   onChange: (v: { x: number; y: number; z: number }) => void;
 }) {
   return (
     <div className="vector3-field">
-      <span className="field-label">{label}</span>
+      <FieldLabel label={label} hint={hint} />
       <div className="vector3-inputs">
         {(["x", "y", "z"] as const).map((axis) => (
           <label key={axis} className={`axis-${axis}`}>

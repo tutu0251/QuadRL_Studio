@@ -1,15 +1,18 @@
 import type { Vec3 } from "@robot-model";
+import { FieldLabel } from "./FieldLabel";
 
 export function Vector3Field({
   label,
   value,
   onChange,
   step = 0.001,
+  hint,
 }: {
   label: string;
   value: Vec3;
   onChange: (v: Vec3) => void;
   step?: number;
+  hint?: string;
 }) {
   const axes: { key: keyof Vec3; cls: string }[] = [
     { key: "x", cls: "axis-x" },
@@ -18,7 +21,7 @@ export function Vector3Field({
   ];
   return (
     <div className="vector3-field">
-      <span className="field-label">{label}</span>
+      <FieldLabel label={label} hint={hint} />
       <div className="vector3-inputs">
         {axes.map(({ key, cls }) => (
           <label key={key} className={cls}>
