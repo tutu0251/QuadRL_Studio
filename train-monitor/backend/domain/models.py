@@ -21,6 +21,9 @@ class ExportBundle(BaseModel):
     files: list[ExportFileInfo]
     missing_required: list[str] = Field(default_factory=list)
     ready_for_training: bool = False
+    workspace_ready: bool = False
+    sensor_exports_ready: bool = False
+    recommended_sim_backend: str = "mock"
 
 
 class CheckpointInfo(BaseModel):
@@ -59,6 +62,32 @@ class TrainStartRequest(BaseModel):
     dry_run: bool = False
     resume_checkpoint: Optional[str] = None
     config_path: Optional[str] = None
+    sim_backend: Optional[Literal["auto", "mock", "ros"]] = None
+
+
+class WorkspaceOperationRequest(BaseModel):
+    clean: bool = False
+    static_only: bool = False
+    skip_runtime: bool = False
+    skip_build: bool = False
+
+
+class WorkspaceStatus(BaseModel):
+    project: str
+    state: Literal["idle", "starting", "running", "failed"] = "idle"
+    operation: Optional[str] = None
+    workspace_path: Optional[str] = None
+    manifest_present: bool = False
+    build_ready: bool = False
+    exports_stale: bool = False
+    stale_reasons: list[str] = Field(default_factory=list)
+    readiness_status: Optional[str] = None
+    training_ready: bool = False
+    sensor_exports_ready: bool = False
+    recommended_sim_backend: str = "mock"
+    last_result: Optional[dict[str, Any]] = None
+    error: Optional[str] = None
+    finished_at: Optional[str] = None
 
 
 class TrainStatus(BaseModel):

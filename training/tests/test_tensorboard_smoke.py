@@ -1,6 +1,7 @@
 """Smoke test: SB3 learn() writes TensorBoard event files."""
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -21,11 +22,34 @@ def _minimal_config(project_name: str) -> dict:
         "hyperparameters": {"total_timesteps": 512, "n_steps": 64, "batch_size": 32},
         "parallel": {"num_envs": 1},
         "curriculum": {"enabled": False},
+        "observations": {
+            "terms": [
+                {"id": "joint_positions", "enabled": True, "available": True, "scale": 2.0, "clip_min": -1, "clip_max": 1},
+                {"id": "commands", "enabled": True, "available": True, "scale": 1.0},
+            ]
+        },
+        "task": {
+            "reward_terms": [{"id": "alive", "type": "reward", "enabled": True, "weight": 0.25, "params": {}}],
+            "termination": {"max_episode_steps": 200, "fall_base_height_threshold": 0.08, "max_tilt_rad": 1.5},
+        },
         "logging": {
+            "success_reward_threshold": 0.5,
             "eval": {"enabled": True, "eval_freq": 128, "n_eval_episodes": 2},
             "policy_histograms": {"enabled": True, "freq": 256},
         },
     }
+
+
+def _write_control_exports(exports: Path, name: str) -> None:
+    (exports / f"ctrl_{name}_controllers.yaml").write_text(
+        "joint_trajectory_controller:\n  ros__parameters:\n    joints: [j1, j2]\n",
+        encoding="utf-8",
+    )
+    (exports / f"ctrl_{name}_gains.yaml").write_text(
+        "joints:\n  j1:\n    default_position: 0\n    action_scale: 0.2\n  j2:\n    default_position: 0\n    action_scale: 0.2\n",
+        encoding="utf-8",
+    )
+    (exports / f"sens_{name}_observations.yaml").write_text("observations: {}\n", encoding="utf-8")
 
 
 def test_learn_writes_tensorboard_events():
@@ -36,8 +60,11 @@ def test_learn_writes_tensorboard_events():
         project_dir = Path(tmp) / "demo_bot"
         exports = project_dir / "exports"
         exports.mkdir(parents=True)
+        _write_control_exports(exports, "demo_bot")
         config_path = exports / "rl_demo_bot_config.yaml"
         config_path.write_text(yaml.dump(_minimal_config("demo_bot")), encoding="utf-8")
+        env = os.environ.copy()
+        env["QUADRL_SIM_BACKEND"] = "mock"
 
         proc = subprocess.run(
             [str(PYTHON), str(TRAIN_SCRIPT), str(project_dir), "--config", str(config_path)],
@@ -45,6 +72,7 @@ def test_learn_writes_tensorboard_events():
             text=True,
             timeout=120,
             cwd=str(REPO),
+            env=env,
         )
         assert proc.returncode == 0, proc.stderr or proc.stdout
 

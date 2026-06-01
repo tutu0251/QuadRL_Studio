@@ -7,6 +7,8 @@ import type {
   SystemStatsSample,
   TensorBoardStatus,
   TrainStatus,
+  WorkspaceOperationBody,
+  WorkspaceStatus,
 } from "../types";
 
 const DEFAULT_PORT = "8006";
@@ -71,17 +73,48 @@ export const api = {
       ? req<{ series: ScalarSeries[] }>(`/api/projects/${name}/runs/${runId}/scalars`)
       : req<{ run_id: string | null; series: ScalarSeries[] }>(`/api/projects/${name}/scalars`),
   trainStatus: (name: string) => req<TrainStatus>(`/api/projects/${name}/train/status`),
-  trainStart: (name: string, body: { dry_run?: boolean; resume_checkpoint?: string }) =>
+  workspaceStatus: (name: string) => req<WorkspaceStatus>(`/api/projects/${name}/workspace/status`),
+  workspaceGenerate: (name: string) =>
+    req<WorkspaceStatus>(`/api/projects/${name}/workspace/generate`, { method: "POST", body: "{}" }),
+  workspaceBuild: (name: string, body: WorkspaceOperationBody = {}) =>
+    req<WorkspaceStatus>(`/api/projects/${name}/workspace/build`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  workspaceValidateExports: (name: string) =>
+    req<WorkspaceStatus>(`/api/projects/${name}/workspace/validate-exports`, {
+      method: "POST",
+      body: "{}",
+    }),
+  workspaceValidate: (name: string, body: WorkspaceOperationBody) =>
+    req<WorkspaceStatus>(`/api/projects/${name}/workspace/validate`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  workspaceSetup: (name: string, body: WorkspaceOperationBody) =>
+    req<WorkspaceStatus>(`/api/projects/${name}/workspace/setup`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  trainStart: (
+    name: string,
+    body: { dry_run?: boolean; resume_checkpoint?: string; sim_backend?: "auto" | "mock" | "ros" }
+  ) =>
     req<TrainStatus>(`/api/projects/${name}/train/start`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
   trainStop: (name: string) =>
     req<TrainStatus>(`/api/projects/${name}/train/stop`, { method: "POST" }),
-  trainResume: (name: string, resume_checkpoint: string, dry_run = false) =>
+  trainResume: (
+    name: string,
+    resume_checkpoint: string,
+    dry_run = false,
+    sim_backend?: "auto" | "mock" | "ros"
+  ) =>
     req<TrainStatus>(`/api/projects/${name}/train/resume`, {
       method: "POST",
-      body: JSON.stringify({ resume_checkpoint, dry_run }),
+      body: JSON.stringify({ resume_checkpoint, dry_run, sim_backend }),
     }),
   tbStatus: (name: string) => req<TensorBoardStatus>(`/api/projects/${name}/tensorboard/status`),
   tbStart: (name: string, runId?: string) =>

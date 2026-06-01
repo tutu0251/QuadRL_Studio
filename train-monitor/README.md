@@ -30,7 +30,8 @@ Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUAD
 
 ## Features
 
-- **Training control** — start, stop, resume from a selected checkpoint (wraps `training/scripts/run_rl_train.py`)
+- **Workspace** — generate colcon workspace, build, validate exports, full `setup_robot` pipeline (no shell required)
+- **Training control** — start, stop, resume; choose sim backend (`auto` / `mock` / `ros`)
 - **Export browser** — lists all editor export files (geometry, physics, control, sensor, PPO, RL) with YAML/text preview
 - **Checkpoints** — scans `checkpoints/*.zip` with size and modified time
 - **Runs** — reads `runs/<timestamp>/run_info.yaml` and monitor state
@@ -47,6 +48,12 @@ Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUAD
 | GET | `/api/projects` | List projects and training readiness |
 | POST | `/api/projects/{name}/load` | Set active project |
 | GET | `/api/projects/{name}/exports` | Scan export bundle |
+| GET | `/api/projects/{name}/workspace/status` | Workspace / readiness snapshot |
+| POST | `/api/projects/{name}/workspace/setup` | Generate + build + validate (full pipeline) |
+| POST | `/api/projects/{name}/workspace/generate` | Generate workspace from exports |
+| POST | `/api/projects/{name}/workspace/build` | `colcon build` |
+| POST | `/api/projects/{name}/workspace/validate-exports` | Sensor/control export alignment |
+| POST | `/api/projects/{name}/workspace/validate` | Static / build / runtime readiness |
 | POST | `/api/projects/{name}/train/start` | Start training |
 | POST | `/api/projects/{name}/train/stop` | Stop training |
 | POST | `/api/projects/{name}/train/resume` | Resume from checkpoint |

@@ -47,6 +47,12 @@ export function ExportsPanel({ bundle, selectedPath, preview, onSelect }: Props)
         <p className="panel-warn">Missing: {bundle.missing_required.join(", ")}</p>
       )}
 
+      <p className="panel-hint">
+        Sim: {bundle.recommended_sim_backend ?? "mock"}
+        {bundle.workspace_ready ? " · workspace built" : " · workspace not built"}
+        {!bundle.sensor_exports_ready && " · sensor/control exports incomplete"}
+      </p>
+
       <div className="exports-layout">
         <div className="exports-list">
           {Object.entries(byCategory).map(([category, files]) => (

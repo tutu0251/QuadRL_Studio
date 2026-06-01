@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from api.tensorboard_manager import read_scalars, tensorboard_manager
 from api.train_manager import train_manager
-from domain.models import ProjectSummary, TrainStartRequest, TrainStatus
+from api.workspace_manager import get_workspace_status, workspace_manager
+from domain.models import ProjectSummary, TrainStartRequest, TrainStatus, WorkspaceOperationRequest, WorkspaceStatus
 from storage import export_scanner, project_storage, run_registry
 
 _active_project: Optional[str] = None
@@ -36,6 +37,8 @@ async def lifespan(app: FastAPI):
     yield
     if train_manager.is_running():
         await train_manager.stop()
+    if workspace_manager.is_running():
+        workspace_manager._state = "idle"
     tensorboard_manager.stop()
 
 
@@ -165,12 +168,71 @@ async def train_start(name: str, body: TrainStartRequest):
             dry_run=body.dry_run,
             resume_checkpoint=body.resume_checkpoint,
             config_path=body.config_path,
+            sim_backend=body.sim_backend,
         )
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
     return status.model_dump()
+
+
+@app.get("/api/projects/{name}/workspace/status")
+def workspace_status(name: str) -> WorkspaceStatus:
+    return workspace_manager.get_status(name)
+
+
+@app.post("/api/projects/{name}/workspace/generate")
+async def workspace_generate(name: str):
+    try:
+        return (await workspace_manager.generate(name)).model_dump()
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.post("/api/projects/{name}/workspace/build")
+async def workspace_build(name: str, body: WorkspaceOperationRequest):
+    try:
+        return (await workspace_manager.build(name, clean=body.clean)).model_dump()
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.post("/api/projects/{name}/workspace/validate-exports")
+async def workspace_validate_exports(name: str):
+    try:
+        return (await workspace_manager.validate_exports(name)).model_dump()
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.post("/api/projects/{name}/workspace/validate")
+async def workspace_validate(name: str, body: WorkspaceOperationRequest):
+    try:
+        return (
+            await workspace_manager.validate(
+                name,
+                static_only=body.static_only,
+                skip_runtime=body.skip_runtime,
+                skip_build=body.skip_build,
+            )
+        ).model_dump()
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.post("/api/projects/{name}/workspace/setup")
+async def workspace_setup(name: str, body: WorkspaceOperationRequest):
+    try:
+        return (
+            await workspace_manager.setup(
+                name,
+                static_only=body.static_only,
+                skip_runtime=body.skip_runtime,
+            )
+        ).model_dump()
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @app.post("/api/projects/{name}/train/stop")
@@ -192,6 +254,7 @@ async def train_resume(name: str, body: TrainStartRequest):
             dry_run=body.dry_run,
             resume_checkpoint=body.resume_checkpoint,
             config_path=body.config_path,
+            sim_backend=body.sim_backend,
         )
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -284,6 +347,7 @@ async def ws_train_logs(ws: WebSocket):
             pass
 
     train_manager.subscribe_logs(on_log)
+    workspace_manager.subscribe_logs(on_log)
     try:
         while True:
             try:
@@ -291,8 +355,16 @@ async def ws_train_logs(ws: WebSocket):
                 await ws.send_json(msg)
             except asyncio.TimeoutError:
                 status = train_manager.get_status()
-                await ws.send_json({"type": "status", "status": status.model_dump()})
+                ws_status = workspace_manager.get_status()
+                await ws.send_json(
+                    {
+                        "type": "status",
+                        "status": status.model_dump(),
+                        "workspace": ws_status.model_dump(),
+                    }
+                )
     except WebSocketDisconnect:
         pass
     finally:
         train_manager.unsubscribe_logs(on_log)
+        workspace_manager.unsubscribe_logs(on_log)

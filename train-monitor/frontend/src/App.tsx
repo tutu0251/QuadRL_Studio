@@ -9,8 +9,9 @@ import { RunsPanel } from "./features/runs/RunsPanel";
 import { StatusBar } from "./features/status/StatusBar";
 import { SystemResourcesPanel } from "./features/system/SystemResourcesPanel";
 import { TrainingPanel } from "./features/training/TrainingPanel";
+import { WorkspacePanel } from "./features/workspace/WorkspacePanel";
 import { useMonitorStore } from "./stores/monitorStore";
-import type { ProjectSummary, TensorBoardStatus } from "./types";
+import type { ProjectSummary, TensorBoardStatus, WorkspaceStatus } from "./types";
 
 export default function App() {
   const project = useMonitorStore((s) => s.project);
@@ -39,6 +40,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dryRun, setDryRun] = useState(false);
+  const [simBackend, setSimBackend] = useState<"auto" | "mock" | "ros">("auto");
+  const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [tbStatus, setTbStatus] = useState<TensorBoardStatus | null>(null);
 
@@ -60,14 +63,16 @@ export default function App() {
 
   const refreshProjectData = useCallback(
     async (name: string) => {
-      const [exp, ckpt, runList, status, tb] = await Promise.all([
+      const [exp, ckpt, runList, status, tb, ws] = await Promise.all([
         api.getExports(name),
         api.listCheckpoints(name),
         api.listRuns(name),
         api.trainStatus(name),
         api.tbStatus(name),
+        api.workspaceStatus(name),
       ]);
       setExports(exp);
+      setWorkspaceStatus(ws);
       setCheckpoints(ckpt.checkpoints);
       setRuns(runList.runs);
       setTrainStatus(status);
@@ -119,6 +124,7 @@ export default function App() {
         const data = JSON.parse(ev.data);
         if (data.entry) log(`[${data.entry.level}] ${data.entry.message}`);
         if (data.status) setTrainStatus(data.status);
+        if (data.workspace) setWorkspaceStatus(data.workspace);
       };
     } catch {
       /* ignore */
@@ -189,7 +195,7 @@ export default function App() {
     setBusy(true);
     setError(null);
     try {
-      const status = await api.trainStart(project, { dry_run: dryRun });
+      const status = await api.trainStart(project, { dry_run: dryRun, sim_backend: simBackend });
       setTrainStatus(status);
       log("Training started");
       await refreshProjectData(project);
@@ -219,7 +225,7 @@ export default function App() {
     if (!project || !selectedCheckpoint) return;
     setBusy(true);
     try {
-      const status = await api.trainResume(project, selectedCheckpoint, dryRun);
+      const status = await api.trainResume(project, selectedCheckpoint, dryRun, simBackend);
       setTrainStatus(status);
       log(`Resuming from ${selectedCheckpoint}`);
       await refreshProjectData(project);
@@ -238,6 +244,22 @@ export default function App() {
       const tb = await api.tbStart(project, selectedRunId ?? undefined);
       setTbStatus(tb);
       if (tb.error) setError(tb.error);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runWorkspace = async (fn: () => Promise<WorkspaceStatus>) => {
+    if (!project) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const ws = await fn();
+      setWorkspaceStatus(ws);
+      if (ws.error) setError(ws.error);
+      await refreshProjectData(project);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -278,13 +300,38 @@ export default function App() {
 
       <div className="monitor-body">
         <aside className="side-col">
+          <WorkspacePanel
+            project={project}
+            status={workspaceStatus}
+            busy={busy}
+            onRefresh={() => project && api.workspaceStatus(project).then(setWorkspaceStatus)}
+            onGenerate={() => runWorkspace(() => api.workspaceGenerate(project!))}
+            onBuild={(clean) => runWorkspace(() => api.workspaceBuild(project!, { clean }))}
+            onValidateExports={() => runWorkspace(() => api.workspaceValidateExports(project!))}
+            onValidate={({ staticOnly, skipRuntime }) =>
+              runWorkspace(() =>
+                api.workspaceValidate(project!, {
+                  static_only: staticOnly,
+                  skip_runtime: skipRuntime,
+                })
+              )
+            }
+            onSetup={({ staticOnly, skipRuntime }) =>
+              runWorkspace(() =>
+                api.workspaceSetup(project!, { static_only: staticOnly, skip_runtime: skipRuntime })
+              )
+            }
+          />
           <TrainingPanel
             project={project}
             status={trainStatus}
             ready={exports?.ready_for_training ?? false}
             selectedCheckpoint={selectedCheckpoint}
             dryRun={dryRun}
+            simBackend={simBackend}
+            recommendedSim={workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "mock"}
             onDryRunChange={setDryRun}
+            onSimBackendChange={setSimBackend}
             onStart={startTraining}
             onStop={stopTraining}
             onResume={resumeTraining}

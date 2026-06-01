@@ -105,6 +105,17 @@ Browser: `http://<ubuntu_ip>:5179` — start/stop/resume training, browse all ed
 
 See [`train-monitor/README.md`](train-monitor/README.md) for API and training workflow.
 
+## Quick start (PPO training)
+
+After exporting from all editors and generating the workspace:
+
+```bash
+cd training && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python scripts/run_rl_train.py ~/quadruped_dev_tool/projects/<project>
+```
+
+Uses `rl_*` + `ppo_*` + sensor/control exports (mock sim by default; `QUADRL_SIM_BACKEND=ros` for Gazebo). See [`training/README.md`](training/README.md).
+
 ## Run everything on the training machine
 
 To run **all** editor backends and frontends on the training machine (single command):

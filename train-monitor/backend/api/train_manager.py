@@ -96,6 +96,7 @@ class TrainManager:
         dry_run: bool = False,
         resume_checkpoint: Optional[str] = None,
         config_path: Optional[str] = None,
+        sim_backend: Optional[str] = None,
     ) -> TrainStatus:
         if self.is_running():
             if self._project == project:
@@ -120,6 +121,8 @@ class TrainManager:
             cmd.append("--dry-run")
         if resume_checkpoint:
             cmd.extend(["--resume", resume_checkpoint])
+        if sim_backend:
+            cmd.extend(["--sim-backend", sim_backend])
 
         self._project = project
         self._dry_run = dry_run

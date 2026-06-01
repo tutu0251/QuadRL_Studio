@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Run PPO training from rl_<project>_config.yaml (SB3 + optional curriculum)."""
+"""Run PPO training from rl_<project>_config.yaml (SB3 + QuadRL quadruped env)."""
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
 from pathlib import Path
 
 import yaml
+
+_TRAINING_ROOT = Path(__file__).resolve().parents[1]
+if str(_TRAINING_ROOT) not in sys.path:
+    sys.path.insert(0, str(_TRAINING_ROOT))
 
 
 def _load_config(config_path: Path) -> dict:
@@ -76,7 +81,14 @@ def _tensorboard_stage_dir(run_root: Path, stage: dict | None, *, curriculum: bo
     return stage_dir
 
 
-def _write_run_manifest(run_root: Path, project_name: str, config_path: Path, curriculum: dict) -> None:
+def _write_run_manifest(
+    run_root: Path,
+    project_name: str,
+    config_path: Path,
+    curriculum: dict,
+    *,
+    sim_backend: str,
+) -> None:
     manifest = {
         "run_id": run_root.name,
         "project": project_name,
@@ -84,6 +96,7 @@ def _write_run_manifest(run_root: Path, project_name: str, config_path: Path, cu
         "config": str(config_path),
         "tensorboard_logdir": str(run_root),
         "curriculum_enabled": bool(curriculum.get("enabled") and curriculum.get("stages")),
+        "sim_backend": sim_backend,
     }
     (run_root / "run_info.yaml").write_text(
         yaml.dump(manifest, default_flow_style=False, sort_keys=False),
@@ -109,10 +122,26 @@ def _checkpoint_basename(config: dict, stage: dict | None) -> str:
     return re.sub(r"[^\w\-]+", "_", name).strip("_") or "ppo_final"
 
 
-def _make_training_env():
-    import gymnasium as gym
+def _make_vec_env(project_dir: Path, config: dict, stage: dict | None, num_envs: int):
+    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 
-    return gym.make("CartPole-v1")
+    from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
+
+    backend = resolve_sim_backend(project_dir)
+    if backend == "ros" and num_envs > 1:
+        _log("[warn] ROS sim supports one Gazebo instance — using mock backend for parallel envs")
+        backend = "mock"
+        os.environ["QUADRL_SIM_BACKEND"] = "mock"
+
+    _log(f"[train] Sim backend: {backend} (num_envs={num_envs})")
+
+    if num_envs > 1 and (config.get("parallel") or {}).get("vec_env_type") == "subproc":
+        fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=i, backend=backend) for i in range(num_envs)]
+        return VecMonitor(SubprocVecEnv(fns))
+    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=0, backend=backend)]
+    if num_envs > 1:
+        fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=i, backend=backend) for i in range(num_envs)]
+    return VecMonitor(DummyVecEnv(fns))
 
 
 def _build_learn_callbacks(
@@ -207,18 +236,19 @@ def _train_stage_sb3(
     timesteps: int,
     checkpoint_dir: Path,
     run_root: Path,
+    project_dir: Path,
     *,
     curriculum: bool,
     resume_override: str | None = None,
+    reset_policy: bool = False,
 ) -> None:
     from stable_baselines3 import PPO
-    from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
     hp = config.get("hyperparameters") or {}
     num_envs = max(1, int((config.get("parallel") or {}).get("num_envs", 1)))
 
-    env = VecMonitor(DummyVecEnv([_make_training_env for _ in range(num_envs)]))
-    eval_env = VecMonitor(DummyVecEnv([_make_training_env]))
+    env = _make_vec_env(project_dir, config, stage, num_envs)
+    eval_env = _make_vec_env(project_dir, config, stage, 1)
 
     device = str(config.get("device", "auto"))
     if device == "auto":
@@ -232,30 +262,30 @@ def _train_stage_sb3(
     tb_dir = _tensorboard_stage_dir(run_root, stage, curriculum=curriculum)
     _log(f"[train] TensorBoard log dir: {tb_dir}")
 
-    model = PPO(
-        "MlpPolicy",
-        env,
-        learning_rate=float(hp.get("learning_rate", 3e-4)),
-        n_steps=int(hp.get("n_steps", 2048)),
-        batch_size=int(hp.get("batch_size", 64)),
-        n_epochs=int(hp.get("n_epochs", 10)),
-        gamma=float(hp.get("gamma", 0.99)),
-        verbose=1,
-        device=device,
-        tensorboard_log=str(tb_dir),
-    )
-
     project_root = run_root.parent.parent
-    load_path = _resolve_resume_checkpoint(config, project_root, resume_override)
+    load_path = None if reset_policy else _resolve_resume_checkpoint(config, project_root, resume_override)
+
     if load_path:
         _log(f"[train] Resuming from checkpoint: {load_path}")
-        model = PPO.load(str(load_path), env=env, device=device)
+        model = PPO.load(str(load_path), env=env, device=device, tensorboard_log=str(tb_dir))
     else:
         requested = resume_override or (config.get("training") or {}).get("resume_checkpoint")
-        if requested:
+        if requested and not reset_policy:
             _log(f"[warn] Resume checkpoint not found: {requested} — training from scratch")
         else:
-            _log("[train] No resume checkpoint — training from scratch")
+            _log("[train] Training from scratch")
+        model = PPO(
+            "MlpPolicy",
+            env,
+            learning_rate=float(hp.get("learning_rate", 3e-4)),
+            n_steps=int(hp.get("n_steps", 2048)),
+            batch_size=int(hp.get("batch_size", 64)),
+            n_epochs=int(hp.get("n_epochs", 10)),
+            gamma=float(hp.get("gamma", 0.99)),
+            verbose=1,
+            device=device,
+            tensorboard_log=str(tb_dir),
+        )
 
     stage_label = stage.get("name", "training") if stage else "training"
     _log(f"[train] PPO learn: {stage_label} ({timesteps:,} timesteps)")
@@ -274,6 +304,9 @@ def _train_stage_sb3(
         progress_bar=progress_bar,
         callback=callbacks,
     )
+    env.close()
+    eval_env.close()
+
     if not (config.get("checkpoint") or {}).get("enabled", True):
         _log("[train] Checkpoints disabled in config — skipping save")
         return
@@ -320,7 +353,16 @@ def main() -> int:
         default=None,
         help="Override resume checkpoint path (relative to project root or absolute)",
     )
+    parser.add_argument(
+        "--sim-backend",
+        choices=("auto", "mock", "ros"),
+        default=None,
+        help="Simulation backend (default: QUADRL_SIM_BACKEND or auto)",
+    )
     args = parser.parse_args()
+
+    if args.sim_backend:
+        os.environ["QUADRL_SIM_BACKEND"] = args.sim_backend
 
     project_dir = args.project_dir.expanduser().resolve()
     project_name = project_dir.name
@@ -338,11 +380,16 @@ def main() -> int:
 
     curriculum = config.get("curriculum") or {}
     curriculum_enabled = bool(curriculum.get("enabled") and curriculum.get("stages"))
-    _write_run_manifest(run_root, project_name, config_path, curriculum)
+
+    from quadrl_env.env_factory import resolve_sim_backend
+
+    sim_backend = resolve_sim_backend(project_dir)
+    _write_run_manifest(run_root, project_name, config_path, curriculum, sim_backend=sim_backend)
 
     _log(f"[train] Project: {project_name}")
     _log(f"[train] Config: {config_path}")
     _log(f"[train] Algorithm: {config.get('algorithm', 'PPO')} / {config.get('framework', '')}")
+    _log(f"[train] Sim backend: {sim_backend}")
     _log(f"[train] TensorBoard run root: {run_root}")
     _log(f"[train] View with: tensorboard --logdir {project_dir / 'runs'}")
 
@@ -355,9 +402,13 @@ def main() -> int:
             _log("[warn] gymnasium/stable-baselines3 not installed — falling back to dry-run")
             use_sb3 = False
 
+    load_prev = bool(curriculum.get("load_previous_checkpoint", True))
+    reset_on_advance = bool(curriculum.get("reset_policy_on_stage_advance", False))
+
     if curriculum_enabled:
         stages = sorted(curriculum["stages"], key=lambda s: s.get("order", 0))
         _log(f"[train] Curriculum: {curriculum.get('name', '')} ({len(stages)} stages)")
+        prev_ckpt: Path | None = None
         for i, stage in enumerate(stages):
             _log(f"[train] === Stage {i + 1}/{len(stages)}: {stage.get('name')} ===")
             cmd = stage.get("command") or {}
@@ -365,6 +416,9 @@ def main() -> int:
                 f"[train] Command vel: lin={cmd.get('target_lin_vel_x', 0)} "
                 f"ang={cmd.get('target_ang_vel_z', 0)}"
             )
+            resume = args.resume if i == 0 else None
+            if i > 0 and load_prev and prev_ckpt and prev_ckpt.is_file():
+                resume = str(prev_ckpt)
             if use_sb3:
                 _train_stage_sb3(
                     config,
@@ -372,9 +426,12 @@ def main() -> int:
                     int(stage.get("timesteps", 100_000)),
                     checkpoint_dir,
                     run_root,
+                    project_dir,
                     curriculum=True,
-                    resume_override=args.resume if i == 0 else None,
+                    resume_override=resume,
+                    reset_policy=reset_on_advance and i > 0,
                 )
+                prev_ckpt = checkpoint_dir / _checkpoint_basename(config, stage)
             else:
                 _dry_run_stage(
                     config,
@@ -394,6 +451,7 @@ def main() -> int:
                 total,
                 checkpoint_dir,
                 run_root,
+                project_dir,
                 curriculum=False,
                 resume_override=args.resume,
             )

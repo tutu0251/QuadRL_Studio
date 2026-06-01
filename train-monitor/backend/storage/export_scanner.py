@@ -57,12 +57,23 @@ def scan_exports(name: str) -> ExportBundle:
         if not (exports / expected).is_file():
             missing.append(expected)
 
+    sens_obs = exports / f"sens_{name}_observations.yaml"
+    ctrl_gains = exports / f"ctrl_{name}_gains.yaml"
+    ctrl_ctrl = exports / f"ctrl_{name}_controllers.yaml"
+    sensor_exports_ready = sens_obs.is_file() and ctrl_gains.is_file() and ctrl_ctrl.is_file()
+    workspace_setup = root / "workspace" / "install" / "setup.bash"
+    workspace_ready = workspace_setup.is_file()
+    recommended = "ros" if workspace_ready and sensor_exports_ready else "mock"
+
     return ExportBundle(
         project=name,
         exports_dir=str(exports),
         files=files,
         missing_required=missing,
-        ready_for_training=len(missing) == 0,
+        ready_for_training=len(missing) == 0 and sensor_exports_ready,
+        workspace_ready=workspace_ready,
+        sensor_exports_ready=sensor_exports_ready,
+        recommended_sim_backend=recommended,
     )
 
 

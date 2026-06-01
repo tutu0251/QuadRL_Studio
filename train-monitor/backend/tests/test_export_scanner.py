@@ -20,6 +20,9 @@ def sample_project(tmp_path, monkeypatch):
     (exports / f"rl_{name}_config.yaml").write_text("algorithm: PPO\n")
     (exports / f"ppo_{name}_config.yaml").write_text("hyperparameters: {}\n")
     (exports / f"geo_{name}.urdf").write_text("<robot/>")
+    (exports / f"ctrl_{name}_controllers.yaml").write_text("joints: []\n")
+    (exports / f"ctrl_{name}_gains.yaml").write_text("joints: {}\n")
+    (exports / f"sens_{name}_observations.yaml").write_text("observations: {}\n")
     monkeypatch.setattr(project_storage, "PROJECTS_ROOT", tmp_path)
     return name
 

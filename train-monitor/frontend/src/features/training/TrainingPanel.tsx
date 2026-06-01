@@ -2,13 +2,18 @@ import { useEffect, useState } from "react";
 import { formatElapsedSince, formatTimestamp } from "../../utils/format";
 import type { TrainStatus } from "../../types";
 
+type SimBackend = "auto" | "mock" | "ros";
+
 type Props = {
   project: string | null;
   status: TrainStatus | null;
   ready: boolean;
   selectedCheckpoint: string | null;
   dryRun: boolean;
+  simBackend: SimBackend;
+  recommendedSim: string;
   onDryRunChange: (v: boolean) => void;
+  onSimBackendChange: (v: SimBackend) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -21,7 +26,10 @@ export function TrainingPanel({
   ready,
   selectedCheckpoint,
   dryRun,
+  simBackend,
+  recommendedSim,
   onDryRunChange,
+  onSimBackendChange,
   onStart,
   onStop,
   onResume,
@@ -66,6 +74,18 @@ export function TrainingPanel({
       )}
 
       <div className="train-controls">
+        <label className="field-row">
+          <span>Sim backend</span>
+          <select
+            value={simBackend}
+            onChange={(e) => onSimBackendChange(e.target.value as SimBackend)}
+            disabled={running}
+          >
+            <option value="auto">auto ({recommendedSim})</option>
+            <option value="mock">mock</option>
+            <option value="ros">ros (Gazebo)</option>
+          </select>
+        </label>
         <label className="checkbox-row">
           <input type="checkbox" checked={dryRun} onChange={(e) => onDryRunChange(e.target.checked)} />
           Dry run (no SB3)

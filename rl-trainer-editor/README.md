@@ -28,7 +28,7 @@ Complete the sensor editor pipeline first (`sensor_model.json` and `sens_*_obser
 4. **Validate → Export YAML** — writes `exports/rl_<project>_config.yaml`.
 5. **PPO Planner** — tune hyperparameters and parallel envs, then export `exports/ppo_<project>_config.yaml`.
 
-Run PPO training from your own stack using both exported configs (see `training/scripts/run_rl_train.py`).
+Run PPO training with the built-in quadruped env (see [`training/README.md`](../training/README.md) and `training/scripts/run_rl_train.py`).
 
 ## Export contract
 
