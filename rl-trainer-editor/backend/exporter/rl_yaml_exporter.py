@@ -135,6 +135,28 @@ def _reward_term_export(term) -> dict:
     }
 
 
+def _observation_term_export(term) -> dict:
+    return {
+        "id": term.id,
+        "source": term.source,
+        "kind": term.kind,
+        "category": term.category,
+        "label": term.label,
+        "enabled": term.enabled,
+        "available": term.available,
+        "key": term.key,
+        "topic": term.topic or None,
+        "msg_type": term.msgType or None,
+        "parent_link": term.parentLink or None,
+        "rate_hz": term.rateHz or None,
+        "fields": list(term.fields),
+        "scale": term.scale,
+        "offset": term.offset,
+        "clip_min": term.clipMin,
+        "clip_max": term.clipMax,
+    }
+
+
 def export_rl_yaml(model: RlTrainerModel, project_name: str) -> Path:
     out = project_storage.export_rl_yaml_path(project_name)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +173,9 @@ def export_rl_yaml(model: RlTrainerModel, project_name: str) -> Path:
             "observations_file": f"sens_{project_name}_observations.yaml",
             "gains_file": f"ctrl_{project_name}_gains.yaml",
             "sim_urdf": f"sens_{project_name}_rl.urdf",
+        },
+        "observations": {
+            "terms": [_observation_term_export(t) for t in model.observationTerms],
         },
         "task": {
             "preset_id": model.selectedPresetId,

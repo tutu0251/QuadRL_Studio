@@ -1,10 +1,12 @@
 import { useTrainerStore } from "../../stores/trainerStore";
 import { CurriculumPanel } from "../curriculum/CurriculumPanel";
 import { GaitTypePanel } from "../gait/GaitTypePanel";
+import { ObservationsPanel } from "../observations/ObservationsPanel";
 
 const TABS = [
   { id: "curriculum", label: "Curriculum", hint: "Stages & training order" },
   { id: "gait", label: "Gate Type", hint: "None, walk, trot, gallop — cycle & phase params" },
+  { id: "observations", label: "Observations", hint: "Select procedural + sensor observations for the policy vector" },
 ] as const;
 
 export function InspectorTabs() {
@@ -20,7 +22,7 @@ export function InspectorTabs() {
             ◇
           </div>
           <h2>Open a project</h2>
-          <p>Use File → select project to configure curriculum stages and gate types.</p>
+          <p>Use File → select project to configure curriculum, gate types, and review observations.</p>
         </div>
       </div>
     );
@@ -47,6 +49,7 @@ export function InspectorTabs() {
       <div className="tab-content editor-tab-content">
         {activeTab === "curriculum" && <CurriculumPanel />}
         {activeTab === "gait" && <GaitTypePanel />}
+        {activeTab === "observations" && <ObservationsPanel />}
       </div>
     </div>
   );

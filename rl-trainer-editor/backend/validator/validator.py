@@ -248,6 +248,23 @@ class RlTrainerValidator:
                     )
                 )
             kinds = project_storage.load_observation_kinds(project)
+            selected_kinds = {
+                str(t.kind).lower()
+                for t in self._model.observationTerms
+                if t.enabled and t.available
+            }
+            if selected_kinds:
+                kinds = selected_kinds
+            if self._model.observationTerms and not any(
+                t.enabled and t.available for t in self._model.observationTerms
+            ):
+                warnings.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="no_observations_selected",
+                        message="No observations enabled — enable terms in the Observations tab.",
+                    )
+                )
             for term in enabled_terms:
                 required = _CATEGORY_OBS.get(term.category)
                 if required and kinds and not (required & kinds):

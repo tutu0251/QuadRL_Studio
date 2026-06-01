@@ -5,6 +5,7 @@ import type {
   CurriculumInfo,
   GaitType,
   MachineProfile,
+  ObservationTerm,
   RamMemorySample,
   RlTrainerModel,
   RewardTerm,
@@ -33,9 +34,30 @@ export const wsLogsUrl = () => {
   return `${u.origin}/ws/logs`;
 };
 
+export type ObservationEntry = {
+  key: string;
+  kind: string;
+  topic: string;
+  msgType: string;
+  rateHz: number;
+  parentLink: string;
+  fields: string[];
+};
+
+export type ObservationsSummary = {
+  found: boolean;
+  path: string;
+  robotName: string | null;
+  topicPrefix?: string;
+  simUrdf?: string;
+  observations: ObservationEntry[];
+  kinds: string[];
+};
+
 export type ModelPatch = {
   selectedPresetId?: string | null;
   rewardTerms?: RewardTerm[];
+  observationTerms?: ObservationTerm[];
   termination?: TerminationConfig;
   curriculum?: CurriculumConfig;
   gaitTypes?: GaitType[];
@@ -67,6 +89,8 @@ export const api = {
       method: "POST",
     }),
   getModel: (name: string) => req<RlTrainerModel>(`/api/projects/${name}/model`),
+  getObservations: (name: string) =>
+    req<ObservationsSummary>(`/api/projects/${name}/observations`),
   patchModel: (name: string, body: ModelPatch) =>
     req<RlTrainerModel>(`/api/projects/${name}/model`, {
       method: "PATCH",
@@ -109,6 +133,10 @@ export const api = {
     req<RlTrainerModel>(`/api/projects/${name}/recommend/stage/${stageId}`, { method: "POST" }),
   recommendCurriculum: (name: string) =>
     req<RlTrainerModel>(`/api/projects/${name}/recommend/curriculum`, { method: "POST" }),
+  recommendObservations: (name: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/recommend/observations`, { method: "POST" }),
+  syncObservations: (name: string) =>
+    req<RlTrainerModel>(`/api/projects/${name}/observations/sync`, { method: "POST" }),
   refreshMachineProfile: (name: string) =>
     req<RlTrainerModel>(`/api/projects/${name}/machine-profile`, { method: "POST" }),
   validate: (name: string) =>

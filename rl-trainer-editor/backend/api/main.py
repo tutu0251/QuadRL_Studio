@@ -157,6 +157,64 @@ def get_model(name: str):
     return _get_core(name).get_model()
 
 
+@app.get("/api/projects/{name}/observations")
+def get_observations(name: str):
+    path = project_storage.observations_yaml_path(name)
+    doc = project_storage.load_observations_doc(name)
+    if doc is None:
+        return {
+            "found": False,
+            "path": str(path),
+            "robotName": project_storage.load_robot_name(name),
+            "observations": [],
+            "kinds": [],
+        }
+    obs = doc.get("observations") or {}
+    entries = []
+    if isinstance(obs, dict):
+        for key, spec in obs.items():
+            if not isinstance(spec, dict):
+                continue
+            entries.append(
+                {
+                    "key": key,
+                    "kind": spec.get("kind", ""),
+                    "topic": spec.get("topic", ""),
+                    "msgType": spec.get("msg_type", ""),
+                    "rateHz": spec.get("rate_hz", 0),
+                    "parentLink": spec.get("parent_link", ""),
+                    "fields": spec.get("fields") or [],
+                }
+            )
+    entries.sort(key=lambda e: (str(e.get("kind", "")), str(e.get("key", ""))))
+    kinds = sorted({str(e["kind"]).lower() for e in entries if e.get("kind")})
+    return {
+        "found": True,
+        "path": str(path),
+        "robotName": doc.get("robot_name") or project_storage.load_robot_name(name),
+        "topicPrefix": doc.get("topic_prefix", ""),
+        "simUrdf": doc.get("sim_urdf", ""),
+        "observations": entries,
+        "kinds": kinds,
+    }
+
+
+@app.post("/api/projects/{name}/recommend/observations")
+def recommend_observations(name: str):
+    core = _get_core(name)
+    core.apply_observation_recommendation()
+    _save(name, core)
+    return core.get_model()
+
+
+@app.post("/api/projects/{name}/observations/sync")
+def sync_observations_catalog(name: str):
+    core = _get_core(name)
+    core.sync_observation_catalog()
+    _save(name, core)
+    return core.get_model()
+
+
 @app.put("/api/projects/{name}/model")
 def put_model(name: str, model: RlTrainerModel):
     if model.projectName and model.projectName != name:

@@ -14,6 +14,8 @@ from domain.models import (
 from planner.curriculum_templates import curriculum_to_entry
 from domain.stage_gait import stage_gait_type_ids
 from planner.gait_defaults import default_gait_library
+from planner.observation_normalization import apply_recommended_normalization
+from planner.observation_recommender import sync_observations
 from planner.reward_catalog import merge_reward_terms
 from planner.termination_catalog import merge_termination_config
 
@@ -77,5 +79,9 @@ def migrate_model(model: RlTrainerModel) -> RlTrainerModel:
 
     model.rewardTerms = merge_reward_terms(model.rewardTerms)
     model.termination = merge_termination_config(model.termination)
-    model.version = "2.2"
+    sync_observations(model)
+    if model.observationTerms and model.version in ("2.0", "2.2", "2.3"):
+        for term in model.observationTerms:
+            apply_recommended_normalization(term)
+    model.version = "2.4"
     return model

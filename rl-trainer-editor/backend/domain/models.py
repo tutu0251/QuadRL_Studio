@@ -41,6 +41,28 @@ class RewardTerm(BaseModel):
     params: dict[str, float] = Field(default_factory=dict)
 
 
+class ObservationTerm(BaseModel):
+    id: str
+    source: Literal["procedural", "sensor"] = "procedural"
+    kind: str = ""
+    category: str = ""
+    label: str = ""
+    enabled: bool = False
+    available: bool = True
+    key: str = ""
+    description: str = ""
+    topic: str = ""
+    msgType: str = ""
+    parentLink: str = ""
+    rateHz: float = 0.0
+    fields: list[str] = Field(default_factory=list)
+    sensorId: str = ""
+    scale: float = 1.0
+    offset: float = 0.0
+    clipMin: Optional[float] = -1.0
+    clipMax: Optional[float] = 1.0
+
+
 class TerminationTerm(BaseModel):
     id: str
     category: str = ""
@@ -187,6 +209,7 @@ class RlTrainerModel(BaseModel):
     recommendationNotes: list[str] = Field(default_factory=list)
     machineProfile: Optional[MachineProfile] = None
     rewardTerms: list[RewardTerm] = Field(default_factory=list)
+    observationTerms: list[ObservationTerm] = Field(default_factory=list)
     termination: TerminationConfig = Field(default_factory=TerminationConfig)
     curriculum: CurriculumConfig = Field(default_factory=CurriculumConfig)
     gaitTypes: list[GaitType] = Field(default_factory=list)
@@ -228,6 +251,7 @@ class AsyncTaskStatus(BaseModel):
 class RlTrainerPatch(BaseModel):
     selectedPresetId: Optional[str] = None
     rewardTerms: Optional[list[RewardTerm]] = None
+    observationTerms: Optional[list[ObservationTerm]] = None
     termination: Optional[TerminationConfig] = None
     curriculum: Optional[CurriculumConfig] = None
     gaitTypes: Optional[list[GaitType]] = None

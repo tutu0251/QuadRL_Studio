@@ -102,32 +102,35 @@ def load_robot_name(name: str) -> Optional[str]:
 
 
 def load_observations_keys(name: str) -> list[str]:
-    path = observations_yaml_path(name)
-    if not path.exists():
+    doc = load_observations_doc(name)
+    if not doc:
         return []
-    try:
-        doc = yaml.safe_load(path.read_text()) or {}
-        obs = doc.get("observations") or {}
-        return list(obs.keys()) if isinstance(obs, dict) else []
-    except (yaml.YAMLError, OSError):
-        return []
+    obs = doc.get("observations") or {}
+    return list(obs.keys()) if isinstance(obs, dict) else []
 
 
 def load_observation_kinds(name: str) -> set[str]:
+    doc = load_observations_doc(name)
+    if not doc:
+        return set()
+    obs = doc.get("observations") or {}
+    kinds: set[str] = set()
+    if isinstance(obs, dict):
+        for entry in obs.values():
+            if isinstance(entry, dict) and entry.get("kind"):
+                kinds.add(str(entry["kind"]).lower())
+    return kinds
+
+
+def load_observations_doc(name: str) -> Optional[dict[str, Any]]:
     path = observations_yaml_path(name)
     if not path.exists():
-        return set()
+        return None
     try:
         doc = yaml.safe_load(path.read_text()) or {}
-        obs = doc.get("observations") or {}
-        kinds: set[str] = set()
-        if isinstance(obs, dict):
-            for entry in obs.values():
-                if isinstance(entry, dict) and entry.get("kind"):
-                    kinds.add(str(entry["kind"]).lower())
-        return kinds
+        return doc if isinstance(doc, dict) else None
     except (yaml.YAMLError, OSError):
-        return set()
+        return None
 
 
 def checkpoint_dir(name: str, directory: str = "checkpoints") -> Path:

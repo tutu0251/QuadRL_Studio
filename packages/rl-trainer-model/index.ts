@@ -162,6 +162,28 @@ export interface CurriculumInfo {
   terrainProfile: TerrainProfile;
 }
 
+export interface ObservationTerm {
+  id: string;
+  source: "procedural" | "sensor";
+  kind: string;
+  category: string;
+  label: string;
+  enabled: boolean;
+  available: boolean;
+  key: string;
+  description?: string;
+  topic?: string;
+  msgType?: string;
+  parentLink?: string;
+  rateHz?: number;
+  fields?: string[];
+  sensorId?: string;
+  scale: number;
+  offset: number;
+  clipMin: number | null;
+  clipMax: number | null;
+}
+
 export interface RlTrainerModel {
   id: string;
   projectName: string;
@@ -171,6 +193,7 @@ export interface RlTrainerModel {
   recommendationNotes: string[];
   machineProfile: MachineProfile | null;
   rewardTerms: RewardTerm[];
+  observationTerms: ObservationTerm[];
   termination: TerminationConfig;
   curriculum: CurriculumConfig;
   gaitTypes: GaitType[];
@@ -253,6 +276,7 @@ export const PRESET_CATALOG: PresetInfo[] = [
 
 export * from "./rewardCatalog";
 export * from "./terminationCatalog";
+export * from "./observationCatalog";
 
 export const REWARD_CATEGORY_HINTS: Record<string, string> = {
   velocity: "Requires base linear/angular velocity observations",

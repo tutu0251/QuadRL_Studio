@@ -20,6 +20,7 @@ from planner.curriculum_templates import (
 )
 from planner.gait_defaults import build_gait, default_gait_library
 from planner.presets import apply_preset_to_model, get_preset
+from planner.observation_recommender import apply_observation_recommendation, sync_observations
 from planner.recommender import recommend_curriculum_timesteps, recommend_gait, recommend_stage_params
 from profiler.machine_profiler import profile_machine
 from storage import project_storage
@@ -28,6 +29,7 @@ from storage import project_storage
 class TrainerCore:
     def __init__(self, model: RlTrainerModel):
         self._model = migrate_model(model)
+        sync_observations(self._model)
 
     def get_model(self) -> RlTrainerModel:
         return self._model
@@ -73,6 +75,8 @@ class TrainerCore:
             self._model.selectedPresetId = body.selectedPresetId
         if body.rewardTerms is not None:
             self._model.rewardTerms = body.rewardTerms
+        if body.observationTerms is not None:
+            self._model.observationTerms = body.observationTerms
         if body.termination is not None:
             self._model.termination = body.termination
         if body.customParams is not None:
@@ -281,6 +285,15 @@ class TrainerCore:
         self._sync_curriculum_to_library()
         return self._model
 
+    def sync_observation_catalog(self) -> RlTrainerModel:
+        sync_observations(self._model)
+        return self._model
+
+    def apply_observation_recommendation(self) -> RlTrainerModel:
+        self._model, notes = apply_observation_recommendation(self._model)
+        self._model.recommendationNotes.extend(notes)
+        return self._model
+
     def list_checkpoints(self) -> list[CheckpointInfo]:
         return project_storage.list_checkpoints(
             self._model.projectName,
@@ -295,4 +308,6 @@ class TrainerCore:
         core = TrainerCore(model)
         core.apply_preset("velocity_tracking")
         core.refresh_machine_profile()
+        if core.get_model().useRecommended:
+            core.apply_observation_recommendation()
         return core.get_model()
