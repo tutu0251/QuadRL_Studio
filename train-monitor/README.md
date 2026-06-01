@@ -1,0 +1,64 @@
+# Train Monitor
+
+Runtime dashboard for QuadRL training: start/stop/resume jobs, browse editor exports, track checkpoints and runs, and view TensorBoard metrics.
+
+| Service | Port |
+|---------|------|
+| Backend API | 8006 |
+| Frontend UI | 5179 |
+
+## Quick start
+
+```bash
+chmod +x start_train_monitor.sh train-monitor/start_*.sh
+./start_train_monitor.sh
+```
+
+Browser: `http://<host>:5179`
+
+## Prerequisites
+
+1. Export training configs from **PPO Planner** and **RL Trainer Editor** (`exports/ppo_<name>_config.yaml`, `exports/rl_<name>_config.yaml`).
+2. Optional: install training deps for real SB3 runs:
+
+```bash
+cd ../training
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
+
+Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUADRL_PROJECTS_DIR`).
+
+## Features
+
+- **Training control** — start, stop, resume from a selected checkpoint (wraps `training/scripts/run_rl_train.py`)
+- **Export browser** — lists all editor export files (geometry, physics, control, sensor, PPO, RL) with YAML/text preview
+- **Checkpoints** — scans `checkpoints/*.zip` with size and modified time
+- **Runs** — reads `runs/<timestamp>/run_info.yaml` and monitor state
+- **Metrics** — inline scalar sparklines from TensorBoard event files; optional embedded TensorBoard UI
+- **Live logs** — WebSocket stream of training subprocess output
+
+## API (selected)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/projects` | List projects and training readiness |
+| POST | `/api/projects/{name}/load` | Set active project |
+| GET | `/api/projects/{name}/exports` | Scan export bundle |
+| POST | `/api/projects/{name}/train/start` | Start training |
+| POST | `/api/projects/{name}/train/stop` | Stop training |
+| POST | `/api/projects/{name}/train/resume` | Resume from checkpoint |
+| GET | `/api/projects/{name}/checkpoints` | List checkpoints |
+| GET | `/api/projects/{name}/runs` | List training runs |
+| POST | `/api/projects/{name}/tensorboard/start` | Launch TensorBoard subprocess |
+| WS | `/ws/train/logs` | Live training logs + status |
+
+## Architecture
+
+```
+Editor exports  →  project/exports/
+Train Monitor   →  spawns run_rl_train.py
+                 →  reads runs/, checkpoints/
+                 →  TensorBoard + scalar parsing
+```
+
+Dev mode: no authentication.

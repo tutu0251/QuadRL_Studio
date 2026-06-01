@@ -12,6 +12,7 @@ Monorepo for robot authoring tools. Each editor lives in its own top-level folde
 | Workspace Generator | [`workspace-generator/`](workspace-generator/) | v1 — colcon workspace + RL training readiness validation |
 | PPO Planner | [`ppo-planner/`](ppo-planner/) | v1 — PPO hyperparameters + machine-based defaults |
 | RL Trainer Editor | [`rl-trainer-editor/`](rl-trainer-editor/) | v1 — rewards, termination, curriculum (PPO settings via PPO Planner) |
+| Train Monitor | [`train-monitor/`](train-monitor/) | v1 — start/stop/resume training, checkpoints, TensorBoard, export browser |
 
 ## Quick start (Sensor Editor)
 
@@ -91,3 +92,15 @@ See [`ppo-planner/README.md`](ppo-planner/README.md) for machine profiling and r
 Browser: `http://<ubuntu_ip>:5178` — configure rewards, thresholds, and PPO settings; export `rl_<project>_config.yaml` after the sensor pipeline.
 
 See [`rl-trainer-editor/README.md`](rl-trainer-editor/README.md) for presets, custom params, and SB3 export contract.
+
+## Quick start (Train Monitor)
+
+After exporting PPO and RL configs:
+
+```bash
+./start_train_monitor.sh
+```
+
+Browser: `http://<ubuntu_ip>:5179` — start/stop/resume training, browse all editor exports, track checkpoints and runs, view TensorBoard metrics.
+
+See [`train-monitor/README.md`](train-monitor/README.md) for API and training workflow.

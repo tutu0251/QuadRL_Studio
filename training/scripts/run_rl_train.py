@@ -154,6 +154,22 @@ def _save_best_model_copy(config: dict, checkpoint_dir: Path, source_ckpt: Path)
         _log(f"[train] Best model copy: {dest} (metric={best.get('metric', 'mean_episode_reward')})")
 
 
+def _resolve_resume_checkpoint(
+    config: dict,
+    project_root: Path,
+    resume_override: str | None,
+) -> Path | None:
+    """Return checkpoint path to load, or None for scratch training."""
+    resume_ckpt = resume_override if resume_override is not None else (config.get("training") or {}).get("resume_checkpoint")
+    if not resume_ckpt:
+        return None
+    resume_path = Path(resume_ckpt)
+    if not resume_path.is_absolute():
+        resume_path = project_root / resume_ckpt
+    load_path = resume_path if resume_path.is_file() else resume_path.with_suffix(".zip")
+    return load_path if load_path.is_file() else None
+
+
 def _train_stage_sb3(
     config: dict,
     stage: dict | None,
@@ -162,6 +178,7 @@ def _train_stage_sb3(
     run_root: Path,
     *,
     curriculum: bool,
+    resume_override: str | None = None,
 ) -> None:
     import gymnasium as gym
     from stable_baselines3 import PPO
@@ -199,21 +216,17 @@ def _train_stage_sb3(
         tensorboard_log=str(tb_dir),
     )
 
-    training = config.get("training") or {}
-    resume_ckpt = training.get("resume_checkpoint")
-    if resume_ckpt:
-        project_root = run_root.parent.parent
-        resume_path = Path(resume_ckpt)
-        if not resume_path.is_absolute():
-            resume_path = project_root / resume_ckpt
-        load_path = resume_path if resume_path.is_file() else resume_path.with_suffix(".zip")
-        if load_path.is_file():
-            _log(f"[train] Resuming from checkpoint: {load_path}")
-            model = PPO.load(str(load_path), env=env, device=device)
-        else:
-            _log(f"[warn] Resume checkpoint not found: {resume_path} — training from scratch")
+    project_root = run_root.parent.parent
+    load_path = _resolve_resume_checkpoint(config, project_root, resume_override)
+    if load_path:
+        _log(f"[train] Resuming from checkpoint: {load_path}")
+        model = PPO.load(str(load_path), env=env, device=device)
     else:
-        _log("[train] No resume checkpoint — training from scratch")
+        requested = resume_override or (config.get("training") or {}).get("resume_checkpoint")
+        if requested:
+            _log(f"[warn] Resume checkpoint not found: {requested} — training from scratch")
+        else:
+            _log("[train] No resume checkpoint — training from scratch")
 
     stage_label = stage.get("name", "training") if stage else "training"
     _log(f"[train] PPO learn: {stage_label} ({timesteps:,} timesteps)")
@@ -266,6 +279,12 @@ def main() -> int:
     parser.add_argument("project_dir", type=Path, help="Project folder under quadruped_dev_tool/projects")
     parser.add_argument("--config", type=Path, default=None, help="Override rl config yaml path")
     parser.add_argument("--dry-run", action="store_true", help="Simulate training without SB3")
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="Override resume checkpoint path (relative to project root or absolute)",
+    )
     args = parser.parse_args()
 
     project_dir = args.project_dir.expanduser().resolve()
@@ -301,8 +320,6 @@ def main() -> int:
             _log("[warn] gymnasium/stable-baselines3 not installed — falling back to dry-run")
             use_sb3 = False
 
-    train_fn = _train_stage_sb3 if use_sb3 else _dry_run_stage
-
     if curriculum_enabled:
         stages = sorted(curriculum["stages"], key=lambda s: s.get("order", 0))
         _log(f"[train] Curriculum: {curriculum.get('name', '')} ({len(stages)} stages)")
@@ -313,18 +330,40 @@ def main() -> int:
                 f"[train] Command vel: lin={cmd.get('target_lin_vel_x', 0)} "
                 f"ang={cmd.get('target_ang_vel_z', 0)}"
             )
-            train_fn(
-                config,
-                stage,
-                int(stage.get("timesteps", 100_000)),
-                checkpoint_dir,
-                run_root,
-                curriculum=True,
-            )
+            if use_sb3:
+                _train_stage_sb3(
+                    config,
+                    stage,
+                    int(stage.get("timesteps", 100_000)),
+                    checkpoint_dir,
+                    run_root,
+                    curriculum=True,
+                    resume_override=args.resume if i == 0 else None,
+                )
+            else:
+                _dry_run_stage(
+                    config,
+                    stage,
+                    int(stage.get("timesteps", 100_000)),
+                    checkpoint_dir,
+                    run_root,
+                    curriculum=True,
+                )
     else:
         hp = config.get("hyperparameters") or {}
         total = int(hp.get("total_timesteps", 100_000))
-        train_fn(config, None, total, checkpoint_dir, run_root, curriculum=False)
+        if use_sb3:
+            _train_stage_sb3(
+                config,
+                None,
+                total,
+                checkpoint_dir,
+                run_root,
+                curriculum=False,
+                resume_override=args.resume,
+            )
+        else:
+            _dry_run_stage(config, None, total, checkpoint_dir, run_root, curriculum=False)
 
     _log("[train] Training finished successfully")
     return 0
