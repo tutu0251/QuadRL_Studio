@@ -480,11 +480,27 @@ body {
 .resource-sparkline {
   display: block;
   width: 100%;
-  height: 36px;
+  height: 44px;
   border-radius: 4px;
   background: var(--bg-deep);
   border: 1px solid var(--border-soft);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+.resource-gauge-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resource-sparkline-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  opacity: 0.75;
+  padding: 0 1px;
 }
 
 .resource-gauge-sub {

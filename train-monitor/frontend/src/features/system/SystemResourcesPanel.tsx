@@ -2,8 +2,16 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { api } from "../../api/client";
 import type { SystemStatsSample } from "../../types";
 
-const HISTORY_LEN = 48;
+const HISTORY_WINDOW_MIN = 5;
 const POLL_MS = 1000;
+const HISTORY_LEN = (HISTORY_WINDOW_MIN * 60_000) / POLL_MS;
+
+function windowAverage(values: number[], sampleCount: number): number | null {
+  if (sampleCount <= 0) return null;
+  const slice = values.slice(-Math.min(sampleCount, values.length));
+  if (slice.length === 0) return null;
+  return slice.reduce((sum, v) => sum + v, 0) / slice.length;
+}
 
 function sparklinePath(values: number[], w: number, h: number, pad: number): string {
   if (values.length === 0) return "";
@@ -22,6 +30,7 @@ function ResourceGauge({
   label,
   percent,
   sub,
+  windowAvg,
   accent,
   history,
   gridId,
@@ -29,6 +38,7 @@ function ResourceGauge({
   label: string;
   percent: number;
   sub: string;
+  windowAvg: number | null;
   accent: string;
   history: number[];
   gridId: string;
@@ -57,7 +67,16 @@ function ResourceGauge({
         <rect width={w} height={h} fill={`url(#rg-${gridId}-${label})`} />
         {path && <path d={path} fill="none" stroke={accent} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />}
       </svg>
-      <span className="resource-gauge-sub">{sub}</span>
+      <div className="resource-gauge-foot">
+        <span className="resource-sparkline-axis" aria-hidden>
+          <span>−{HISTORY_WINDOW_MIN}m</span>
+          <span>now</span>
+        </span>
+        <span className="resource-gauge-sub">
+          {windowAvg != null ? `${HISTORY_WINDOW_MIN}m avg ${windowAvg.toFixed(1)}% · ` : ""}
+          {sub}
+        </span>
+      </div>
     </div>
   );
 }
@@ -69,6 +88,7 @@ export function SystemResourcesPanel() {
   const [ramHist, setRamHist] = useState<number[]>(() => Array(HISTORY_LEN).fill(0));
   const [gpuHist, setGpuHist] = useState<number[]>(() => Array(HISTORY_LEN).fill(0));
   const [live, setLive] = useState(false);
+  const [sampleCount, setSampleCount] = useState(0);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -88,6 +108,7 @@ export function SystemResourcesPanel() {
         setRamHist((p) => [...p.slice(1), data.ramUsedPercent]);
         const gpuPct = data.gpuUtilPercent ?? (data.gpuMemoryPercent ?? 0);
         setGpuHist((p) => [...p.slice(1), gpuPct]);
+        setSampleCount((n) => Math.min(n + 1, HISTORY_LEN));
         setLive(true);
       } catch {
         if (mounted.current) setLive(false);
@@ -103,6 +124,10 @@ export function SystemResourcesPanel() {
     ? `${sample.gpuName} · ${sample.gpuMemoryUsedMb?.toFixed(0) ?? "?"} / ${sample.gpuMemoryTotalMb?.toFixed(0) ?? "?"} MB VRAM`
     : "No GPU detected";
 
+  const cpuAvg = windowAverage(cpuHist, sampleCount);
+  const ramAvg = windowAverage(ramHist, sampleCount);
+  const gpuAvg = windowAverage(gpuHist, sampleCount);
+
   return (
     <section className="panel system-panel" aria-label="Host resources">
       <header className="panel-header">
@@ -110,13 +135,16 @@ export function SystemResourcesPanel() {
           Host
           <span className={`live-dot ${live ? "on" : ""}`} title={live ? "Live" : "Offline"} />
         </h2>
-        <span className="panel-meta mono">{sample?.hostname ?? "—"}</span>
+        <span className="panel-meta mono">
+          {sample?.hostname ?? "—"} · last {HISTORY_WINDOW_MIN} min
+        </span>
       </header>
 
       <div className="resource-gauges">
         <ResourceGauge
           label="CPU"
           percent={sample?.cpuPercent ?? 0}
+          windowAvg={cpuAvg}
           sub={`${sample?.cpuCountLogical ?? "—"} logical cores`}
           accent="#5c9fd4"
           history={cpuHist}
@@ -125,6 +153,7 @@ export function SystemResourcesPanel() {
         <ResourceGauge
           label="RAM"
           percent={sample?.ramUsedPercent ?? 0}
+          windowAvg={ramAvg}
           sub={
             sample
               ? `${sample.ramUsedMb.toLocaleString()} / ${sample.ramTotalMb.toLocaleString()} MB`
@@ -137,6 +166,7 @@ export function SystemResourcesPanel() {
         <ResourceGauge
           label="GPU"
           percent={sample?.gpuAvailable ? gpuPct : 0}
+          windowAvg={sample?.gpuAvailable ? gpuAvg : null}
           sub={gpuSub}
           accent="#e8a54a"
           history={gpuHist}
