@@ -109,35 +109,66 @@ def _checkpoint_basename(config: dict, stage: dict | None) -> str:
     return re.sub(r"[^\w\-]+", "_", name).strip("_") or "ppo_final"
 
 
-def _build_learn_callbacks(config: dict, checkpoint_dir: Path, stage: dict | None) -> list:
-    ckpt = config.get("checkpoint") or {}
-    if not ckpt.get("enabled", True):
-        return []
-    frequency = str(ckpt.get("frequency", "end_only"))
-    if frequency not in ("steps", "rollout"):
-        return []
-    try:
-        from stable_baselines3.common.callbacks import CheckpointCallback
-    except ImportError:
-        return []
+def _make_training_env():
+    import gymnasium as gym
 
-    hp = config.get("hyperparameters") or {}
-    par = config.get("parallel") or {}
-    n_steps = int(hp.get("n_steps", 2048))
-    num_envs = max(1, int(par.get("num_envs", 1)))
-    freq_steps = int(ckpt.get("frequency_steps", 50_000))
-    if frequency == "rollout":
-        freq_steps = max(1, n_steps * num_envs)
-    prefix = _checkpoint_basename(config, stage)
-    return [
-        CheckpointCallback(
-            save_freq=max(1, freq_steps),
-            save_path=str(checkpoint_dir),
-            name_prefix=prefix,
-            save_replay_buffer=False,
-            save_vecnormalize=False,
+    return gym.make("CartPole-v1")
+
+
+def _build_learn_callbacks(
+    config: dict,
+    checkpoint_dir: Path,
+    stage: dict | None,
+    *,
+    eval_env,
+    num_envs: int,
+):
+    from stable_baselines3.common.callbacks import CallbackList, CheckpointCallback
+
+    callbacks = []
+
+    ckpt = config.get("checkpoint") or {}
+    if ckpt.get("enabled", True):
+        frequency = str(ckpt.get("frequency", "end_only"))
+        if frequency in ("steps", "rollout"):
+            hp = config.get("hyperparameters") or {}
+            n_steps = int(hp.get("n_steps", 2048))
+            freq_steps = int(ckpt.get("frequency_steps", 50_000))
+            if frequency == "rollout":
+                freq_steps = max(1, n_steps * num_envs)
+            prefix = _checkpoint_basename(config, stage)
+            callbacks.append(
+                CheckpointCallback(
+                    save_freq=max(1, freq_steps),
+                    save_path=str(checkpoint_dir),
+                    name_prefix=prefix,
+                    save_replay_buffer=False,
+                    save_vecnormalize=False,
+                )
+            )
+
+    script_dir = Path(__file__).resolve().parent
+    if str(script_dir) not in sys.path:
+        sys.path.insert(0, str(script_dir))
+    try:
+        from tb_callbacks import build_tensorboard_callbacks
+
+        callbacks.extend(
+            build_tensorboard_callbacks(
+                config,
+                eval_env=eval_env,
+                stage=stage,
+                num_envs=num_envs,
+            )
         )
-    ]
+    except ImportError as exc:
+        _log(f"[warn] TensorBoard callbacks unavailable: {exc}")
+
+    if not callbacks:
+        return None
+    if len(callbacks) == 1:
+        return callbacks[0]
+    return CallbackList(callbacks)
 
 
 def _save_best_model_copy(config: dict, checkpoint_dir: Path, source_ckpt: Path) -> None:
@@ -180,16 +211,14 @@ def _train_stage_sb3(
     curriculum: bool,
     resume_override: str | None = None,
 ) -> None:
-    import gymnasium as gym
     from stable_baselines3 import PPO
-    from stable_baselines3.common.vec_env import DummyVecEnv
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
     hp = config.get("hyperparameters") or {}
+    num_envs = max(1, int((config.get("parallel") or {}).get("num_envs", 1)))
 
-    def make_env():
-        return gym.make("CartPole-v1")
-
-    env = DummyVecEnv([make_env for _ in range(max(1, (config.get("parallel") or {}).get("num_envs", 1)))])
+    env = VecMonitor(DummyVecEnv([_make_training_env for _ in range(num_envs)]))
+    eval_env = VecMonitor(DummyVecEnv([_make_training_env]))
 
     device = str(config.get("device", "auto"))
     if device == "auto":
@@ -233,11 +262,17 @@ def _train_stage_sb3(
     progress_bar = _use_progress_bar()
     if not progress_bar:
         _log("[train] progress_bar disabled (install tqdm and rich for a live bar)")
-    callbacks = _build_learn_callbacks(config, checkpoint_dir, stage)
+    callbacks = _build_learn_callbacks(
+        config,
+        checkpoint_dir,
+        stage,
+        eval_env=eval_env,
+        num_envs=num_envs,
+    )
     model.learn(
         total_timesteps=timesteps,
         progress_bar=progress_bar,
-        callback=callbacks or None,
+        callback=callbacks,
     )
     if not (config.get("checkpoint") or {}).get("enabled", True):
         _log("[train] Checkpoints disabled in config — skipping save")

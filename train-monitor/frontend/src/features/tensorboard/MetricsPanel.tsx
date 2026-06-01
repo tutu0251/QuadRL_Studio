@@ -14,6 +14,14 @@ type Props = {
 
 const TB_COLORS = ["#e8a54a", "#5c9fd4", "#66bb6a", "#ce93d8", "#ef5350", "#80cbc4"];
 
+/** Show core RL metrics first (matches training/scripts/tb_callbacks.py). */
+const FUNDAMENTAL_PREFIXES = ["rollout/", "eval/", "train/", "time/"];
+
+function scalarSortKey(tag: string): [number, string] {
+  const idx = FUNDAMENTAL_PREFIXES.findIndex((p) => tag.startsWith(p));
+  return [idx === -1 ? FUNDAMENTAL_PREFIXES.length : idx, tag];
+}
+
 function smoothValues(values: number[], weight = 0.6): number[] {
   if (values.length === 0) return [];
   let last = values[0];
@@ -110,6 +118,15 @@ export function MetricsPanel({
       ? `${getApiBaseUrl()}${tbStatus.open_url ?? tbOpenUrl(project)}`
       : null;
 
+  const sortedScalars = useMemo(
+    () => [...scalars].sort((a, b) => {
+      const [pa, ta] = scalarSortKey(a.tag);
+      const [pb, tb] = scalarSortKey(b.tag);
+      return pa !== pb ? pa - pb : ta.localeCompare(tb);
+    }),
+    [scalars],
+  );
+
   return (
     <section className="panel metrics-panel">
       <header className="panel-header">
@@ -148,7 +165,7 @@ export function MetricsPanel({
             No scalar metrics yet — start training or select a run with TensorBoard event files.
           </p>
         ) : (
-          scalars.map((s, i) => <TensorBoardChart key={s.tag} series={s} colorIndex={i} />)
+          sortedScalars.map((s, i) => <TensorBoardChart key={s.tag} series={s} colorIndex={i} />)
         )}
       </div>
     </section>

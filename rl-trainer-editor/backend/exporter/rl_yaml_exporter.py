@@ -191,6 +191,18 @@ def export_rl_yaml(model: RlTrainerModel, project_name: str) -> Path:
                 "Training writes runs/<timestamp>/run_info.yaml; curriculum stages log to "
                 "runs/<timestamp>/<order>_<stage_id>_<name>/ (SB3 PPO_* subdirs inside)."
             ),
+            "hparams": True,
+            "episode_stats": True,
+            "success_reward_threshold": 499.0,
+            "eval": {
+                "enabled": True,
+                "n_eval_episodes": 5,
+                "eval_freq": 10000,
+            },
+            "policy_histograms": {
+                "enabled": True,
+                "freq": 50000,
+            },
         },
         "custom_params": dict(model.customParams),
         "machine_profile": model.machineProfile.model_dump() if model.machineProfile else None,
