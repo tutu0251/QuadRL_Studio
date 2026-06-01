@@ -13,18 +13,18 @@ import numpy as np
 
 from quadrl_env.mock_sim import MockSimBackend
 from quadrl_env.project_config import ProjectArtifacts
+from quadrl_env.ros_env import ROS_SETUP, load_ros_environ, probe_rclpy_import
 from quadrl_env.sim_state import SimState
 
 
-def ros_stack_available() -> bool:
-    setup = Path("/opt/ros/humble/setup.bash")
-    if not setup.is_file():
-        return False
-    try:
-        import rclpy  # noqa: F401
-    except ImportError:
-        return False
-    return True
+def ros_stack_available(*, workspace_setup: Path | str | None = None) -> bool:
+    if os.environ.get("QUADRL_ROS_ENV_BOOTSTRAPPED") == "1":
+        try:
+            import rclpy  # noqa: F401
+        except ImportError:
+            return False
+        return True
+    return probe_rclpy_import(workspace_setup=workspace_setup)
 
 
 class RosSimBackend:
@@ -49,8 +49,11 @@ class RosSimBackend:
             raise RuntimeError(
                 "ROS backend requires built workspace at project/workspace — run workspace-generator setup_robot.sh"
             )
-        if not ros_stack_available():
-            raise RuntimeError("ROS 2 Humble + rclpy not available")
+        if not ros_stack_available(workspace_setup=self._artifacts.workspace_setup):
+            raise RuntimeError(
+                "ROS 2 Humble + rclpy not available — install ros-humble-desktop "
+                "(re-run training; the launcher re-execs with ROS sourced automatically)"
+            )
 
         import rclpy
         from rclpy.node import Node
@@ -145,10 +148,7 @@ class RosSimBackend:
         self._started = True
 
     def _ros_env(self) -> dict[str, str]:
-        env = os.environ.copy()
-        ros_lib = "/opt/ros/humble/lib"
-        env["LD_LIBRARY_PATH"] = f"{ros_lib}:{env.get('LD_LIBRARY_PATH', '')}"
-        return env
+        return load_ros_environ(workspace_setup=self._artifacts.workspace_setup)
 
     def close(self) -> None:
         if self._node is not None:

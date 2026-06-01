@@ -18,7 +18,7 @@ def resolve_sim_backend(project_dir: Path, *, prefer: str | None = None) -> str:
     if mode == "ros":
         return "ros"
     artifacts = load_project_artifacts(project_dir)
-    if artifacts.workspace_setup and ros_stack_available():
+    if artifacts.workspace_setup and ros_stack_available(workspace_setup=artifacts.workspace_setup):
         return "ros"
     return "mock"
 

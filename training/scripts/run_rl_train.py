@@ -365,6 +365,15 @@ def main() -> int:
         os.environ["QUADRL_SIM_BACKEND"] = args.sim_backend
 
     project_dir = args.project_dir.expanduser().resolve()
+
+    sim_mode = (args.sim_backend or os.environ.get("QUADRL_SIM_BACKEND", "auto")).lower()
+    from quadrl_env.ros_env import bootstrap_ros_runtime
+
+    ws_setup = project_dir / "workspace" / "install" / "setup.bash"
+    bootstrap_ros_runtime(
+        workspace_setup=ws_setup if ws_setup.is_file() else None,
+        sim_mode=sim_mode,
+    )
     project_name = project_dir.name
     config_path = args.config or (project_dir / "exports" / f"rl_{project_name}_config.yaml")
 

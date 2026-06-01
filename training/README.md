@@ -19,12 +19,14 @@ From the repo root (see also root [`README.md`](../README.md#python-environment)
 ./scripts/ensure_venv.sh
 ```
 
-For Gazebo training on the robot machine, also source ROS Humble and build the project workspace:
+For Gazebo training on the robot machine, build the project workspace (ROS Humble must be installed):
 
 ```bash
 ./workspace-generator/scripts/setup_robot.sh <project>
 export QUADRL_SIM_BACKEND=ros
 ```
+
+The training launcher re-execs under `source /opt/ros/humble/setup.bash` so **rclpy** works from the repo `.venv` / `training/.venv` (you do not need to source ROS manually when using Train Monitor or `run_rl_train.py`).
 
 ## Run
 
