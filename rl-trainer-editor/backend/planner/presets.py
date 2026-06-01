@@ -11,6 +11,7 @@ from planner.reward_catalog import (
     recommend_term_params,
     stand_reward_terms,
 )
+from planner.termination_catalog import build_full_termination_catalog, merge_termination_config
 
 
 @dataclass(frozen=True)
@@ -97,9 +98,16 @@ PRESET_CATALOG: list[PresetDefinition] = [
         description="Full reward/penalty catalog — enable terms manually.",
         difficulty="advanced",
         reward_terms=build_full_reward_catalog(),
-        termination=TerminationConfig(),
+        termination=TerminationConfig(
+            terminationTerms=build_full_termination_catalog(),
+        ),
     ),
 ]
+
+
+def _termination_with_catalog(base: TerminationConfig) -> TerminationConfig:
+    t = merge_termination_config(base)
+    return t
 
 
 def list_presets() -> list[dict]:
@@ -125,5 +133,5 @@ def apply_preset_to_model(model: RlTrainerModel, preset_id: str) -> RlTrainerMod
     preset = get_preset(preset_id)
     model.selectedPresetId = preset_id
     model.rewardTerms = [t.model_copy(deep=True) for t in preset.reward_terms]
-    model.termination = preset.termination.model_copy(deep=True)
+    model.termination = _termination_with_catalog(preset.termination)
     return model

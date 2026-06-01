@@ -12,10 +12,15 @@ from domain.models import (
     RewardTerm,
     StageCommand,
     TerminationConfig,
+    TerminationTerm,
 )
 from domain.stage_gait import stage_gait_type_ids, stage_is_stand_only, stage_primary_gait_for_command
 from planner.gait_defaults import build_gait
 from planner.reward_catalog import merge_reward_terms, recommend_reward_terms_for_stage
+from planner.termination_catalog import (
+    merge_termination_config,
+    recommend_termination_terms_for_stage,
+)
 
 
 @dataclass
@@ -79,6 +84,7 @@ def recommend_param_enabled(
     stage: CurriculumStage,
     rough: bool,
     reward_terms: list[RewardTerm],
+    termination_terms: list[TerminationTerm] | None = None,
 ) -> dict[str, bool]:
     flags: dict[str, bool] = {}
     is_stand = stage_is_stand_only(stage)
@@ -140,6 +146,10 @@ def recommend_param_enabled(
                 active = False
             flags[f"reward.{term.id}.{pk}"] = active
 
+    for term in termination_terms or stage.termination.terminationTerms:
+        for pk in term.params:
+            flags[f"termination.{term.id}.{pk}"] = term.enabled
+
     return flags
 
 
@@ -182,10 +192,17 @@ def recommend_stage_params(
     else:
         disturbance = DisturbanceConfig()
 
-    termination = TerminationConfig(
-        maxEpisodeSteps=500 + stage.order * 150,
-        fallBaseHeightThreshold=0.12,
-        maxTiltRad=min(0.85, 0.55 + stage.order * 0.04),
+    is_stand = stage_is_stand_only(stage)
+    termination = merge_termination_config(stage.termination)
+    termination.maxEpisodeSteps = 500 + stage.order * 150
+    termination.fallBaseHeightThreshold = 0.12
+    termination.maxTiltRad = min(0.85, 0.55 + stage.order * 0.04)
+    termination.terminationTerms = recommend_termination_terms_for_stage(
+        termination.terminationTerms,
+        cmd,
+        is_stand=is_stand,
+        lin_vel_scale=abs(vel),
+        rough=rough,
     )
     advance = CurriculumAdvanceCriteria(
         minMeanEpisodeReward=max(0.2, 0.55 - stage.order * 0.05),
@@ -193,7 +210,9 @@ def recommend_stage_params(
         maxFallRate=min(0.35, 0.15 + stage.order * 0.03),
     )
     reward_terms = _recommend_reward_terms(stage)
-    param_enabled = recommend_param_enabled(stage, rough, reward_terms)
+    param_enabled = recommend_param_enabled(
+        stage, rough, reward_terms, termination.terminationTerms
+    )
     notes = [
         f"Recommended stage '{stage.name}': vel={vel:.2f} m/s, "
         f"timesteps={timesteps:,}, rough={rough}."

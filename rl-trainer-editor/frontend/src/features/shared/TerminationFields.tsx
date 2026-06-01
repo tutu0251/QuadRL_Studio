@@ -1,7 +1,8 @@
-import type { CurriculumStage, TerminationConfig } from "@rl-trainer-model";
+import type { CurriculumStage, TerminationConfig, TerminationTerm } from "@rl-trainer-model";
 import { STAGE_PARAM_HINTS, stageParamKey } from "@rl-trainer-model";
 import { ParamBoolField, ParamNumberField } from "../../components/ParamField";
 import { paramEnabled } from "../stage/stageParamUtils";
+import { TerminationTermList } from "./TerminationTermList";
 
 export function TerminationFields({
   stage,
@@ -13,11 +14,14 @@ export function TerminationFields({
   termination: TerminationConfig;
   onChange: (patch: Partial<TerminationConfig>) => void;
   onParamFlag: (key: string, enabled: boolean) => void;
+  onTermsChange?: (terms: TerminationTerm[]) => void;
 }) {
   const hint = (name: string) => STAGE_PARAM_HINTS[stageParamKey("termination", name)];
+  const terms = termination.terminationTerms ?? [];
 
   return (
     <>
+      <h4 className="inspector-subsection-title">Global thresholds</h4>
       <ParamNumberField
         paramKey={stageParamKey("termination", "max_episode_steps")}
         label="max_episode_steps"
@@ -67,6 +71,14 @@ export function TerminationFields({
           onChange({ timeoutTruncation: v });
           onParamFlag("termination.timeout_truncation", v);
         }}
+      />
+
+      <h4 className="inspector-subsection-title">Termination conditions</h4>
+      <TerminationTermList
+        terms={terms}
+        stage={stage}
+        onParamFlag={onParamFlag}
+        onChange={(next) => onChange({ terminationTerms: next })}
       />
     </>
   );

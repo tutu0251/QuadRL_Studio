@@ -41,12 +41,20 @@ class RewardTerm(BaseModel):
     params: dict[str, float] = Field(default_factory=dict)
 
 
+class TerminationTerm(BaseModel):
+    id: str
+    category: str = ""
+    enabled: bool = False
+    params: dict[str, float] = Field(default_factory=dict)
+
+
 class TerminationConfig(BaseModel):
     maxEpisodeSteps: int = 1000
     fallBaseHeightThreshold: float = 0.15
     maxTiltRad: float = 0.8
     maxJointTorque: Optional[float] = None
     timeoutTruncation: bool = True
+    terminationTerms: list[TerminationTerm] = Field(default_factory=list)
 
 
 class CurriculumAdvanceCriteria(BaseModel):

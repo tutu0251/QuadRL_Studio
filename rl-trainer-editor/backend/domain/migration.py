@@ -15,6 +15,7 @@ from planner.curriculum_templates import curriculum_to_entry
 from domain.stage_gait import stage_gait_type_ids
 from planner.gait_defaults import default_gait_library
 from planner.reward_catalog import merge_reward_terms
+from planner.termination_catalog import merge_termination_config
 
 
 def _migrate_stage(stage: CurriculumStage) -> CurriculumStage:
@@ -41,6 +42,7 @@ def _migrate_stage(stage: CurriculumStage) -> CurriculumStage:
     if s.disturbance is None:
         s.disturbance = DisturbanceConfig()
     s.rewardTerms = merge_reward_terms(s.rewardTerms)
+    s.termination = merge_termination_config(s.termination)
     return s
 
 
@@ -74,5 +76,6 @@ def migrate_model(model: RlTrainerModel) -> RlTrainerModel:
         model.activeCurriculumId = model.curriculumLibrary[0].id
 
     model.rewardTerms = merge_reward_terms(model.rewardTerms)
-    model.version = "2.1"
+    model.termination = merge_termination_config(model.termination)
+    model.version = "2.2"
     return model

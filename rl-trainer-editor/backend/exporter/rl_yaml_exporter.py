@@ -11,6 +11,15 @@ from planner.curriculum import curriculum_total_timesteps
 from storage import project_storage
 
 
+def _termination_term_export(term) -> dict:
+    return {
+        "id": term.id,
+        "category": term.category,
+        "enabled": term.enabled,
+        "params": dict(term.params),
+    }
+
+
 def _termination_export(t) -> dict:
     return {
         "max_episode_steps": t.maxEpisodeSteps,
@@ -18,6 +27,7 @@ def _termination_export(t) -> dict:
         "max_tilt_rad": t.maxTiltRad,
         "max_joint_torque": t.maxJointTorque,
         "timeout_truncation": t.timeoutTruncation,
+        "termination_terms": [_termination_term_export(term) for term in t.terminationTerms],
     }
 
 

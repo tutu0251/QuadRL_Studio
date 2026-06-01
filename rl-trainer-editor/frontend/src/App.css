@@ -816,6 +816,28 @@ body {
   gap: 10px;
 }
 
+.inspector-subsection-title {
+  margin: 12px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa3ad;
+  width: 100%;
+}
+
+.inspector-subsection-title:first-child {
+  margin-top: 0;
+}
+
+.termination-conditions-panel {
+  width: 100%;
+}
+
+.term-type.term-termination {
+  color: #c9a227;
+}
+
 .reward-penalty-panel {
   display: flex;
   flex-direction: column;

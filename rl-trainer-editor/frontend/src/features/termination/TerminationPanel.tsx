@@ -2,6 +2,7 @@ import type { TerminationConfig } from "@rl-trainer-model";
 import { api } from "../../api/client";
 import { NumberField } from "../../components/NumberField";
 import { Toggle } from "../../components/Toggle";
+import { TerminationTermList } from "../shared/TerminationTermList";
 import { useTrainerStore } from "../../stores/trainerStore";
 
 export function TerminationPanel() {
@@ -12,6 +13,7 @@ export function TerminationPanel() {
 
   if (!model) return null;
   const t = model.termination;
+  const terms = t.terminationTerms ?? [];
 
   const patch = async (body: Partial<TerminationConfig>) => {
     if (!project) return;
@@ -28,6 +30,7 @@ export function TerminationPanel() {
 
   return (
     <div className="tab-panel termination-panel">
+      <h4 className="inspector-subsection-title">Global thresholds</h4>
       <NumberField label="max_episode_steps" value={t.maxEpisodeSteps} step={1} onChange={(v) => void patch({ maxEpisodeSteps: Math.round(v) })} />
       <NumberField label="fall_base_height_threshold" value={t.fallBaseHeightThreshold} step={0.01} onChange={(v) => void patch({ fallBaseHeightThreshold: v })} />
       <NumberField label="max_tilt_rad" value={t.maxTiltRad} step={0.05} onChange={(v) => void patch({ maxTiltRad: v })} />
@@ -41,6 +44,12 @@ export function TerminationPanel() {
         label="timeout_truncation"
         checked={t.timeoutTruncation}
         onChange={(v) => void patch({ timeoutTruncation: v })}
+      />
+
+      <h4 className="inspector-subsection-title">Termination conditions</h4>
+      <TerminationTermList
+        terms={terms}
+        onChange={(next) => void patch({ terminationTerms: next })}
       />
     </div>
   );

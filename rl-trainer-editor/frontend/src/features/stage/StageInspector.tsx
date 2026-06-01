@@ -92,6 +92,8 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
   const gaitOptions = model.gaitTypes ?? [];
   const selectedGaitIds = stageGaitTypeIds(stage);
   const activeRewardPenalty = stage.rewardTerms.filter((t) => t.enabled).length;
+  const activeTermination = (stage.termination.terminationTerms ?? []).filter((t) => t.enabled)
+    .length;
   const gaitEnabled = paramEnabled(stage, "identity.gait_type");
   const timestepsEnabled = paramEnabled(stage, "identity.timesteps");
   const titleTooltip =
@@ -200,6 +202,9 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
             {t.label}
             {t.id === "rewards" && activeRewardPenalty > 0 ? (
               <span className="stage-tab-badge">{activeRewardPenalty}</span>
+            ) : null}
+            {t.id === "termination" && activeTermination > 0 ? (
+              <span className="stage-tab-badge">{activeTermination}</span>
             ) : null}
           </button>
         ))}
@@ -336,14 +341,16 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
         )}
 
         {activeTab === "termination" && (
-          <InspectorParamGrid>
-            <TerminationFields
-              stage={stage}
-              termination={stage.termination}
-              onChange={(p) => patchStage({ termination: { ...stage.termination, ...p } })}
-              onParamFlag={setParamFlag}
-            />
-          </InspectorParamGrid>
+          <div className="inspector-tab-pane-termination">
+            <InspectorParamGrid>
+              <TerminationFields
+                stage={stage}
+                termination={stage.termination}
+                onChange={(p) => patchStage({ termination: { ...stage.termination, ...p } })}
+                onParamFlag={setParamFlag}
+              />
+            </InspectorParamGrid>
+          </div>
         )}
 
         {activeTab === "advance" && (

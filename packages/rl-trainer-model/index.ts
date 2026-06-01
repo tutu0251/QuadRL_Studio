@@ -39,12 +39,20 @@ export interface RewardTerm {
   params: Record<string, number>;
 }
 
+export interface TerminationTerm {
+  id: string;
+  category: string;
+  enabled: boolean;
+  params: Record<string, number>;
+}
+
 export interface TerminationConfig {
   maxEpisodeSteps: number;
   fallBaseHeightThreshold: number;
   maxTiltRad: number;
   maxJointTorque: number | null;
   timeoutTruncation: boolean;
+  terminationTerms: TerminationTerm[];
 }
 
 export interface CurriculumAdvanceCriteria {
@@ -244,6 +252,7 @@ export const PRESET_CATALOG: PresetInfo[] = [
 ];
 
 export * from "./rewardCatalog";
+export * from "./terminationCatalog";
 
 export const REWARD_CATEGORY_HINTS: Record<string, string> = {
   velocity: "Requires base linear/angular velocity observations",
@@ -293,6 +302,40 @@ export const STAGE_PARAM_HINTS: Record<string, string> = {
   "advance.max_fall_rate": "Maximum allowed fraction of episodes ending in a fall.",
 };
 
+export const TERMINATION_CATEGORY_HINTS: Record<string, string> = {
+  contact: "Requires foot contact and slip observations",
+  velocity: "Uses base linear/angular velocity",
+  safety: "Joint limit proximity and self-collision checks",
+  energy: "Joint torques and power draw",
+  height: "Base height vs command and terrain foot contacts",
+  monitoring: "Episode reward statistics for runaway policies",
+};
+
+export const TERMINATION_PARAM_HINTS: Record<string, string> = {
+  slip_threshold: "Foot slip speed (m/s) above which the episode fails.",
+  min_contacts: "Minimum feet on ground required to avoid contact-loss failure.",
+  contact_loss_steps: "Consecutive steps below min_contacts before termination.",
+  max_lin_vel: "Maximum allowed base linear speed (m/s).",
+  max_ang_vel: "Maximum allowed base angular speed (rad/s).",
+  limit_margin: "Radians from hard joint limits before failure.",
+  max_joint_torque: "Per-joint torque ceiling (N·m).",
+  max_joint_power: "Aggregate joint power ceiling (W).",
+  max_height_deviation: "Allowed |base height − commanded height| (m).",
+  min_terrain_contacts: "Minimum feet touching terrain/ground.",
+  max_step_reward: "Single-step reward above which the episode is flagged.",
+  cumulative_threshold: "Rolling cumulative reward spike threshold.",
+};
+
+export const TERMINATION_TERM_HINTS: Record<string, string> = {
+  foot_slip_contact_loss: "End episode on excessive foot slip or sustained loss of contacts.",
+  base_linear_velocity_limit: "End episode if base linear velocity exceeds limit.",
+  base_angular_velocity_limit: "End episode if base angular velocity exceeds limit.",
+  joint_limits_self_collision: "End episode near joint limits or on self-collision.",
+  energy_torque_safety: "End episode when torques or power exceed safe bounds.",
+  height_deviation_terrain_contact: "End episode on large height error or missing terrain contact.",
+  reward_anomaly: "End episode on abnormal per-step or cumulative reward spikes.",
+};
+
 export const REWARD_PARAM_HINTS: Record<string, string> = {
   weight: "Scale this term in the total reward sum (recommended value shown in catalog).",
   target_height: "Desired base height (m); auto-synced from stage command on recommend.",
@@ -340,6 +383,10 @@ export function stageParamKey(section: string, name: string): string {
 
 export function rewardParamKey(termId: string, param: string): string {
   return `reward.${termId}.${param}`;
+}
+
+export function terminationParamKey(termId: string, param: string): string {
+  return `termination.${termId}.${param}`;
 }
 
 export function isStageParamEnabled(
