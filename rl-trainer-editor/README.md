@@ -23,7 +23,7 @@ Complete the sensor editor pipeline first (`sensor_model.json` and `sens_*_obser
 ## Workflow
 
 1. **File → select project** — auto-bootstraps with `velocity_tracking` preset and profiles the host.
-2. **Curriculum** — for step-by-step training, apply **Stand still → Sprint**: stand → slow walk → walk → run → sprint (~2.1M steps total). Each stage has its own rewards, velocity command, and advance criteria.
+2. **Curriculum** — for step-by-step training, apply **Stand → Sprint**: Stand → Recover → Walk → Trot → Pace → Bound → Gallop (~3.5M steps total). Each stage has its own rewards, velocity command, and advance criteria (first stage uses the `none` gate type).
 3. **Rewards / Termination / Custom** — adjust task configuration.
 4. **Validate → Export YAML** — writes `exports/rl_<project>_config.yaml`.
 5. **PPO Planner** — tune hyperparameters and parallel envs, then export `exports/ppo_<project>_config.yaml`.

@@ -213,17 +213,17 @@ export const CURRICULUM_CATALOG: CurriculumInfo[] = [
   {
     id: "stand_sprint",
     name: "Stand → Sprint (flat)",
-    description: "Four gate types from none through gallop on flat terrain.",
-    stageCount: 4,
-    totalTimesteps: 2_100_000,
+    description: "Seven stages from balance through gallop on flat terrain.",
+    stageCount: 7,
+    totalTimesteps: 3_500_000,
     terrainProfile: "flat",
   },
   {
     id: "stand_sprint_rough",
     name: "Stand → Sprint (rough terrain)",
-    description: "Same gate-type progression with disturbances and rough terrain.",
-    stageCount: 4,
-    totalTimesteps: 2_310_000,
+    description: "Same seven-stage progression with disturbances and rough terrain.",
+    stageCount: 7,
+    totalTimesteps: 3_850_000,
     terrainProfile: "rough",
   },
 ];

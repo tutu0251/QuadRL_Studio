@@ -16,6 +16,66 @@ from quadrl_env.project_config import ProjectArtifacts
 from quadrl_env.ros_env import ROS_SETUP, load_ros_environ, probe_rclpy_import
 from quadrl_env.sim_state import SimState
 
+_rclpy_refcount = 0
+_gazebo_refcount = 0
+_shared_launch_proc: subprocess.Popen[str] | None = None
+
+
+def _ensure_rclpy_initialized() -> None:
+    """Initialize rclpy once per process (EvalCallback uses a second env)."""
+    global _rclpy_refcount
+    import rclpy
+
+    if not rclpy.ok():
+        rclpy.init(args=None)
+    _rclpy_refcount += 1
+
+
+def _release_rclpy() -> None:
+    global _rclpy_refcount
+    import rclpy
+
+    _rclpy_refcount = max(0, _rclpy_refcount - 1)
+    if _rclpy_refcount == 0 and rclpy.ok():
+        rclpy.shutdown()
+
+
+def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
+    """Launch Gazebo once; additional backends attach to the same sim."""
+    global _gazebo_refcount, _shared_launch_proc
+    if _shared_launch_proc is None or _shared_launch_proc.poll() is not None:
+        env = load_ros_environ(workspace_setup=artifacts.workspace_setup)
+        setup = artifacts.workspace_setup
+        pkg = artifacts.bringup_pkg
+        launch = (
+            f"source /opt/ros/humble/setup.bash && source {setup} && "
+            f"ros2 launch {pkg} sim.launch.py headless:=true"
+        )
+        _shared_launch_proc = subprocess.Popen(
+            ["bash", "-lc", launch],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        time.sleep(float(os.environ.get("QUADRL_SIM_WARMUP_S", "25")))
+    _gazebo_refcount += 1
+    return _shared_launch_proc
+
+
+def _release_gazebo() -> None:
+    global _gazebo_refcount, _shared_launch_proc
+    _gazebo_refcount = max(0, _gazebo_refcount - 1)
+    if _gazebo_refcount > 0 or _shared_launch_proc is None:
+        return
+    if _shared_launch_proc.poll() is None:
+        _shared_launch_proc.send_signal(signal.SIGINT)
+        try:
+            _shared_launch_proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            _shared_launch_proc.kill()
+    _shared_launch_proc = None
+
 
 def ros_stack_available(*, workspace_setup: Path | str | None = None) -> bool:
     if os.environ.get("QUADRL_ROS_ENV_BOOTSTRAPPED") == "1":
@@ -61,7 +121,7 @@ class RosSimBackend:
         from sensor_msgs.msg import Imu, JointState
         from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-        rclpy.init(args=None)
+        _ensure_rclpy_initialized()
         self._node = Node(f"quadrl_train_{self._artifacts.project_name}_{self._env_id}")
 
         reliable = QoSProfile(
@@ -127,43 +187,19 @@ class RosSimBackend:
         self._JointTrajectory = JointTrajectory
         self._JointTrajectoryPoint = JointTrajectoryPoint
 
-        env = self._ros_env()
-        setup = self._artifacts.workspace_setup
-        pkg = self._artifacts.bringup_pkg
-        launch = (
-            f"source /opt/ros/humble/setup.bash && source {setup} && "
-            f"ros2 launch {pkg} sim.launch.py headless:=true"
-        )
-        self._launch_proc = subprocess.Popen(
-            ["bash", "-lc", launch],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        time.sleep(float(os.environ.get("QUADRL_SIM_WARMUP_S", "25")))
+        self._launch_proc = _acquire_gazebo(self._artifacts)
 
         self._spin_thread = threading.Thread(target=rclpy.spin, args=(self._node,), daemon=True)
         self._spin_thread.start()
         self._started = True
 
-    def _ros_env(self) -> dict[str, str]:
-        return load_ros_environ(workspace_setup=self._artifacts.workspace_setup)
-
     def close(self) -> None:
         if self._node is not None:
-            import rclpy
-
             self._node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
             self._node = None
-        if self._launch_proc and self._launch_proc.poll() is None:
-            self._launch_proc.send_signal(signal.SIGINT)
-            try:
-                self._launch_proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self._launch_proc.kill()
+            _release_rclpy()
+        if self._launch_proc is not None:
+            _release_gazebo()
         self._launch_proc = None
         self._started = False
 
