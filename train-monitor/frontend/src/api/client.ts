@@ -4,6 +4,7 @@ import type {
   ProjectSummary,
   RunInfo,
   ScalarSeries,
+  SystemStatsSample,
   TensorBoardStatus,
   TrainStatus,
 } from "../types";
@@ -23,6 +24,9 @@ function resolveApiBaseUrl(): string {
 const BASE = resolveApiBaseUrl();
 
 export const getApiBaseUrl = () => BASE;
+
+export const tbOpenUrl = (project: string) =>
+  `/api/projects/${encodeURIComponent(project)}/tensorboard/view/`;
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`${BASE}${path}`, {
@@ -87,4 +91,5 @@ export const api = {
     ),
   tbStop: (name: string) =>
     req<TensorBoardStatus>(`/api/projects/${name}/tensorboard/stop`, { method: "POST" }),
+  systemStats: () => req<SystemStatsSample>("/api/system/stats"),
 };

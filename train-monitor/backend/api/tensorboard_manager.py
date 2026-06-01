@@ -54,10 +54,13 @@ class TensorBoardManager:
             return TensorBoardStatus(running=False, error=self._last_error)
         if not self.is_running():
             return TensorBoardStatus(running=False, error=self._last_error)
+        proj = project or self._project or ""
+        embed = self.embed_path(proj)
         return TensorBoardStatus(
             running=True,
             url=self._local_url(),
-            embed_url=self.embed_path(project or self._project or ""),
+            embed_url=embed,
+            open_url=f"/api/projects/{proj}/tensorboard/view/" if proj else None,
             port=self._port,
             logdir=self._logdir,
             run_id=self._run_id,

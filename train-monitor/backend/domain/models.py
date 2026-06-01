@@ -78,10 +78,30 @@ class TensorBoardStatus(BaseModel):
     running: bool
     url: Optional[str] = None
     embed_url: Optional[str] = None
+    open_url: Optional[str] = None
     port: Optional[int] = None
     logdir: Optional[str] = None
     run_id: Optional[str] = None
     error: Optional[str] = None
+
+
+class SystemStatsSample(BaseModel):
+    sampledAt: str
+    hostname: str
+    cpuPercent: float
+    cpuCountLogical: int
+    ramTotalMb: int
+    ramUsedMb: int
+    ramAvailableMb: int
+    ramUsedPercent: float
+    ramTotalGb: float
+    ramUsedGb: float
+    gpuAvailable: bool
+    gpuName: str
+    gpuUtilPercent: Optional[float] = None
+    gpuMemoryUsedMb: Optional[float] = None
+    gpuMemoryTotalMb: Optional[float] = None
+    gpuMemoryPercent: Optional[float] = None
 
 
 class ProjectSummary(BaseModel):

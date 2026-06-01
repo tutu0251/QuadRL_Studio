@@ -64,10 +64,30 @@ export type TensorBoardStatus = {
   running: boolean;
   url?: string | null;
   embed_url?: string | null;
+  open_url?: string | null;
   port?: number | null;
   logdir?: string | null;
   run_id?: string | null;
   error?: string | null;
+};
+
+export type SystemStatsSample = {
+  sampledAt: string;
+  hostname: string;
+  cpuPercent: number;
+  cpuCountLogical: number;
+  ramTotalMb: number;
+  ramUsedMb: number;
+  ramAvailableMb: number;
+  ramUsedPercent: number;
+  ramTotalGb: number;
+  ramUsedGb: number;
+  gpuAvailable: boolean;
+  gpuName: string;
+  gpuUtilPercent?: number | null;
+  gpuMemoryUsedMb?: number | null;
+  gpuMemoryTotalMb?: number | null;
+  gpuMemoryPercent?: number | null;
 };
 
 export type ProjectSummary = {

@@ -34,13 +34,16 @@ Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUAD
 - **Export browser** — lists all editor export files (geometry, physics, control, sensor, PPO, RL) with YAML/text preview
 - **Checkpoints** — scans `checkpoints/*.zip` with size and modified time
 - **Runs** — reads `runs/<timestamp>/run_info.yaml` and monitor state
-- **Metrics** — inline scalar sparklines from TensorBoard event files; optional embedded TensorBoard UI
+- **Host resources** — realtime CPU, RAM, and GPU utilization on the training machine
+- **Metrics** — TensorBoard-style scalar charts from event files; open full TensorBoard in a separate tab via link
+- **Training elapsed** — live timer for the current training session
 - **Live logs** — WebSocket stream of training subprocess output
 
 ## API (selected)
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/system/stats` | Realtime CPU, RAM, GPU usage |
 | GET | `/api/projects` | List projects and training readiness |
 | POST | `/api/projects/{name}/load` | Set active project |
 | GET | `/api/projects/{name}/exports` | Scan export bundle |

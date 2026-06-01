@@ -1,3 +1,4 @@
+import { formatTimestamp } from "../../utils/format";
 import type { RunInfo } from "../../types";
 
 type Props = {
@@ -35,7 +36,7 @@ export function RunsPanel({ runs, selectedRunId, onSelect }: Props) {
                 <span className="list-title">{run.run_id}</span>
                 <span className="list-meta">
                   <span className={`badge ${STATUS_CLASS[run.status] ?? "badge-unknown"}`}>{run.status}</span>
-                  {run.started_at && ` · ${run.started_at}`}
+                  {run.started_at && ` · ${formatTimestamp(run.started_at)}`}
                   {run.curriculum_enabled && " · curriculum"}
                 </span>
               </button>

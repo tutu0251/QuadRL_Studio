@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { formatElapsedSince, formatTimestamp } from "../../utils/format";
 import type { TrainStatus } from "../../types";
 
 type Props = {
@@ -27,6 +29,16 @@ export function TrainingPanel({
 }: Props) {
   const running = status?.state === "running" || status?.state === "starting";
   const stateLabel = status?.state ?? "idle";
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!running || !status?.started_at) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [running, status?.started_at]);
+
+  const elapsed =
+    running && status?.started_at ? formatElapsedSince(status.started_at, now) : null;
 
   return (
     <section className="panel training-panel">
@@ -41,6 +53,16 @@ export function TrainingPanel({
         <p className="panel-warn">
           Missing required exports (rl_* and ppo_* config YAML). Export from RL Trainer and PPO Planner first.
         </p>
+      )}
+
+      {elapsed && (
+        <div className="train-elapsed" aria-live="polite">
+          <span className="train-elapsed-label">Elapsed</span>
+          <span className="train-elapsed-value mono">{elapsed}</span>
+          {status?.started_at && (
+            <span className="train-elapsed-started">since {formatTimestamp(status.started_at)}</span>
+          )}
+        </div>
       )}
 
       <div className="train-controls">
@@ -72,7 +94,7 @@ export function TrainingPanel({
           {status.run_id && (
             <>
               <dt>Run</dt>
-              <dd>{status.run_id}</dd>
+              <dd className="mono">{status.run_id}</dd>
             </>
           )}
           {status.current_stage && (

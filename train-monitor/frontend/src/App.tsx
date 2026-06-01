@@ -4,9 +4,10 @@ import { CheckpointsPanel } from "./features/checkpoints/CheckpointsPanel";
 import { ConsolePanel } from "./features/console/ConsolePanel";
 import { ExportsPanel } from "./features/exports/ExportsPanel";
 import { MenuBar } from "./features/menu/MenuBar";
+import { MetricsPanel } from "./features/tensorboard/MetricsPanel";
 import { RunsPanel } from "./features/runs/RunsPanel";
 import { StatusBar } from "./features/status/StatusBar";
-import { TensorBoardPanel } from "./features/tensorboard/TensorBoardPanel";
+import { SystemResourcesPanel } from "./features/system/SystemResourcesPanel";
 import { TrainingPanel } from "./features/training/TrainingPanel";
 import { useMonitorStore } from "./stores/monitorStore";
 import type { ProjectSummary, TensorBoardStatus } from "./types";
@@ -41,24 +42,20 @@ export default function App() {
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [tbStatus, setTbStatus] = useState<TensorBoardStatus | null>(null);
 
-  const ensureTensorBoard = useCallback(
-    async (name: string, runId: string | null, runList: typeof runs) => {
-      const run = runList.find((r) => r.run_id === runId);
-      const hasEvents = run?.stages.some((s) => s.has_events) ?? false;
-      if (runId && !hasEvents) {
-        return;
-      }
-      try {
-        const tb = await api.tbStart(name, runId ?? undefined);
-        setTbStatus(tb);
-        if (tb.error) {
-          setError(tb.error);
-        }
-      } catch (e) {
-        setError(String(e));
+  const trainingActive =
+    trainStatus?.state === "running" || trainStatus?.state === "starting";
+
+  const refreshScalars = useCallback(
+    async (name: string, runId: string | null) => {
+      if (runId) {
+        const sc = await api.getScalars(name, runId);
+        setScalars(sc.series);
+      } else {
+        const sc = await api.getScalars(name);
+        setScalars(sc.series);
       }
     },
-    []
+    [setScalars]
   );
 
   const refreshProjectData = useCallback(
@@ -80,18 +77,17 @@ export default function App() {
       if (!selectedRunId && activeRun) {
         setSelectedRunId(activeRun);
       }
-      if (activeRun) {
-        const sc = await api.getScalars(name, activeRun);
-        setScalars(sc.series);
-        if (!tb.running) {
-          await ensureTensorBoard(name, activeRun, runList.runs);
-        }
-      } else {
-        const sc = await api.getScalars(name);
-        setScalars(sc.series);
-      }
+      await refreshScalars(name, activeRun);
     },
-    [selectedRunId, setCheckpoints, setExports, setRuns, setScalars, setSelectedRunId, setTrainStatus, ensureTensorBoard]
+    [
+      selectedRunId,
+      setCheckpoints,
+      setExports,
+      setRuns,
+      setSelectedRunId,
+      setTrainStatus,
+      refreshScalars,
+    ]
   );
 
   const refreshProjects = useCallback(async () => {
@@ -138,6 +134,15 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [project, refreshProjectData]);
 
+  useEffect(() => {
+    if (!project) return;
+    const ms = trainingActive ? 2000 : 8000;
+    const id = window.setInterval(() => {
+      refreshScalars(project, selectedRunId).catch(() => {});
+    }, ms);
+    return () => window.clearInterval(id);
+  }, [project, selectedRunId, trainingActive, refreshScalars]);
+
   const loadProject = async (name: string) => {
     setError(null);
     setBusy(true);
@@ -173,9 +178,7 @@ export default function App() {
     setSelectedRunId(runId);
     setError(null);
     try {
-      const sc = await api.getScalars(project, runId);
-      setScalars(sc.series);
-      await ensureTensorBoard(project, runId, runs);
+      await refreshScalars(project, runId);
     } catch (e) {
       setError(String(e));
     }
@@ -255,14 +258,14 @@ export default function App() {
 
   return (
     <div className="app monitor-app">
-      <div className="top-bar">
+      <header className="top-bar">
         <MenuBar
           projects={projects}
           projectDetails={projectDetails}
           active={project}
           onLoad={loadProject}
         />
-      </div>
+      </header>
 
       {error && (
         <div className="error-bar" role="alert">
@@ -287,6 +290,7 @@ export default function App() {
             onResume={resumeTraining}
             busy={busy}
           />
+          <SystemResourcesPanel />
           <CheckpointsPanel
             checkpoints={checkpoints}
             selected={selectedCheckpoint}
@@ -296,18 +300,20 @@ export default function App() {
         </aside>
 
         <main className="main-col">
+          <MetricsPanel
+            project={project}
+            scalars={scalars}
+            tbStatus={tbStatus}
+            trainingActive={trainingActive}
+            onOpenTb={startTb}
+            onStopTb={stopTb}
+            busy={busy}
+          />
           <ExportsPanel
             bundle={exports}
             selectedPath={selectedExportPath}
             preview={exportPreview}
             onSelect={selectExport}
-          />
-          <TensorBoardPanel
-            scalars={scalars}
-            tbStatus={tbStatus}
-            onStartTb={startTb}
-            onStopTb={stopTb}
-            busy={busy}
           />
         </main>
       </div>
@@ -316,7 +322,7 @@ export default function App() {
         <ConsolePanel />
       </div>
 
-      <StatusBar connected={connected} project={project} />
+      <StatusBar connected={connected} project={project} trainingActive={trainingActive} />
     </div>
   );
 }

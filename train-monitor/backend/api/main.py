@@ -73,6 +73,20 @@ def health():
     return {"status": "ok", "editor": "train-monitor"}
 
 
+@app.get("/api/system/stats")
+def system_stats():
+    from profiler.system_stats import sample_system_stats
+
+    return sample_system_stats()
+
+
+@app.get("/api/machine/profile")
+def machine_profile():
+    from profiler.system_stats import machine_profile_dict
+
+    return machine_profile_dict()
+
+
 @app.get("/api/projects")
 def list_projects():
     projects = project_storage.list_projects()

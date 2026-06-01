@@ -1,3 +1,4 @@
+import { formatBytes, formatTimestamp } from "../../utils/format";
 import type { CheckpointInfo } from "../../types";
 
 type Props = {
@@ -6,15 +7,9 @@ type Props = {
   onSelect: (path: string) => void;
 };
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export function CheckpointsPanel({ checkpoints, selected, onSelect }: Props) {
   return (
-    <section className="panel">
+    <section className="panel checkpoints-panel">
       <header className="panel-header">
         <h2>Checkpoints</h2>
         <span className="panel-count">{checkpoints.length}</span>
@@ -31,9 +26,10 @@ export function CheckpointsPanel({ checkpoints, selected, onSelect }: Props) {
                 onClick={() => onSelect(ckpt.path)}
               >
                 <span className="list-title">{ckpt.filename}</span>
-                <span className="list-meta">
-                  {formatBytes(ckpt.size_bytes)} · {new Date(ckpt.modified_at).toLocaleString()}
-                </span>
+                <span className="list-meta">{formatBytes(ckpt.size_bytes)}</span>
+                <time className="list-timestamp" dateTime={ckpt.modified_at}>
+                  {formatTimestamp(ckpt.modified_at)}
+                </time>
               </button>
             </li>
           ))}

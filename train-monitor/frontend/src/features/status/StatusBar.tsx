@@ -1,16 +1,18 @@
 type Props = {
   connected: boolean;
   project: string | null;
+  trainingActive?: boolean;
 };
 
-export function StatusBar({ connected, project }: Props) {
+export function StatusBar({ connected, project, trainingActive }: Props) {
   return (
     <footer className="status-bar">
       <span className={connected ? "status-ok" : "status-err"}>
-        {connected ? "Connected" : "Disconnected"}
+        {connected ? "API connected" : "API disconnected"}
       </span>
-      <span>{project ? `Project: ${project}` : "No project loaded"}</span>
-      <span>Backend :8006 · UI :5179</span>
+      <span>{project ? `Project · ${project}` : "No project"}</span>
+      {trainingActive && <span className="status-training">Training in progress</span>}
+      <span className="status-ports">:8006 · :5179</span>
     </footer>
   );
 }
