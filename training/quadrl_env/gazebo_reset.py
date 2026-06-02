@@ -7,6 +7,15 @@ from typing import Any
 import numpy as np
 
 
+def _rclpy_ok() -> bool:
+    try:
+        import rclpy
+
+        return rclpy.ok()
+    except ImportError:
+        return False
+
+
 def reset_gazebo_robot(
     node: Any,
     *,
@@ -22,6 +31,8 @@ def reset_gazebo_robot(
     settle_steps: int = 8,
 ) -> None:
     """Teleport model and command default joint positions."""
+    if not _rclpy_ok():
+        return
     _set_entity_pose(node, world_name=world_name, entity_name=entity_name, spawn=spawn)
     _command_joint_positions(
         jtc_pub,
@@ -41,6 +52,8 @@ def _set_entity_pose(
     entity_name: str,
     spawn: dict[str, float],
 ) -> None:
+    if not _rclpy_ok():
+        return
     try:
         from geometry_msgs.msg import Pose
         from ros_gz_interfaces.msg import Entity
@@ -68,12 +81,17 @@ def _set_entity_pose(
     deadline = time.time() + 12.0
     services = list(dict.fromkeys(candidate_services))
     while time.time() < deadline and chosen_service is None:
+        if not _rclpy_ok():
+            return
         for service in services:
-            c = node.create_client(SetEntityPose, service)
-            if c.wait_for_service(timeout_sec=0.5 if service != preferred_service else 1.0):
-                chosen_service = service
-                client = c
-                break
+            try:
+                c = node.create_client(SetEntityPose, service)
+                if c.wait_for_service(timeout_sec=0.5 if service != preferred_service else 1.0):
+                    chosen_service = service
+                    client = c
+                    break
+            except Exception:
+                return
         if chosen_service is None:
             time.sleep(0.1)
 
@@ -81,8 +99,13 @@ def _set_entity_pose(
     # `wait_for_service()` stays false. If we can see a correctly-typed service
     # in the graph, proceed anyway and let the request timeout naturally.
     if (chosen_service is None or client is None) and discovered_typed:
+        if not _rclpy_ok():
+            return
         fallback = preferred_service if preferred_service in discovered_typed else sorted(discovered_typed)[0]
-        client = node.create_client(SetEntityPose, fallback)
+        try:
+            client = node.create_client(SetEntityPose, fallback)
+        except Exception:
+            return
         chosen_service = fallback
 
     if chosen_service is None or client is None:
@@ -123,7 +146,12 @@ def _set_entity_pose(
     req.pose.orientation.y = cr * sp * cy + sr * cp * sy
     req.pose.orientation.z = cr * cp * sy - sr * sp * cy
 
-    future = client.call_async(req)
+    if not _rclpy_ok():
+        return
+    try:
+        future = client.call_async(req)
+    except Exception:
+        return
     if not _wait_for_service_response(node, future, timeout_sec=3.0):
         node.get_logger().warning(
             f"Gazebo reset: set_pose call timed out on {chosen_service} (entity={entity_name})"
@@ -169,6 +197,8 @@ def apply_ros_wrench(
     force: np.ndarray,
     torque: np.ndarray,
 ) -> None:
+    if not _rclpy_ok():
+        return
     try:
         from ros_gz_interfaces.msg import Entity, EntityWrench
         from ros_gz_interfaces.srv import ApplyEntityWrench
@@ -186,10 +216,15 @@ def apply_ros_wrench(
 
     client = None
     for service in dict.fromkeys(candidate_services):
-        c = node.create_client(ApplyEntityWrench, service)
-        if c.wait_for_service(timeout_sec=0.02 if service != preferred_service else 0.05):
-            client = c
-            break
+        if not _rclpy_ok():
+            return
+        try:
+            c = node.create_client(ApplyEntityWrench, service)
+            if c.wait_for_service(timeout_sec=0.02 if service != preferred_service else 0.05):
+                client = c
+                break
+        except Exception:
+            return
     if client is None:
         return
 

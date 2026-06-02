@@ -212,10 +212,8 @@ class TrainManager:
         self._emit("warn", "Stopping training (SIGTERM)…")
         pid = proc.pid
         try:
-            if hasattr(os, "killpg"):
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
-            else:
-                proc.terminate()
+            # SIGTERM the training process only so Gazebo/ROS stay alive until env.close().
+            proc.terminate()
         except ProcessLookupError:
             pass
 

@@ -316,18 +316,25 @@ class RosSimBackend:
         self._disturbance.reset(seed=self._env_id)
         self._step = 0
         default_targets = _default_joint_positions(self._artifacts)
-        reset_gazebo_robot(
-            self._node,
-            world_name=self._world_name,
-            entity_name=self._entity_name,
-            spawn=dict(self._artifacts.spawn_config),
-            joint_names=list(self._artifacts.joint_names),
-            joint_positions=default_targets,
-            jtc_pub=self._jtc_pub,
-            joint_trajectory_msg_cls=self._JointTrajectory,
-            joint_trajectory_point_cls=self._JointTrajectoryPoint,
-            control_dt=self._artifacts.control_dt,
-        )
+        try:
+            import rclpy
+
+            ros_live = rclpy.ok()
+        except ImportError:
+            ros_live = False
+        if ros_live:
+            reset_gazebo_robot(
+                self._node,
+                world_name=self._world_name,
+                entity_name=self._entity_name,
+                spawn=dict(self._artifacts.spawn_config),
+                joint_names=list(self._artifacts.joint_names),
+                joint_positions=default_targets,
+                jtc_pub=self._jtc_pub,
+                joint_trajectory_msg_cls=self._JointTrajectory,
+                joint_trajectory_point_cls=self._JointTrajectoryPoint,
+                control_dt=self._artifacts.control_dt,
+            )
         base_h = float(self._command.get("target_body_height", self._artifacts.spawn_config.get("z", 0.5)))
         fallback = SimState(
             joint_pos=default_targets.astype(np.float32, copy=True),

@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import sys
 import time
 from pathlib import Path
@@ -15,6 +16,36 @@ import yaml
 _TRAINING_ROOT = Path(__file__).resolve().parents[1]
 if str(_TRAINING_ROOT) not in sys.path:
     sys.path.insert(0, str(_TRAINING_ROOT))
+
+_shutdown_requested = False
+
+
+def _install_shutdown_handlers() -> None:
+    def _handler(signum: int, frame: object | None) -> None:
+        del signum, frame
+        global _shutdown_requested
+        _shutdown_requested = True
+
+    signal.signal(signal.SIGTERM, _handler)
+    signal.signal(signal.SIGINT, _handler)
+
+
+def _is_ros_shutdown_error(exc: BaseException) -> bool:
+    name = type(exc).__name__
+    if name in ("RCLError", "ExternalShutdownException"):
+        return True
+    msg = str(exc).lower()
+    return "context is invalid" in msg or "rcl_shutdown" in msg
+
+
+def _prepend_callback(callbacks, first):
+    from stable_baselines3.common.callbacks import CallbackList
+
+    if callbacks is None:
+        return first
+    if isinstance(callbacks, CallbackList):
+        return CallbackList([first, *callbacks.callbacks])
+    return CallbackList([first, callbacks])
 
 
 def _load_config(config_path: Path) -> dict:
@@ -205,6 +236,16 @@ def _build_learn_callbacks(
     return CallbackList(callbacks)
 
 
+def _make_stop_training_callback():
+    from stable_baselines3.common.callbacks import BaseCallback
+
+    class StopTrainingCallback(BaseCallback):
+        def _on_step(self) -> bool:
+            return not _shutdown_requested
+
+    return StopTrainingCallback(verbose=0)
+
+
 def _save_best_model_copy(config: dict, checkpoint_dir: Path, source_ckpt: Path) -> None:
     best = config.get("best_model") or {}
     if not best.get("enabled", True):
@@ -248,6 +289,8 @@ def _train_stage_sb3(
     reset_policy: bool = False,
 ) -> None:
     from stable_baselines3 import PPO
+
+    _install_shutdown_handlers()
 
     hp = config.get("hyperparameters") or {}
     num_envs = max(1, int((config.get("parallel") or {}).get("num_envs", 1)))
@@ -300,20 +343,32 @@ def _train_stage_sb3(
     progress_bar = _use_progress_bar()
     if not progress_bar:
         _log("[train] progress_bar disabled (install tqdm and rich for a live bar)")
-    callbacks = _build_learn_callbacks(
-        config,
-        checkpoint_dir,
-        stage,
-        eval_env=eval_env,
-        num_envs=num_envs,
+    callbacks = _prepend_callback(
+        _build_learn_callbacks(
+            config,
+            checkpoint_dir,
+            stage,
+            eval_env=eval_env,
+            num_envs=num_envs,
+        ),
+        _make_stop_training_callback(),
     )
-    model.learn(
-        total_timesteps=timesteps,
-        progress_bar=progress_bar,
-        callback=callbacks,
-    )
-    env.close()
-    eval_env.close()
+    try:
+        model.learn(
+            total_timesteps=timesteps,
+            progress_bar=progress_bar,
+            callback=callbacks,
+        )
+    except Exception as exc:
+        if not (_shutdown_requested or _is_ros_shutdown_error(exc)):
+            raise
+        _log("[train] Training interrupted during shutdown")
+    finally:
+        env.close()
+        eval_env.close()
+
+    if _shutdown_requested:
+        return
 
     if not (config.get("checkpoint") or {}).get("enabled", True):
         _log("[train] Checkpoints disabled in config — skipping save")
@@ -368,6 +423,7 @@ def main() -> int:
         help="Simulation backend (default: QUADRL_SIM_BACKEND or auto; requires ROS workspace)",
     )
     args = parser.parse_args()
+    _install_shutdown_handlers()
 
     if args.sim_backend:
         os.environ["QUADRL_SIM_BACKEND"] = args.sim_backend
@@ -427,6 +483,8 @@ def main() -> int:
         _log(f"[train] Curriculum: {curriculum.get('name', '')} ({len(stages)} stages)")
         prev_ckpt: Path | None = None
         for i, stage in enumerate(stages):
+            if _shutdown_requested:
+                break
             _log(f"[train] === Stage {i + 1}/{len(stages)}: {stage.get('name')} ===")
             cmd = stage.get("command") or {}
             _log(
@@ -474,6 +532,10 @@ def main() -> int:
             )
         else:
             _dry_run_stage(config, None, total, checkpoint_dir, run_root, curriculum=False)
+
+    if _shutdown_requested:
+        _log("[train] Training stopped by user")
+        return 0
 
     _log("[train] Training finished successfully")
     return 0
