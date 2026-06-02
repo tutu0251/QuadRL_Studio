@@ -134,7 +134,7 @@ After exporting from all editors and generating the workspace:
 .venv/bin/python training/scripts/run_rl_train.py ~/quadruped_dev_tool/projects/<project>
 ```
 
-Uses `rl_*` + `ppo_*` + sensor/control exports (mock sim by default; `QUADRL_SIM_BACKEND=ros` for Gazebo). See [`training/README.md`](training/README.md).
+Uses `rl_*` + `ppo_*` + sensor/control exports with a built ROS workspace (Gazebo). See [`training/README.md`](training/README.md).
 
 ## Run everything on the training machine
 

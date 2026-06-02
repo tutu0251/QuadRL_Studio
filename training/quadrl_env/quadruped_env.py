@@ -7,7 +7,6 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from quadrl_env.mock_sim import MockSimBackend
 from quadrl_env.observations import ObservationBuilder
 from quadrl_env.project_config import ProjectArtifacts
 from quadrl_env.rewards import RewardEngine
@@ -23,7 +22,6 @@ class QuadrupedEnv(gym.Env):
         artifacts: ProjectArtifacts,
         *,
         stage: dict[str, Any] | None = None,
-        backend: str = "mock",
         env_id: int = 0,
     ) -> None:
         super().__init__()
@@ -55,11 +53,7 @@ class QuadrupedEnv(gym.Env):
             dtype=np.float32,
         )
 
-        self._backend_name = backend
-        if backend == "ros":
-            self._sim: MockSimBackend | RosSimBackend = RosSimBackend(artifacts, env_id=env_id)
-        else:
-            self._sim = MockSimBackend(artifacts, seed=env_id)
+        self._sim = RosSimBackend(artifacts, env_id=env_id)
         self._sim.set_stage_context(command=self._command, disturbance=self._disturbance)
 
         self._last_action = np.zeros(n_joints, dtype=np.float32)
@@ -76,8 +70,6 @@ class QuadrupedEnv(gym.Env):
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         super().reset(seed=seed)
-        if seed is not None and isinstance(self._sim, MockSimBackend):
-            self._sim = MockSimBackend(self._artifacts, seed=seed)
         self._last_action.fill(0.0)
         self._cumulative_reward = 0.0
         self._sim.set_stage_context(command=self._command, disturbance=self._disturbance)

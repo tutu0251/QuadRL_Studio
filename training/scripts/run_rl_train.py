@@ -123,24 +123,18 @@ def _checkpoint_basename(config: dict, stage: dict | None) -> str:
 
 
 def _make_vec_env(project_dir: Path, config: dict, stage: dict | None, num_envs: int):
-    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
     from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
 
-    backend = resolve_sim_backend(project_dir)
-    if backend == "ros" and num_envs > 1:
-        _log("[warn] ROS sim supports one Gazebo instance — using mock backend for parallel envs")
-        backend = "mock"
-        os.environ["QUADRL_SIM_BACKEND"] = "mock"
-
-    _log(f"[train] Sim backend: {backend} (num_envs={num_envs})")
-
-    if num_envs > 1 and (config.get("parallel") or {}).get("vec_env_type") == "subproc":
-        fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=i, backend=backend) for i in range(num_envs)]
-        return VecMonitor(SubprocVecEnv(fns))
-    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=0, backend=backend)]
+    resolve_sim_backend(project_dir)
     if num_envs > 1:
-        fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=i, backend=backend) for i in range(num_envs)]
+        _log("[warn] ROS sim supports one Gazebo instance — forcing num_envs=1")
+        num_envs = 1
+
+    _log(f"[train] Sim backend: ros (num_envs={num_envs})")
+
+    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=0)]
     return VecMonitor(DummyVecEnv(fns))
 
 
@@ -150,9 +144,8 @@ def _make_eval_vec_env(project_dir: Path, config: dict, stage: dict | None):
 
     from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
 
-    backend = resolve_sim_backend(project_dir)
-    eval_env_id = 1 if backend == "ros" else 0
-    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=eval_env_id, backend=backend)]
+    resolve_sim_backend(project_dir)
+    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=1)]
     return VecMonitor(DummyVecEnv(fns))
 
 
@@ -258,6 +251,9 @@ def _train_stage_sb3(
 
     hp = config.get("hyperparameters") or {}
     num_envs = max(1, int((config.get("parallel") or {}).get("num_envs", 1)))
+    if num_envs > 1:
+        _log("[warn] ROS sim supports one Gazebo instance — forcing num_envs=1")
+        num_envs = 1
 
     env = _make_vec_env(project_dir, config, stage, num_envs)
     eval_env = _make_eval_vec_env(project_dir, config, stage)
@@ -367,9 +363,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--sim-backend",
-        choices=("auto", "mock", "ros"),
+        choices=("auto", "ros"),
         default=None,
-        help="Simulation backend (default: QUADRL_SIM_BACKEND or auto)",
+        help="Simulation backend (default: QUADRL_SIM_BACKEND or auto; requires ROS workspace)",
     )
     args = parser.parse_args()
 

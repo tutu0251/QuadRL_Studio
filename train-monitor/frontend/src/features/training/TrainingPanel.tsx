@@ -68,7 +68,7 @@ export function TrainingPanel({
       )}
 
       <p className="panel-hint">
-        Simulation: auto ({recommendedSim} when workspace and ROS are ready, otherwise mock)
+        Simulation: ROS/Gazebo ({recommendedSim} when workspace and exports are ready)
       </p>
 
       <div className="train-controls">

@@ -13,8 +13,7 @@ import numpy as np
 
 from quadrl_env.disturbances import DisturbanceEngine
 from quadrl_env.gazebo_reset import apply_ros_wrench, reset_gazebo_robot
-from quadrl_env.mock_sim import MockSimBackend, _foot_keys_from_observations
-from quadrl_env.project_config import ProjectArtifacts
+from quadrl_env.project_config import JointGains, ProjectArtifacts
 from quadrl_env.ros_env import load_ros_environ, probe_rclpy_import
 from quadrl_env.sensor_packing import normalized_gravity, pack_contact, pack_imu, pack_odom
 from quadrl_env.sim_state import SimState
@@ -90,6 +89,7 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
         pkg = artifacts.bringup_pkg
         launch = (
             f"source /opt/ros/humble/setup.bash && source {setup} && "
+            # headless:=true adds -s (server-only); without it ign gazebo exits on headless hosts.
             f"ros2 launch {pkg} sim.launch.py headless:=true"
         )
         _shared_launch_proc = subprocess.Popen(
@@ -129,12 +129,11 @@ def ros_stack_available(*, workspace_setup: Path | str | None = None) -> bool:
 
 
 class RosSimBackend:
-    """Wraps a running Gazebo workspace; falls back to mock physics if topics are unavailable."""
+    """Wraps a running Gazebo workspace and streams state from ROS topics."""
 
     def __init__(self, artifacts: ProjectArtifacts, *, env_id: int = 0) -> None:
         self._artifacts = artifacts
         self._env_id = env_id
-        self._mock = MockSimBackend(artifacts, seed=env_id)
         self._launch_proc: subprocess.Popen[str] | None = None
         self._latest_joint_pos: np.ndarray | None = None
         self._latest_joint_vel: np.ndarray | None = None
@@ -148,6 +147,8 @@ class RosSimBackend:
         self._node = None
         self._started = False
         self._command: dict[str, Any] = {}
+        self._step = 0
+        self._last_state: SimState | None = None
 
     def set_stage_context(
         self,
@@ -159,7 +160,6 @@ class RosSimBackend:
             self._command = dict(command)
         if disturbance is not None:
             self._disturbance = DisturbanceEngine(disturbance)
-        self._mock.set_stage_context(command=command or self._command, disturbance=disturbance)
 
     def start(self) -> None:
         if self._started:
@@ -314,7 +314,8 @@ class RosSimBackend:
         if command:
             self._command = dict(command)
         self._disturbance.reset(seed=self._env_id)
-        default_targets = self._mock.default_joint_positions()
+        self._step = 0
+        default_targets = _default_joint_positions(self._artifacts)
         reset_gazebo_robot(
             self._node,
             world_name=self._world_name,
@@ -327,8 +328,20 @@ class RosSimBackend:
             joint_trajectory_point_cls=self._JointTrajectoryPoint,
             control_dt=self._artifacts.control_dt,
         )
-        state = self._mock.reset(command=self._command)
-        return self._merge_ros_state(state)
+        base_h = float(self._command.get("target_body_height", self._artifacts.spawn_config.get("z", 0.5)))
+        fallback = SimState(
+            joint_pos=default_targets.astype(np.float32, copy=True),
+            joint_vel=np.zeros(len(self._artifacts.joint_names), dtype=np.float32),
+            base_lin_vel=np.zeros(3, dtype=np.float32),
+            base_ang_vel=np.zeros(3, dtype=np.float32),
+            projected_gravity=np.array([0.0, 0.0, -1.0], dtype=np.float32),
+            base_height=base_h,
+            contact_forces={k: 0.0 for k in _foot_keys_from_observations(self._artifacts.observations_doc)},
+            foot_air_time={},
+            episode_step=0,
+        )
+        self._last_state = self._merge_ros_state(fallback)
+        return self._last_state
 
     def step(self, target_positions: np.ndarray, *, command: dict[str, Any] | None = None) -> SimState:
         if command:
@@ -346,8 +359,17 @@ class RosSimBackend:
         self._publish_trajectory(target_positions)
         dt = self._artifacts.control_dt
         time.sleep(dt)
-        state = self._mock.step(target_positions, command=self._command)
-        return self._merge_ros_state(state)
+        self._step += 1
+        last = self._last_state
+        if last is None:
+            last = self.reset(command=self._command)
+        fallback = last.copy()
+        fallback.episode_step = self._step
+        # If ROS joint states aren't ready yet, prefer commanded targets over stale defaults.
+        if self._latest_joint_pos is None:
+            fallback.joint_pos = np.asarray(target_positions, dtype=np.float32).copy()
+        self._last_state = self._merge_ros_state(fallback)
+        return self._last_state
 
     def _publish_trajectory(self, positions: np.ndarray) -> None:
         if self._node is None:
@@ -417,8 +439,33 @@ class RosSimBackend:
         return state
 
     def action_to_targets(self, action: np.ndarray) -> np.ndarray:
-        return self._mock.action_to_targets(action)
+        return _action_to_targets(self._artifacts, action)
 
     def sensor_vectors(self) -> dict[str, np.ndarray]:
         obs_keys = set((self._artifacts.observations_doc.get("observations") or {}).keys())
         return {k: v.copy() for k, v in self._sensor_cache.items() if k in obs_keys}
+
+
+def _default_joint_positions(artifacts: ProjectArtifacts) -> np.ndarray:
+    return np.array(
+        [artifacts.joint_gains[n].default_position for n in artifacts.joint_names],
+        dtype=np.float32,
+    )
+
+
+def _action_to_targets(artifacts: ProjectArtifacts, action: np.ndarray) -> np.ndarray:
+    action = np.asarray(action, dtype=np.float32)
+    targets = np.zeros(len(artifacts.joint_names), dtype=np.float32)
+    for i, name in enumerate(artifacts.joint_names):
+        g = artifacts.joint_gains.get(name) or JointGains(name=name)
+        a = float(action[i]) if i < len(action) else 0.0
+        targets[i] = g.default_position + a * g.action_scale
+    return targets
+
+
+def _foot_keys_from_observations(doc: dict[str, Any]) -> list[str]:
+    keys: list[str] = []
+    for key, spec in (doc.get("observations") or {}).items():
+        if (spec.get("kind") or "").lower() == "contact":
+            keys.append(key)
+    return keys or ["fl_contact", "fr_contact", "rl_contact", "rr_contact"]

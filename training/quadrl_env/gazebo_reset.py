@@ -48,10 +48,57 @@ def _set_entity_pose(
     except ImportError:
         return
 
-    service = f"/world/{world_name}/set_pose"
-    client = node.create_client(SetEntityPose, service)
-    if not client.wait_for_service(timeout_sec=2.0):
-        node.get_logger().warning(f"Gazebo reset: service unavailable: {service}")
+    # Service name depends on Gazebo world name and bridge/plugin configuration.
+    # We try the configured world first, then fall back to any discovered `/world/*/set_pose`.
+    preferred_service = f"/world/{world_name}/set_pose"
+
+    candidate_services: list[str] = [preferred_service]
+    discovered_typed: set[str] = set()
+    try:
+        for name, types in node.get_service_names_and_types():
+            if name.endswith("/set_pose") and "ros_gz_interfaces/srv/SetEntityPose" in types:
+                candidate_services.append(name)
+                discovered_typed.add(name)
+    except Exception:
+        pass
+
+    # Give Gazebo/ros_gz bridge some time to advertise services on startup.
+    chosen_service: str | None = None
+    client = None
+    deadline = time.time() + 12.0
+    services = list(dict.fromkeys(candidate_services))
+    while time.time() < deadline and chosen_service is None:
+        for service in services:
+            c = node.create_client(SetEntityPose, service)
+            if c.wait_for_service(timeout_sec=0.5 if service != preferred_service else 1.0):
+                chosen_service = service
+                client = c
+                break
+        if chosen_service is None:
+            time.sleep(0.1)
+
+    # Some ROS setups can momentarily report the service name in the graph while
+    # `wait_for_service()` stays false. If we can see a correctly-typed service
+    # in the graph, proceed anyway and let the request timeout naturally.
+    if (chosen_service is None or client is None) and discovered_typed:
+        fallback = preferred_service if preferred_service in discovered_typed else sorted(discovered_typed)[0]
+        client = node.create_client(SetEntityPose, fallback)
+        chosen_service = fallback
+
+    if chosen_service is None or client is None:
+        visible = []
+        try:
+            for name, types in node.get_service_names_and_types():
+                if name.startswith("/world/") and name.endswith("/set_pose"):
+                    visible.append(name)
+        except Exception:
+            pass
+        if visible:
+            node.get_logger().warning(
+                f"Gazebo reset: service unavailable: {preferred_service} (visible: {sorted(set(visible))})"
+            )
+        else:
+            node.get_logger().warning(f"Gazebo reset: service unavailable: {preferred_service}")
         return
 
     req = SetEntityPose.Request()
@@ -77,7 +124,10 @@ def _set_entity_pose(
     req.pose.orientation.z = cr * cp * sy - sr * sp * cy
 
     future = client.call_async(req)
-    _spin_until_done(node, future, timeout_sec=3.0)
+    if not _wait_for_service_response(node, future, timeout_sec=3.0):
+        node.get_logger().warning(
+            f"Gazebo reset: set_pose call timed out on {chosen_service} (entity={entity_name})"
+        )
 
 
 def _command_joint_positions(
@@ -125,9 +175,22 @@ def apply_ros_wrench(
     except ImportError:
         return
 
-    service = f"/world/{world_name}/wrench"
-    client = node.create_client(ApplyEntityWrench, service)
-    if not client.wait_for_service(timeout_sec=0.05):
+    preferred_service = f"/world/{world_name}/wrench"
+    candidate_services: list[str] = [preferred_service]
+    try:
+        for name, types in node.get_service_names_and_types():
+            if name.endswith("/wrench") and "ros_gz_interfaces/srv/ApplyEntityWrench" in types:
+                candidate_services.append(name)
+    except Exception:
+        pass
+
+    client = None
+    for service in dict.fromkeys(candidate_services):
+        c = node.create_client(ApplyEntityWrench, service)
+        if c.wait_for_service(timeout_sec=0.02 if service != preferred_service else 0.05):
+            client = c
+            break
+    if client is None:
         return
 
     req = ApplyEntityWrench.Request()
@@ -146,7 +209,18 @@ def apply_ros_wrench(
     _ = client.call_async(req)
 
 
-def _spin_until_done(node: Any, future: Any, *, timeout_sec: float) -> None:
-    deadline = time.time() + timeout_sec
-    while not future.done() and time.time() < deadline:
-        time.sleep(0.02)
+def _wait_for_service_response(node: Any, future: Any, *, timeout_sec: float) -> bool:
+    """Wait for an async service future; requires the node's executor to be spinning."""
+    try:
+        import rclpy
+        from rclpy.task import Future
+
+        if not isinstance(future, Future):
+            return False
+        rclpy.spin_until_future_complete(node, future, timeout_sec=timeout_sec)
+        return future.done() and not future.cancelled()
+    except Exception:
+        deadline = time.time() + timeout_sec
+        while not future.done() and time.time() < deadline:
+            time.sleep(0.02)
+        return bool(future.done())

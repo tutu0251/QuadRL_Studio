@@ -23,7 +23,7 @@ class ExportBundle(BaseModel):
     ready_for_training: bool = False
     workspace_ready: bool = False
     sensor_exports_ready: bool = False
-    recommended_sim_backend: str = "mock"
+    recommended_sim_backend: str = "unavailable"
 
 
 class CheckpointInfo(BaseModel):
@@ -83,7 +83,7 @@ class WorkspaceStatus(BaseModel):
     readiness_status: Optional[str] = None
     training_ready: bool = False
     sensor_exports_ready: bool = False
-    recommended_sim_backend: str = "mock"
+    recommended_sim_backend: str = "unavailable"
     last_result: Optional[dict[str, Any]] = None
     error: Optional[str] = None
     finished_at: Optional[str] = None

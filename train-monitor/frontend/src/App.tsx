@@ -349,7 +349,7 @@ export default function App() {
             ready={exports?.ready_for_training ?? false}
             selectedCheckpoint={selectedCheckpoint}
             dryRun={dryRun}
-            recommendedSim={workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "mock"}
+            recommendedSim={workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "unavailable"}
             onDryRunChange={setDryRun}
             onStart={startTraining}
             onStop={stopTraining}

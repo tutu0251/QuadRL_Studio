@@ -1,4 +1,4 @@
-"""Unit tests for quadruped env (mock backend, no ROS)."""
+"""Unit tests for quadruped env components (no live Gazebo)."""
 from __future__ import annotations
 
 import tempfile
@@ -13,7 +13,6 @@ import sys
 
 sys.path.insert(0, str(REPO / "training"))
 
-from quadrl_env.env_factory import make_quadruped_env
 from quadrl_env.observations import ObservationBuilder
 from quadrl_env.project_config import load_project_artifacts
 from quadrl_env.rewards import RewardEngine
@@ -110,18 +109,6 @@ def test_termination_skips_null_max_joint_torque():
     assert not terminated
     assert not truncated
     assert reason == ""
-
-
-def test_quadruped_env_episode():
-    with tempfile.TemporaryDirectory() as tmp:
-        proj = _write_minimal_project(Path(tmp) / "bot", "bot")
-        env = make_quadruped_env(proj, backend="mock")
-        obs, info = env.reset()
-        assert obs.shape == env.observation_space.shape
-        obs2, reward, term, trunc, info2 = env.step(env.action_space.sample())
-        assert obs2.shape == obs.shape
-        assert isinstance(reward, float)
-        env.close()
 
 
 def test_sensor_term_fits_declared_dim_when_vector_wrong_length():
@@ -245,46 +232,3 @@ def test_my_robot_like_observation_dim_is_66():
     assert sensor_term_dim("imu", ["angular_velocity", "linear_acceleration", "orientation"]) == 9
     assert fit_dim(np.ones(3), 9).shape == (9,)
 
-
-def test_quadruped_env_obs_stable_with_populated_sensors():
-    rl_config = {
-        "observations": {
-            "terms": [
-                {"id": "joint_positions", "enabled": True, "available": True, "scale": 1.0},
-                {
-                    "id": "sensor:imu",
-                    "source": "sensor",
-                    "kind": "imu",
-                    "enabled": True,
-                    "available": True,
-                    "key": "imu",
-                    "fields": ["angular_velocity", "linear_acceleration", "orientation"],
-                    "scale": 1.0,
-                },
-            ]
-        },
-        "task": {"reward_terms": [], "termination": {"max_episode_steps": 10}},
-    }
-    with tempfile.TemporaryDirectory() as tmp:
-        proj = Path(tmp) / "bot"
-        exports = proj / "exports"
-        exports.mkdir(parents=True)
-        (exports / "ctrl_bot_controllers.yaml").write_text(
-            "joint_trajectory_controller:\n  ros__parameters:\n    joints: [j1, j2, j3]\n",
-            encoding="utf-8",
-        )
-        (exports / "ctrl_bot_gains.yaml").write_text(
-            "joints:\n  j1:\n    kp: 20\n    kd: 0.5\n    default_position: 0.0\n    action_scale: 0.2\n",
-            encoding="utf-8",
-        )
-        (exports / "sens_bot_observations.yaml").write_text(
-            "observations:\n  imu:\n    kind: imu\n    fields: [angular_velocity, linear_acceleration, orientation]\n",
-            encoding="utf-8",
-        )
-        (exports / "rl_bot_config.yaml").write_text(yaml.dump(rl_config), encoding="utf-8")
-        env = make_quadruped_env(proj, backend="mock")
-        obs0, _ = env.reset()
-        assert obs0.shape == (12,)
-        obs1, _, _, _, _ = env.step(env.action_space.sample())
-        assert obs1.shape == (12,)
-        env.close()

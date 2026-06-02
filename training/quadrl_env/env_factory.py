@@ -11,16 +11,27 @@ from quadrl_env.ros_sim import ros_stack_available
 
 
 def resolve_sim_backend(project_dir: Path, *, prefer: str | None = None) -> str:
-    """Return 'ros' or 'mock'. prefer: auto|mock|ros."""
+    """Return 'ros' when workspace and rclpy are available; otherwise raise."""
     mode = (prefer or os.environ.get("QUADRL_SIM_BACKEND", "auto")).lower()
     if mode == "mock":
-        return "mock"
-    if mode == "ros":
-        return "ros"
+        raise ValueError(
+            "Mock simulation backend has been removed. Build the project workspace and use 'ros'."
+        )
+    if mode not in ("auto", "ros"):
+        raise ValueError(f"Unknown sim backend {mode!r}; use 'auto' or 'ros'.")
+
     artifacts = load_project_artifacts(project_dir)
-    if artifacts.workspace_setup and ros_stack_available(workspace_setup=artifacts.workspace_setup):
-        return "ros"
-    return "mock"
+    if not artifacts.workspace_setup:
+        raise RuntimeError(
+            "ROS simulation requires a built workspace at "
+            f"{project_dir / 'workspace' / 'install' / 'setup.bash'}"
+        )
+    if not ros_stack_available(workspace_setup=artifacts.workspace_setup):
+        raise RuntimeError(
+            "ROS stack unavailable. Install ROS 2 Humble, build the project workspace, "
+            "and ensure rclpy imports."
+        )
+    return "ros"
 
 
 def make_quadruped_env(
@@ -29,11 +40,10 @@ def make_quadruped_env(
     *,
     stage: dict[str, Any] | None = None,
     env_id: int = 0,
-    backend: str | None = None,
 ) -> QuadrupedEnv:
     artifacts = load_project_artifacts(project_dir, rl_config=config)
-    resolved = backend or resolve_sim_backend(project_dir)
-    return QuadrupedEnv(artifacts, stage=stage, backend=resolved, env_id=env_id)
+    resolve_sim_backend(project_dir)
+    return QuadrupedEnv(artifacts, stage=stage, env_id=env_id)
 
 
 def make_vec_env_fn(
@@ -42,7 +52,6 @@ def make_vec_env_fn(
     *,
     stage: dict[str, Any] | None = None,
     env_id: int = 0,
-    backend: str | None = None,
 ) -> Callable[[], QuadrupedEnv]:
     def _init() -> QuadrupedEnv:
         return make_quadruped_env(
@@ -50,7 +59,6 @@ def make_vec_env_fn(
             config,
             stage=stage,
             env_id=env_id,
-            backend=backend,
         )
 
     return _init

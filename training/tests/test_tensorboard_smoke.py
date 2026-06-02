@@ -1,4 +1,4 @@
-"""Smoke test: SB3 learn() writes TensorBoard event files."""
+"""Smoke test: SB3 learn() writes TensorBoard event files (requires ROS workspace)."""
 from __future__ import annotations
 
 import os
@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
@@ -52,9 +53,13 @@ def _write_control_exports(exports: Path, name: str) -> None:
     (exports / f"sens_{name}_observations.yaml").write_text("observations: {}\n", encoding="utf-8")
 
 
+@pytest.mark.skipif(
+    os.environ.get("QUADRL_INTEGRATION") != "1",
+    reason="Set QUADRL_INTEGRATION=1 with a built ROS workspace to run end-to-end training smoke test",
+)
 def test_learn_writes_tensorboard_events():
     if not PYTHON.is_file():
-        return
+        pytest.skip("training venv not installed")
 
     with tempfile.TemporaryDirectory() as tmp:
         project_dir = Path(tmp) / "demo_bot"
@@ -64,13 +69,13 @@ def test_learn_writes_tensorboard_events():
         config_path = exports / "rl_demo_bot_config.yaml"
         config_path.write_text(yaml.dump(_minimal_config("demo_bot")), encoding="utf-8")
         env = os.environ.copy()
-        env["QUADRL_SIM_BACKEND"] = "mock"
+        env["QUADRL_SIM_BACKEND"] = "ros"
 
         proc = subprocess.run(
             [str(PYTHON), str(TRAIN_SCRIPT), str(project_dir), "--config", str(config_path)],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=600,
             cwd=str(REPO),
             env=env,
         )
