@@ -28,6 +28,10 @@ def export_sdf_path(name: str) -> Path:
     return export_path(name, f"{export_basename(name)}.sdf")
 
 
+def export_default_pose_path(name: str) -> Path:
+    return export_path(name, f"{export_basename(name)}_default_pose.yaml")
+
+
 def project_dir(name: str) -> Path:
     return PROJECTS_ROOT / name
 
@@ -59,7 +63,10 @@ def load_robot(name: str) -> RobotModel:
     path = project_dir(name) / ROBOT_FILE
     if not path.exists():
         raise FileNotFoundError(f"Project not found: {name}")
-    return RobotModel.model_validate_json(path.read_text())
+    from domain.pose_utils import ensure_default_pose
+
+    model = RobotModel.model_validate_json(path.read_text())
+    return ensure_default_pose(model)
 
 
 def create_snapshot(name: str, model: RobotModel, label: Optional[str] = None) -> str:

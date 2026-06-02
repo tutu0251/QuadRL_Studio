@@ -32,6 +32,9 @@ class QuadrupedEnv(gym.Env):
         self._env_id = env_id
         self._config = artifacts.stage_config(stage)
         self._command = dict(self._config.get("command") or (stage or {}).get("command") or {})
+        self._disturbance = dict(
+            self._config.get("disturbance") or (stage or {}).get("disturbance") or {}
+        )
 
         task = self._config.get("task") or {}
         self._reward_engine = RewardEngine(task.get("reward_terms") or [])
@@ -57,6 +60,7 @@ class QuadrupedEnv(gym.Env):
             self._sim: MockSimBackend | RosSimBackend = RosSimBackend(artifacts, env_id=env_id)
         else:
             self._sim = MockSimBackend(artifacts, seed=env_id)
+        self._sim.set_stage_context(command=self._command, disturbance=self._disturbance)
 
         self._last_action = np.zeros(n_joints, dtype=np.float32)
         self._cumulative_reward = 0.0
@@ -76,6 +80,7 @@ class QuadrupedEnv(gym.Env):
             self._sim = MockSimBackend(self._artifacts, seed=seed)
         self._last_action.fill(0.0)
         self._cumulative_reward = 0.0
+        self._sim.set_stage_context(command=self._command, disturbance=self._disturbance)
         self._state = self._sim.reset(command=self._command)
         obs = self._build_obs()
         return obs, self._info_dict(0.0, False, False, "")

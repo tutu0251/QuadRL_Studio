@@ -146,6 +146,24 @@ export const api = {
       `/api/projects/${project}/snapshots/${snapId}/restore`,
       { method: "POST" }
     ),
+  getDefaultPose: (project: string) =>
+    req<{
+      pose: import("@robot-model").Pose | null;
+      default_pose_id: string | null;
+      model: import("@robot-model").RobotModel;
+    }>(`/api/projects/${project}/default-pose`),
+  savePose: (project: string, poseId: string) =>
+    req<import("@robot-model").Pose>(`/api/projects/${project}/poses/${poseId}/save`, { method: "POST" }),
+  updatePoseJoint: (project: string, poseId: string, jointId: string, value: number) =>
+    req<{ pose: import("@robot-model").Pose; model: import("@robot-model").RobotModel }>(
+      `/api/projects/${project}/poses/${poseId}/joints/${jointId}`,
+      { method: "PATCH", body: JSON.stringify({ value }) }
+    ),
+  resetDefaultPoseStand: (project: string) =>
+    req<{ pose: import("@robot-model").Pose; model: import("@robot-model").RobotModel }>(
+      `/api/projects/${project}/default-pose/reset-stand`,
+      { method: "POST" }
+    ),
 };
 
 export function wsLogsUrl(): string {

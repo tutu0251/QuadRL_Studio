@@ -19,7 +19,14 @@ from domain.models import (
     Vec3,
     new_id,
 )
-from templates.registry import insert_template
+from domain.pose_utils import (
+    apply_pose_to_joints,
+    ensure_default_pose,
+    get_default_pose,
+    reset_pose_to_stand,
+    sync_pose_from_joints,
+)
+from templates.registry import TEMPLATE_META, insert_template
 
 
 class GeometryCore:
@@ -35,11 +42,11 @@ class GeometryCore:
             ],
         )
         self.model.links.append(base)
-        self.model.poses.append(Pose(name="standing", jointValues={}))
+        ensure_default_pose(self.model, init_stand=True)
         return self.model
 
     def load(self, model: RobotModel) -> RobotModel:
-        self.model = model
+        self.model = ensure_default_pose(model)
         return self.model
 
     def get_model(self) -> RobotModel:
@@ -217,19 +224,38 @@ class GeometryCore:
         return pose
 
     def save_pose(self, pose_id: str) -> Optional[Pose]:
-        pose = next((p for p in self.model.poses if p.id == pose_id), None)
-        if pose:
-            pose.jointValues = {j.id: j.defaultValue for j in self.model.joints if j.type != JointType.FIXED}
-        return pose
+        return sync_pose_from_joints(self.model, pose_id)
 
     def load_pose(self, pose_id: str) -> Optional[Pose]:
+        return apply_pose_to_joints(self.model, pose_id)
+
+    def get_default_pose(self) -> Optional[Pose]:
+        return get_default_pose(self.model)
+
+    def set_default_pose(self, pose_id: str) -> Optional[Pose]:
         pose = next((p for p in self.model.poses if p.id == pose_id), None)
         if not pose:
             return None
-        for j in self.model.joints:
-            if j.id in pose.jointValues:
-                j.defaultValue = pose.jointValues[j.id]
+        self.model.defaultPoseId = pose_id
+        return apply_pose_to_joints(self.model, pose_id)
+
+    def update_pose_joint(self, pose_id: str, joint_id: str, value: float) -> Optional[Pose]:
+        pose = next((p for p in self.model.poses if p.id == pose_id), None)
+        joint = self.find_joint(joint_id)
+        if not pose or not joint or joint.type == JointType.FIXED:
+            return None
+        pose.jointValues[joint_id] = float(value)
+        joint.defaultValue = float(value)
         return pose
+
+    def reset_default_pose_to_stand(self) -> Optional[Pose]:
+        pose = get_default_pose(self.model)
+        if not pose:
+            ensure_default_pose(self.model, init_stand=True)
+            pose = get_default_pose(self.model)
+        if not pose:
+            return None
+        return reset_pose_to_stand(self.model, pose.id)
 
     def _duplicate_leg(self, source_prefix: str, target_prefix: str, mirror_y: bool) -> RobotModel:
         src_links = [l for l in self.model.links if l.name.startswith(source_prefix)]
@@ -284,7 +310,13 @@ class GeometryCore:
         return self._duplicate_leg(source_prefix, target_prefix, mirror_y=False)
 
     def apply_template(self, template_id: str) -> RobotModel:
-        return insert_template(self.model, template_id)
+        self.model = insert_template(self.model, template_id)
+        meta = TEMPLATE_META.get(template_id, {})
+        if meta.get("category") == "robot":
+            ensure_default_pose(self.model, init_stand=True)
+        else:
+            ensure_default_pose(self.model)
+        return self.model
 
     def measure_distance(self, link_a_id: str, link_b_id: str) -> Optional[float]:
         from domain.measure import measure_distance

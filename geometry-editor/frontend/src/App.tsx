@@ -6,6 +6,7 @@ import { Toolbar } from "./features/toolbar/Toolbar";
 import { Viewport3D } from "./features/viewport/Viewport3D";
 import { HierarchyPanel } from "./features/hierarchy/HierarchyPanel";
 import { InspectorPanel } from "./features/inspector/InspectorPanel";
+import { PoseEditorPanel } from "./features/pose/PoseEditorPanel";
 import { ConsolePanel } from "./features/console/ConsolePanel";
 import { MeasurePanel } from "./features/measure/MeasurePanel";
 import { ResizeHandle } from "./components/ResizeHandle";
@@ -20,6 +21,8 @@ export default function App() {
   const [newProjectName, setNewProjectName] = useState("my_robot");
   const [error, setError] = useState<string | null>(null);
   const [consoleOpen, setConsoleOpen] = useState(true);
+  const editorMode = useEditorStore((s) => s.editorMode);
+  const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const [leftWidth, resizeLeft] = useClampedSize(260, 160, 480);
   const [rightWidth, resizeRight] = useClampedSize(320, 200, 560);
   const [toolsHeight, resizeTools] = useClampedSize(140, 64, 320);
@@ -132,7 +135,11 @@ export default function App() {
       <div className="editor-body">
         <div className="editor-main">
           <aside className="left-dock" style={{ width: leftWidth }}>
-            <HierarchyPanel onAddChild={addChildLink} onDeleteLink={deleteLink} />
+            {editorMode === "model" ? (
+              <HierarchyPanel onAddChild={addChildLink} onDeleteLink={deleteLink} />
+            ) : (
+              <PoseEditorPanel />
+            )}
           </aside>
 
           <ResizeHandle axis="horizontal" onResize={resizeLeft} />
@@ -150,7 +157,13 @@ export default function App() {
           <ResizeHandle axis="horizontal" onResize={(d) => resizeRight(-d)} />
 
           <aside className="right-dock" style={{ width: rightWidth }}>
-            <InspectorPanel />
+            {editorMode === "model" ? (
+              <InspectorPanel />
+            ) : (
+              <div className="pose-side-hint">
+                Use sliders to tune the stand pose. Export geometry to update training spawn.
+              </div>
+            )}
           </aside>
         </div>
 

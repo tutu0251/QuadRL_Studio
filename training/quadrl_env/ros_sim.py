@@ -11,7 +11,9 @@ from typing import Any
 
 import numpy as np
 
-from quadrl_env.mock_sim import MockSimBackend
+from quadrl_env.disturbances import DisturbanceEngine
+from quadrl_env.gazebo_reset import apply_ros_wrench, reset_gazebo_robot
+from quadrl_env.mock_sim import MockSimBackend, _foot_keys_from_observations
 from quadrl_env.project_config import ProjectArtifacts
 from quadrl_env.ros_env import load_ros_environ, probe_rclpy_import
 from quadrl_env.sensor_packing import normalized_gravity, pack_contact, pack_imu, pack_odom
@@ -130,8 +132,26 @@ class RosSimBackend:
         self._latest_joint_vel: np.ndarray | None = None
         self._sensor_cache: dict[str, np.ndarray] = {}
         self._imu_raw: dict[str, dict[str, np.ndarray]] = {}
+        self._odom_raw: dict[str, dict[str, float]] = {}
+        self._contact_raw: dict[str, int] = {}
+        self._disturbance = DisturbanceEngine({})
+        self._world_name = os.environ.get("QUADRL_GZ_WORLD", "flat")
+        self._entity_name = artifacts.project_name
         self._node = None
         self._started = False
+        self._command: dict[str, Any] = {}
+
+    def set_stage_context(
+        self,
+        *,
+        command: dict[str, Any] | None = None,
+        disturbance: dict[str, Any] | None = None,
+    ) -> None:
+        if command is not None:
+            self._command = dict(command)
+        if disturbance is not None:
+            self._disturbance = DisturbanceEngine(disturbance)
+        self._mock.set_stage_context(command=command or self._command, disturbance=disturbance)
 
     def start(self) -> None:
         if self._started:
@@ -232,6 +252,7 @@ class RosSimBackend:
 
                 def _contact_cb(msg: Contacts, k=key, f=fields) -> None:
                     count = len(msg.contacts) if msg.contacts else 0
+                    self._contact_raw[k] = count
                     self._sensor_cache[k] = pack_contact(f, contact_count=count)
 
                 self._node.create_subscription(Contacts, topic, _contact_cb, reliable)
@@ -239,6 +260,13 @@ class RosSimBackend:
 
                 def _odom_cb(msg: Odometry, k=key, f=fields) -> None:
                     twist = msg.twist.twist
+                    pos = msg.pose.pose.position
+                    self._odom_raw[k] = {
+                        "linear_velocity_x": float(twist.linear.x),
+                        "linear_velocity_y": float(twist.linear.y),
+                        "angular_velocity_z": float(twist.angular.z),
+                        "position_z": float(pos.z),
+                    }
                     self._sensor_cache[k] = pack_odom(
                         f,
                         linear_velocity_x=float(twist.linear.x),
@@ -275,14 +303,42 @@ class RosSimBackend:
     def reset(self, *, command: dict[str, Any] | None = None) -> SimState:
         if not self._started:
             self.start()
-        state = self._mock.reset(command=command)
+        if command:
+            self._command = dict(command)
+        self._disturbance.reset(seed=self._env_id)
+        default_targets = self._mock.default_joint_positions()
+        reset_gazebo_robot(
+            self._node,
+            world_name=self._world_name,
+            entity_name=self._entity_name,
+            spawn=dict(self._artifacts.spawn_config),
+            joint_names=list(self._artifacts.joint_names),
+            joint_positions=default_targets,
+            jtc_pub=self._jtc_pub,
+            joint_trajectory_msg_cls=self._JointTrajectory,
+            joint_trajectory_point_cls=self._JointTrajectoryPoint,
+            control_dt=self._artifacts.control_dt,
+        )
+        state = self._mock.reset(command=self._command)
         return self._merge_ros_state(state)
 
     def step(self, target_positions: np.ndarray, *, command: dict[str, Any] | None = None) -> SimState:
+        if command:
+            self._command = dict(command)
+        wrench = self._disturbance.ros_wrench()
+        if wrench and self._node is not None:
+            force, torque = wrench
+            apply_ros_wrench(
+                self._node,
+                world_name=self._world_name,
+                entity_name=self._entity_name,
+                force=force,
+                torque=torque,
+            )
         self._publish_trajectory(target_positions)
         dt = self._artifacts.control_dt
         time.sleep(dt)
-        state = self._mock.step(target_positions, command=command)
+        state = self._mock.step(target_positions, command=self._command)
         return self._merge_ros_state(state)
 
     def _publish_trajectory(self, positions: np.ndarray) -> None:
@@ -303,6 +359,7 @@ class RosSimBackend:
             state.joint_pos = self._latest_joint_pos.copy()
         if self._latest_joint_vel is not None:
             state.joint_vel = self._latest_joint_vel.copy()
+
         grav_key = next(
             (
                 k
@@ -315,6 +372,30 @@ class RosSimBackend:
             raw = self._imu_raw[grav_key]
             state.base_ang_vel = raw["angular_velocity"].copy()
             state.projected_gravity = normalized_gravity(raw["linear_acceleration"])
+
+        odom_key = next(
+            (
+                k
+                for k, spec in (self._artifacts.observations_doc.get("observations") or {}).items()
+                if (spec.get("kind") or "").lower() == "odom"
+            ),
+            None,
+        )
+        if odom_key and odom_key in self._odom_raw:
+            raw = self._odom_raw[odom_key]
+            state.base_lin_vel[0] = float(raw.get("linear_velocity_x", state.base_lin_vel[0]))
+            state.base_lin_vel[1] = float(raw.get("linear_velocity_y", state.base_lin_vel[1]))
+            if "position_z" in raw:
+                state.base_height = float(raw["position_z"])
+
+        foot_keys = _foot_keys_from_observations(self._artifacts.observations_doc)
+        contacts: dict[str, float] = {}
+        for key in foot_keys:
+            count = self._contact_raw.get(key, 0)
+            contacts[key] = 40.0 if count > 0 else 0.0
+        if contacts:
+            state.contact_forces = contacts
+
         return state
 
     def action_to_targets(self, action: np.ndarray) -> np.ndarray:

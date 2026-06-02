@@ -714,3 +714,99 @@ button.small-btn:hover {
   color: #ddd;
   padding: 2px 4px;
 }
+
+.toolbar-mode-row {
+  border-right: 1px solid #555;
+  padding-right: 10px;
+  margin-right: 4px;
+}
+
+.toolbar-mode-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #888;
+  margin-right: 4px;
+  align-self: center;
+}
+
+.pose-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  padding: 8px;
+  gap: 8px;
+}
+
+.pose-editor-header h2 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.pose-editor-hint,
+.pose-side-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #999;
+  line-height: 1.4;
+}
+
+.pose-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pose-editor-actions button {
+  background: #3a3a3a;
+  border: 1px solid #1a1a1a;
+  color: #ddd;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.pose-name {
+  font-size: 11px;
+  color: #aaa;
+}
+
+.pose-joint-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pose-joint-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 64px;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.pose-joint-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pose-joint-value {
+  width: 100%;
+  background: #2a2a2a;
+  border: 1px solid #1a1a1a;
+  color: #ddd;
+  padding: 2px 4px;
+}
+
+.pose-empty,
+.pose-editor.empty {
+  color: #888;
+  font-size: 11px;
+}
+
+.pose-side-hint {
+  padding: 12px;
+}

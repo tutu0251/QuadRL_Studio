@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from quadrl_env.disturbances import DisturbanceEngine
 from quadrl_env.project_config import JointGains, ProjectArtifacts
 from quadrl_env.sim_state import SimState
 
@@ -19,15 +20,33 @@ class MockSimBackend:
         self._rng = random.Random(seed)
         self._n = len(artifacts.joint_names)
         self._foot_keys = _foot_keys_from_observations(artifacts.observations_doc)
+        self._disturbance = DisturbanceEngine({})
         self.reset()
 
-    def reset(self, *, command: dict[str, Any] | None = None) -> SimState:
-        self._command = command or {}
-        self._step = 0
-        self._joint_pos = np.array(
+    def set_stage_context(
+        self,
+        *,
+        command: dict[str, Any] | None = None,
+        disturbance: dict[str, Any] | None = None,
+    ) -> None:
+        if command is not None:
+            self._command = dict(command)
+        self._disturbance = DisturbanceEngine(disturbance)
+
+    def default_joint_positions(self) -> np.ndarray:
+        return np.array(
             [self._artifacts.joint_gains[n].default_position for n in self._artifacts.joint_names],
             dtype=np.float32,
         )
+
+    def reset(self, *, command: dict[str, Any] | None = None) -> SimState:
+        if command:
+            self._command = command
+        elif not hasattr(self, "_command"):
+            self._command = {}
+        self._step = 0
+        self._disturbance.reset()
+        self._joint_pos = self.default_joint_positions()
         self._joint_vel = np.zeros(self._n, dtype=np.float32)
         self._base_height = float(self._command.get("target_body_height", 0.35))
         self._base_lin = np.zeros(3, dtype=np.float32)
@@ -65,7 +84,8 @@ class MockSimBackend:
             self._contacts[k] = 30.0 + 10.0 * self._rng.random()
             self._air_time[k] = 0.05 + 0.1 * self._rng.random()
 
-        return self._state()
+        state = self._state()
+        return self._disturbance.apply_mock(state)
 
     def action_to_targets(self, action: np.ndarray) -> np.ndarray:
         targets = np.zeros(self._n, dtype=np.float32)

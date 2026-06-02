@@ -10,6 +10,7 @@ import type {
 interface EditorState {
   project: string | null;
   model: RobotModel | null;
+  editorMode: "model" | "pose";
   selection: Selection;
   gizmoMode: GizmoMode;
   gizmoTarget: GizmoTarget;
@@ -20,6 +21,7 @@ interface EditorState {
   logs: string[];
   setProject: (p: string | null) => void;
   setModel: (m: RobotModel | null) => void;
+  setEditorMode: (m: "model" | "pose") => void;
   setSelection: (s: Selection) => void;
   setGizmoMode: (m: GizmoMode) => void;
   setGizmoTarget: (t: GizmoTarget) => void;
@@ -33,6 +35,7 @@ interface EditorState {
 export const useEditorStore = create<EditorState>((set) => ({
   project: null,
   model: null,
+  editorMode: "model",
   selection: null,
   gizmoMode: "translate",
   gizmoTarget: "link",
@@ -43,6 +46,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   logs: [],
   setProject: (project) => set({ project }),
   setModel: (model) => set({ model }),
+  setEditorMode: (editorMode) => set({ editorMode }),
   setSelection: (selection) => {
     const next: Selection = selection;
     if (next?.kind === "link") set({ selection: next, gizmoTarget: "link" });

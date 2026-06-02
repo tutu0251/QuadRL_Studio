@@ -6,6 +6,19 @@ import type { Joint, Link, PrimitiveShape, RobotModel } from "@robot-model";
 import { useEditorStore } from "../../stores/editorStore";
 import { shapeVisualQuaternion } from "../../utils/primitiveVisual";
 
+function jointMotionQuat(joint: Joint): THREE.Quaternion {
+  if (joint.type === "fixed" || joint.type === "prismatic") return new THREE.Quaternion();
+  const axis = new THREE.Vector3(joint.axis.x, joint.axis.y, joint.axis.z).normalize();
+  if (axis.lengthSq() < 1e-12) return new THREE.Quaternion();
+  return new THREE.Quaternion().setFromAxisAngle(axis, joint.defaultValue);
+}
+
+function jointMotionOffset(joint: Joint): THREE.Vector3 {
+  if (joint.type !== "prismatic") return new THREE.Vector3();
+  const axis = new THREE.Vector3(joint.axis.x, joint.axis.y, joint.axis.z).normalize();
+  return axis.multiplyScalar(joint.defaultValue);
+}
+
 function hexColor(c: string): number {
   const h = c.startsWith("#") ? c.slice(1) : c;
   return parseInt(h.padEnd(6, "0").slice(0, 6), 16);
@@ -161,15 +174,22 @@ function JointGroup({
 
   if (!childLink) return null;
 
+  const motionOffset = jointMotionOffset(joint);
+  const originRot = new THREE.Quaternion(
+    joint.originRotation.x,
+    joint.originRotation.y,
+    joint.originRotation.z,
+    joint.originRotation.w
+  ).multiply(jointMotionQuat(joint));
+
   return (
     <group
-      position={[joint.originPosition.x, joint.originPosition.y, joint.originPosition.z]}
-      quaternion={new THREE.Quaternion(
-        joint.originRotation.x,
-        joint.originRotation.y,
-        joint.originRotation.z,
-        joint.originRotation.w
-      )}
+      position={[
+        joint.originPosition.x + motionOffset.x,
+        joint.originPosition.y + motionOffset.y,
+        joint.originPosition.z + motionOffset.z,
+      ]}
+      quaternion={originRot}
       onClick={(e) => handleClick(e, () => onSelectJoint(joint.id))}
     >
       {showJointFrames && <FrameAxes size={selJoint ? 0.07 : 0.05} />}

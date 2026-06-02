@@ -349,4 +349,14 @@ def insert_template(model: RobotModel, template_id: str) -> RobotModel:
         model.joints.append(joint)
     if template_id not in model.templates:
         model.templates.append(template_id)
+    from domain.pose_utils import ensure_default_pose
+
+    meta = TEMPLATE_META.get(template_id, {})
+    if meta.get("category") == "robot":
+        base = next((l for l in model.links if l.name == "base_link"), None)
+        if base is not None:
+            model.metadata["standSpawnZ"] = float(base.frame.position.z)
+        ensure_default_pose(model, init_stand=True)
+    else:
+        ensure_default_pose(model)
     return model

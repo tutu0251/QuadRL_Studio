@@ -21,6 +21,7 @@ export function MenuBar({
 }: Props) {
   const project = useEditorStore((s) => s.project);
   const setModel = useEditorStore((s) => s.setModel);
+  const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const log = useEditorStore((s) => s.log);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [templates, setTemplates] = useState<
@@ -129,6 +130,16 @@ export function MenuBar({
         </button>
         {openMenu === "tools" && project && (
           <div className="menu-dropdown">
+            <button
+              type="button"
+              onClick={() => {
+                setEditorMode("pose");
+                setOpenMenu(null);
+              }}
+            >
+              Default Pose editor…
+            </button>
+            <hr />
             <label className="menu-label">Naming convention</label>
             <select
               value={useEditorStore.getState().model?.namingConvention ?? "LOWER"}
