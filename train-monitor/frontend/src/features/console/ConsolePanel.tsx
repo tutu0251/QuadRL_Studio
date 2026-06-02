@@ -1,5 +1,23 @@
 import { useState } from "react";
 import { useMonitorStore } from "../../stores/monitorStore";
+import { parseAnsiToSegments } from "./ansi";
+
+function levelLabel(level: string) {
+  return level.toUpperCase();
+}
+
+function AnsiMessage({ text }: { text: string }) {
+  const segs = parseAnsiToSegments(text);
+  return (
+    <>
+      {segs.map((s, i) => (
+        <span key={i} className={s.className}>
+          {s.text}
+        </span>
+      ))}
+    </>
+  );
+}
 
 export function ConsolePanel() {
   const logs = useMonitorStore((s) => s.logs);
@@ -7,7 +25,7 @@ export function ConsolePanel() {
   const [copied, setCopied] = useState(false);
 
   const copyLogs = async () => {
-    const text = logs.join("\n");
+    const text = logs.map((l) => l.rawLine).join("\n");
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -31,9 +49,24 @@ export function ConsolePanel() {
           </button>
         </div>
       </div>
-      <pre className="console-output">
-        {logs.length === 0 ? "Waiting for training output…" : logs.join("\n")}
-      </pre>
+      <div className="console-output console-lines mono" role="log" aria-live="polite">
+        {logs.length === 0 ? (
+          <div className="console-empty">Waiting for training output…</div>
+        ) : (
+          logs.map((l, idx) => (
+            <div key={`${l.ts}-${idx}`} className={`console-line console-${l.level}`}>
+              <span className="console-ts">[{l.ts}]</span>
+              <span className={`console-pill console-level console-level-${l.level}`}>{levelLabel(l.level)}</span>
+              {l.component ? (
+                <span className={`console-pill console-comp console-comp-${l.component}`}>{l.component}</span>
+              ) : null}
+              <span className="console-msg">
+                <AnsiMessage text={l.message} />
+              </span>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

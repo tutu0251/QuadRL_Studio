@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CheckpointInfo, ExportBundle, RunInfo, ScalarSeries, TrainStatus } from "../types";
+import type { CheckpointInfo, ExportBundle, LogEntry, LogLevel, RunInfo, ScalarSeries, TrainStatus } from "../types";
 
 type MonitorState = {
   project: string | null;
@@ -11,7 +11,7 @@ type MonitorState = {
   selectedRunId: string | null;
   selectedExportPath: string | null;
   exportPreview: string | null;
-  logs: string[];
+  logs: LogEntry[];
   setProject: (name: string | null) => void;
   setExports: (bundle: ExportBundle | null) => void;
   setCheckpoints: (items: CheckpointInfo[]) => void;
@@ -24,6 +24,37 @@ type MonitorState = {
   log: (message: string) => void;
   clearLogs: () => void;
 };
+
+const BRACKET_TAG = /^\[([^\]]+)\]\s*/;
+
+function parseLogLine(message: string): { level: LogLevel; component: string | null; text: string } {
+  let rest = message.trim();
+  const tags: string[] = [];
+  while (true) {
+    const m = rest.match(BRACKET_TAG);
+    if (!m) break;
+    tags.push(m[1].trim());
+    rest = rest.slice(m[0].length).trimStart();
+  }
+
+  const norm = tags.map((t) => t.toLowerCase());
+  let level: LogLevel = "info";
+  for (const t of norm) {
+    if (t === "debug" || t === "info" || t === "warn" || t === "error") {
+      level = t;
+      break;
+    }
+    if (t === "warning") {
+      level = "warn";
+      break;
+    }
+  }
+
+  const component =
+    norm.find((t) => t === "train" || t === "gazebo" || t === "ros" || t === "sim") ?? null;
+
+  return { level, component, text: rest || message.trim() };
+}
 
 export const useMonitorStore = create<MonitorState>((set) => ({
   project: null,
@@ -47,7 +78,18 @@ export const useMonitorStore = create<MonitorState>((set) => ({
   setExportPreview: (exportPreview) => set({ exportPreview }),
   log: (message) =>
     set((s) => ({
-      logs: [...s.logs.slice(-400), `[${new Date().toLocaleTimeString()}] ${message}`],
+      logs: (() => {
+        const ts = new Date().toLocaleTimeString();
+        const parsed = parseLogLine(message);
+        const entry: LogEntry = {
+          ts,
+          level: parsed.level,
+          component: parsed.component,
+          message: parsed.text,
+          rawLine: `[${ts}] ${message}`,
+        };
+        return [...s.logs.slice(-400), entry];
+      })(),
     })),
   clearLogs: () => set({ logs: [] }),
 }));

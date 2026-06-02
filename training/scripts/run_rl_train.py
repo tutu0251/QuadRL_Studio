@@ -47,7 +47,12 @@ def _merge_ppo_config(config: dict, project_dir: Path) -> dict:
 
 
 def _log(msg: str) -> None:
-    print(msg, flush=True)
+    try:
+        from quadrl_env.console_log import log as _pretty_log
+
+        _pretty_log(msg, default_component="train")
+    except Exception:
+        print(msg, flush=True)
 
 
 def _use_progress_bar() -> bool:

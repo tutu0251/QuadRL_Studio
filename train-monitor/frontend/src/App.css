@@ -885,6 +885,124 @@ body {
   word-break: break-word;
 }
 
+/* Console line renderer */
+.console-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.console-empty {
+  color: var(--text-muted);
+}
+
+.console-line {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.console-ts {
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
+.console-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.console-level-info {
+  color: var(--accent-bright);
+  border-color: rgba(126, 184, 232, 0.35);
+}
+.console-level-warn {
+  color: #ffd9a8;
+  border-color: rgba(232, 165, 74, 0.45);
+}
+.console-level-error {
+  color: #ffb0b0;
+  border-color: rgba(224, 92, 92, 0.55);
+}
+.console-level-debug {
+  color: var(--text-muted);
+  border-color: rgba(139, 147, 168, 0.35);
+}
+
+.console-comp-train {
+  color: #9fe0b0;
+  border-color: rgba(102, 187, 106, 0.45);
+}
+.console-comp-gazebo,
+.console-comp-ros,
+.console-comp-sim {
+  color: #d0b4ff;
+  border-color: rgba(155, 126, 217, 0.45);
+}
+
+.console-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ANSI SGR interpretation (minimal set used by ROS tooling) */
+.ansi {
+  color: inherit;
+  font-weight: inherit;
+  opacity: inherit;
+}
+.ansi-bold {
+  font-weight: 700;
+}
+.ansi-dim {
+  opacity: 0.75;
+}
+.ansi-fg-black {
+  color: #0b0d12;
+}
+.ansi-fg-red,
+.ansi-fg-bright-red {
+  color: #ffb0b0;
+}
+.ansi-fg-green,
+.ansi-fg-bright-green {
+  color: #9fe0b0;
+}
+.ansi-fg-yellow,
+.ansi-fg-bright-yellow {
+  color: #ffd9a8;
+}
+.ansi-fg-blue,
+.ansi-fg-bright-blue {
+  color: #a9d2ff;
+}
+.ansi-fg-magenta,
+.ansi-fg-bright-magenta {
+  color: #d0b4ff;
+}
+.ansi-fg-cyan,
+.ansi-fg-bright-cyan {
+  color: #9fe6ff;
+}
+.ansi-fg-white,
+.ansi-fg-bright-white {
+  color: #f1f3f8;
+}
+.ansi-fg-bright-black {
+  color: #7c8497;
+}
+
 .status-bar {
   display: flex;
   gap: 20px;

@@ -63,6 +63,16 @@ export type TrainStatus = {
   exit_code?: number | null;
 };
 
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
+export type LogEntry = {
+  ts: string;
+  level: LogLevel;
+  component?: string | null;
+  message: string;
+  rawLine: string;
+};
+
 export type TensorBoardStatus = {
   running: boolean;
   url?: string | null;

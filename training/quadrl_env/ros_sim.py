@@ -84,7 +84,12 @@ def gazebo_headless_enabled() -> bool:
 def _emit_gazebo_log(line: str) -> None:
     text = line.rstrip()
     if text:
-        print(f"[gazebo] {text}", flush=True)
+        try:
+            from quadrl_env.console_log import log as _pretty_log
+
+            _pretty_log(text, default_component="gazebo")
+        except Exception:
+            print(f"[gazebo] {text}", flush=True)
 
 
 def _stream_gazebo_output(proc: subprocess.Popen[str], stop: threading.Event) -> None:
