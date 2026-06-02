@@ -6,6 +6,8 @@ from typing import Any
 
 import numpy as np
 
+_LAST_RESET_WARN_AT: dict[str, float] = {}
+
 
 def reset_gazebo_robot(
     node: Any,
@@ -48,10 +50,34 @@ def _set_entity_pose(
     except ImportError:
         return
 
-    service = f"/world/{world_name}/set_pose"
-    client = node.create_client(SetEntityPose, service)
-    if not client.wait_for_service(timeout_sec=2.0):
-        node.get_logger().warning(f"Gazebo reset: service unavailable: {service}")
+    # Different ros_gz versions expose different service names. Try a short list.
+    service_candidates = [
+        f"/world/{world_name}/set_pose",
+        f"/world/{world_name}/set_entity_pose",
+        f"/world/{world_name}/set_entity_pose_service",
+    ]
+
+    client = None
+    service = None
+    for cand in service_candidates:
+        c = node.create_client(SetEntityPose, cand)
+        if c.wait_for_service(timeout_sec=0.25):
+            client = c
+            service = cand
+            break
+
+    if client is None or service is None:
+        key = f"{world_name}:{entity_name}:set_entity_pose"
+        now = time.time()
+        last = _LAST_RESET_WARN_AT.get(key, 0.0)
+        # Rate-limit to avoid spamming logs each environment step.
+        if now - last > 15.0:
+            _LAST_RESET_WARN_AT[key] = now
+            node.get_logger().warning(
+                "Gazebo reset: pose service unavailable. Tried: "
+                + ", ".join(service_candidates)
+                + " (set QUADRL_GZ_WORLD if your world name differs)"
+            )
         return
 
     req = SetEntityPose.Request()

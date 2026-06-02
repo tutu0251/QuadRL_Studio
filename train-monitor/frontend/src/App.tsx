@@ -11,6 +11,8 @@ import { SystemResourcesPanel } from "./features/system/SystemResourcesPanel";
 import { ServiceControlPanel } from "./features/system/ServiceControlPanel";
 import { TrainingPanel } from "./features/training/TrainingPanel";
 import { WorkspacePanel } from "./features/workspace/WorkspacePanel";
+import { ResizeHandle } from "./components/ResizeHandle";
+import { useClampedSize } from "./hooks/useClampedSize";
 import { useMonitorStore } from "./stores/monitorStore";
 import type { ProjectSummary, TensorBoardStatus, WorkspaceStatus } from "./types";
 
@@ -45,6 +47,8 @@ export default function App() {
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [tbStatus, setTbStatus] = useState<TensorBoardStatus | null>(null);
+  const [consoleOpen, setConsoleOpen] = useState(true);
+  const [consoleHeight, resizeConsole] = useClampedSize(160, 88, 480);
 
   const trainingActive =
     trainStatus?.state === "running" || trainStatus?.state === "starting";
@@ -389,8 +393,18 @@ export default function App() {
         </main>
       </div>
 
-      <div className="bottom-dock">
-        <ConsolePanel />
+      {consoleOpen && <ResizeHandle axis="vertical" onResize={(d) => resizeConsole(-d)} />}
+
+      <div className={`bottom-dock ${consoleOpen ? "open" : "collapsed"}`}>
+        <button type="button" className="console-toggle" onClick={() => setConsoleOpen(!consoleOpen)}>
+          <span>Training log</span>
+          <span className="console-toggle-meta">{consoleOpen ? "▼" : "▲"}</span>
+        </button>
+        {consoleOpen && (
+          <div className="console-content" style={{ height: consoleHeight }}>
+            <ConsolePanel />
+          </div>
+        )}
       </div>
 
       <StatusBar connected={connected} project={project} trainingActive={trainingActive} />

@@ -45,7 +45,7 @@ Environment variable: `QUADRL_SIM_BACKEND` (same as `--sim-backend`).
 ## Backends
 
 - **mock** — lightweight integrator; uses exported joint/action/reward/obs contracts. Default for CI and multi-env (`num_envs` > 1).
-- **ros** — launches `sim.launch.py` (headless by default), subscribes to observation topics, publishes `joint_trajectory_controller` goals. Single env only.
+- **ros** — launches `sim.launch.py` (headless by default), subscribes to observation topics, publishes `joint_trajectory_controller` goals. Single env only. Launch stdout/stderr is streamed to the training log as `[gazebo] …` lines (visible in Train Monitor).
 
 Environment variables:
 

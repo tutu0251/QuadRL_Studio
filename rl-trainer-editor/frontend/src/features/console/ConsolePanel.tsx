@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTrainerStore } from "../../stores/trainerStore";
 
 function parseLevel(line: string): "info" | "warn" | "error" | "default" | "muted" {
@@ -32,14 +32,39 @@ function renderLine(line: string) {
 
 export function ConsolePanel() {
   const logs = useTrainerStore((s) => s.logs);
+  const clearLogs = useTrainerStore((s) => s.clearLogs);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs.length]);
 
+  const copyLogs = async () => {
+    const text = logs.join("\n");
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div className="console-panel">
+      <div className="console-toolbar">
+        <span className="console-toolbar-title">Output</span>
+        <div className="console-toolbar-actions">
+          <button type="button" className="header-btn" disabled={logs.length === 0} onClick={() => void copyLogs()}>
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <button type="button" className="header-btn" onClick={clearLogs}>
+            Clear
+          </button>
+        </div>
+      </div>
       <div className="console-body">
         {logs.length === 0 && (
           <div className="console-line muted">

@@ -18,6 +18,7 @@ interface TrainerState {
   setSelectedGaitTypeId: (id: string | null) => void;
   setObservationWizardOpen: (open: boolean) => void;
   log: (msg: string) => void;
+  clearLogs: () => void;
 }
 
 export const useTrainerStore = create<TrainerState>((set) => ({
@@ -37,4 +38,5 @@ export const useTrainerStore = create<TrainerState>((set) => ({
   setSelectedGaitTypeId: (id) => set({ selectedGaitTypeId: id }),
   setObservationWizardOpen: (open) => set({ observationWizardOpen: open }),
   log: (msg) => set((s) => ({ logs: [...s.logs.slice(-200), msg] })),
+  clearLogs: () => set({ logs: [] }),
 }));

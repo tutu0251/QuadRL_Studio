@@ -624,6 +624,30 @@ body {
 .console-panel {
   height: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.console-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 10px;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.console-toolbar-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #888;
+}
+
+.console-toolbar-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .console-log {
@@ -631,7 +655,8 @@ body {
 }
 
 .console-body {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 6px 10px;
   font-family: ui-monospace, monospace;

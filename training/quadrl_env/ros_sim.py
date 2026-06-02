@@ -22,6 +22,8 @@ from quadrl_env.sim_state import SimState
 _rclpy_refcount = 0
 _gazebo_refcount = 0
 _shared_launch_proc: subprocess.Popen[str] | None = None
+_gazebo_log_thread: threading.Thread | None = None
+_gazebo_log_stop: threading.Event | None = None
 _ros_executor = None
 _ros_spin_thread: threading.Thread | None = None
 _ros_executor_lock = threading.Lock()
@@ -79,10 +81,74 @@ def gazebo_headless_enabled() -> bool:
     return raw not in ("0", "false", "no", "off")
 
 
+def _emit_gazebo_log(line: str) -> None:
+    text = line.rstrip()
+    if text:
+        print(f"[gazebo] {text}", flush=True)
+
+
+def _stream_gazebo_output(proc: subprocess.Popen[str], stop: threading.Event) -> None:
+    stdout = proc.stdout
+    if stdout is None:
+        return
+    try:
+        for line in stdout:
+            if stop.is_set():
+                break
+            _emit_gazebo_log(line)
+    except (ValueError, OSError):
+        pass
+
+
+def _start_gazebo_log_reader(proc: subprocess.Popen[str]) -> None:
+    global _gazebo_log_thread, _gazebo_log_stop
+    _stop_gazebo_log_reader()
+    _gazebo_log_stop = threading.Event()
+    _gazebo_log_thread = threading.Thread(
+        target=_stream_gazebo_output,
+        args=(proc, _gazebo_log_stop),
+        daemon=True,
+        name="gazebo-launch-log",
+    )
+    _gazebo_log_thread.start()
+
+
+def _stop_gazebo_log_reader() -> None:
+    global _gazebo_log_thread, _gazebo_log_stop
+    if _gazebo_log_stop is not None:
+        _gazebo_log_stop.set()
+    if _gazebo_log_thread is not None:
+        _gazebo_log_thread.join(timeout=3.0)
+        _gazebo_log_thread = None
+    _gazebo_log_stop = None
+
+
+def _wait_for_gazebo_warmup(proc: subprocess.Popen[str], *, warmup_s: float) -> None:
+    """Block until warmup elapses; fail fast if sim.launch exits early."""
+    deadline = time.time() + warmup_s
+    while time.time() < deadline:
+        code = proc.poll()
+        if code is not None:
+            _stop_gazebo_log_reader()
+            raise RuntimeError(f"Gazebo sim.launch.py exited during warmup (code {code})")
+        time.sleep(0.5)
+    if proc.poll() is not None:
+        code = proc.returncode
+        _stop_gazebo_log_reader()
+        raise RuntimeError(f"Gazebo sim.launch.py exited during warmup (code {code})")
+    _emit_gazebo_log(f"sim.launch.py running (pid={proc.pid})")
+
+
 def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
     """Launch Gazebo once; additional backends attach to the same sim."""
     global _gazebo_refcount, _shared_launch_proc
     if _shared_launch_proc is None or _shared_launch_proc.poll() is not None:
+        if _shared_launch_proc is not None and _shared_launch_proc.poll() is not None:
+            code = _shared_launch_proc.returncode
+            _stop_gazebo_log_reader()
+            _emit_gazebo_log(f"Previous sim.launch.py exited (code {code}); relaunching")
+            _shared_launch_proc = None
+
         env = load_ros_environ(workspace_setup=artifacts.workspace_setup)
         setup = artifacts.workspace_setup
         pkg = artifacts.bringup_pkg
@@ -91,14 +157,21 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
             f"source /opt/ros/humble/setup.bash && source {setup} && "
             f"ros2 launch {pkg} sim.launch.py headless:={headless}"
         )
+        mode = "headless" if headless == "true" else "GUI"
+        _emit_gazebo_log(f"Starting sim.launch.py ({mode})…")
         _shared_launch_proc = subprocess.Popen(
             ["bash", "-lc", launch],
             env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
         )
-        time.sleep(float(os.environ.get("QUADRL_SIM_WARMUP_S", "25")))
+        _start_gazebo_log_reader(_shared_launch_proc)
+        _wait_for_gazebo_warmup(
+            _shared_launch_proc,
+            warmup_s=float(os.environ.get("QUADRL_SIM_WARMUP_S", "25")),
+        )
     _gazebo_refcount += 1
     return _shared_launch_proc
 
@@ -114,6 +187,10 @@ def _release_gazebo() -> None:
             _shared_launch_proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             _shared_launch_proc.kill()
+    code = _shared_launch_proc.returncode
+    if code not in (None, 0):
+        _emit_gazebo_log(f"sim.launch.py stopped (code {code})")
+    _stop_gazebo_log_reader()
     _shared_launch_proc = None
 
 
