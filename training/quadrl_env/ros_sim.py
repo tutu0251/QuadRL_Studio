@@ -55,7 +55,15 @@ def _register_ros_node(node: Any) -> None:
     with _ros_executor_lock:
         if _ros_executor is None:
             _ros_executor = SingleThreadedExecutor()
-            _ros_spin_thread = threading.Thread(target=_ros_executor.spin, daemon=True)
+            def _spin_safely() -> None:
+                try:
+                    _ros_executor.spin()
+                except Exception:
+                    # During SIGTERM / rclpy.shutdown(), the executor can raise
+                    # ExternalShutdownException. Treat all shutdown-time errors as normal exit.
+                    return
+
+            _ros_spin_thread = threading.Thread(target=_spin_safely, daemon=True)
             _ros_spin_thread.start()
         _ros_executor.add_node(node)
         _ros_executor_nodes += 1
@@ -344,6 +352,13 @@ class RosSimBackend:
     def _publish_trajectory(self, positions: np.ndarray) -> None:
         if self._node is None:
             return
+        try:
+            import rclpy
+
+            if not rclpy.ok():
+                return
+        except ImportError:
+            return
         msg = self._JointTrajectory()
         msg.joint_names = list(self._artifacts.joint_names)
         point = self._JointTrajectoryPoint()
@@ -351,7 +366,10 @@ class RosSimBackend:
         point.time_from_start.sec = 0
         point.time_from_start.nanosec = int(self._artifacts.control_dt * 1e9)
         msg.points = [point]
-        self._jtc_pub.publish(msg)
+        try:
+            self._jtc_pub.publish(msg)
+        except Exception:
+            return
 
     def _merge_ros_state(self, fallback: SimState) -> SimState:
         state = fallback.copy()

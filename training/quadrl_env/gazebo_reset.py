@@ -90,7 +90,13 @@ def _command_joint_positions(
     control_dt: float,
     settle_steps: int,
 ) -> None:
+    try:
+        import rclpy
+    except ImportError:
+        rclpy = None
     for _ in range(max(1, settle_steps)):
+        if rclpy is not None and not rclpy.ok():
+            return
         msg = joint_trajectory_msg_cls()
         msg.joint_names = list(joint_names)
         point = joint_trajectory_point_cls()
@@ -98,7 +104,10 @@ def _command_joint_positions(
         point.time_from_start.sec = 0
         point.time_from_start.nanosec = int(max(control_dt, 0.02) * 1e9)
         msg.points = [point]
-        jtc_pub.publish(msg)
+        try:
+            jtc_pub.publish(msg)
+        except Exception:
+            return
         time.sleep(max(control_dt, 0.02))
 
 
