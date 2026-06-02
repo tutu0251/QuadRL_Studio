@@ -89,6 +89,11 @@ def generate_launch_description():
                         ]),
                         'use_sim_time': True,
                     }],
+                    # RL reset teleports the model via SetEntityPose (GZ service → ROS service).
+                    arguments=[
+                        '/world/flat/set_pose@ros_gz_interfaces/srv/SetEntityPose'
+                        '@gz.msgs.Pose@gz.msgs.Boolean',
+                    ],
                     output='screen',
                 ),
             ],

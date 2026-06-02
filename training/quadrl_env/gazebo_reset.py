@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -29,11 +30,18 @@ def reset_gazebo_robot(
     joint_trajectory_point_cls: Any,
     control_dt: float,
     settle_steps: int = 8,
+    wait_future: Callable[..., bool] | None = None,
 ) -> None:
     """Teleport model and command default joint positions."""
     if not _rclpy_ok():
         return
-    _set_entity_pose(node, world_name=world_name, entity_name=entity_name, spawn=spawn)
+    _set_entity_pose(
+        node,
+        world_name=world_name,
+        entity_name=entity_name,
+        spawn=spawn,
+        wait_future=wait_future,
+    )
     _command_joint_positions(
         jtc_pub,
         joint_names=joint_names,
@@ -51,6 +59,7 @@ def _set_entity_pose(
     world_name: str,
     entity_name: str,
     spawn: dict[str, float],
+    wait_future: Callable[..., bool] | None = None,
 ) -> None:
     if not _rclpy_ok():
         return
@@ -152,7 +161,9 @@ def _set_entity_pose(
         future = client.call_async(req)
     except Exception:
         return
-    if not _wait_for_service_response(node, future, timeout_sec=3.0):
+    if not _wait_for_service_response(
+        node, future, timeout_sec=3.0, wait_future=wait_future
+    ):
         node.get_logger().warning(
             f"Gazebo reset: set_pose call timed out on {chosen_service} (entity={entity_name})"
         )
@@ -244,14 +255,23 @@ def apply_ros_wrench(
     _ = client.call_async(req)
 
 
-def _wait_for_service_response(node: Any, future: Any, *, timeout_sec: float) -> bool:
-    """Wait for an async service future; requires the node's executor to be spinning."""
+def _wait_for_service_response(
+    node: Any,
+    future: Any,
+    *,
+    timeout_sec: float,
+    wait_future: Callable[..., bool] | None = None,
+) -> bool:
+    """Wait for an async service future while some executor spins the node."""
+    if wait_future is not None:
+        return wait_future(future, timeout_sec=timeout_sec)
     try:
         import rclpy
         from rclpy.task import Future
 
         if not isinstance(future, Future):
             return False
+        # Only safe when this node is not already on another spinning executor.
         rclpy.spin_until_future_complete(node, future, timeout_sec=timeout_sec)
         return future.done() and not future.cancelled()
     except Exception:

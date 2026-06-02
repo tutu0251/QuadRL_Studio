@@ -68,6 +68,14 @@ def _register_ros_node(node: Any) -> None:
         _ros_executor_nodes += 1
 
 
+def wait_rcl_future(future: Any, *, timeout_sec: float) -> bool:
+    """Wait for an async ROS future while the process-wide executor spins the node."""
+    deadline = time.time() + timeout_sec
+    while not future.done() and time.time() < deadline:
+        time.sleep(0.02)
+    return bool(future.done() and not future.cancelled())
+
+
 def _unregister_ros_node(node: Any) -> None:
     global _ros_executor, _ros_executor_nodes
     with _ros_executor_lock:
@@ -334,6 +342,7 @@ class RosSimBackend:
                 joint_trajectory_msg_cls=self._JointTrajectory,
                 joint_trajectory_point_cls=self._JointTrajectoryPoint,
                 control_dt=self._artifacts.control_dt,
+                wait_future=wait_rcl_future,
             )
         base_h = float(self._command.get("target_body_height", self._artifacts.spawn_config.get("z", 0.5)))
         fallback = SimState(
