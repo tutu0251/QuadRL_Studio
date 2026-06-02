@@ -40,6 +40,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dryRun, setDryRun] = useState(false);
+  const [gazeboHeadless, setGazeboHeadless] = useState(true);
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [tbStatus, setTbStatus] = useState<TensorBoardStatus | null>(null);
@@ -216,7 +217,7 @@ export default function App() {
     setError(null);
     try {
       setScalars([]);
-      const status = await api.trainStart(project, { dry_run: dryRun });
+      const status = await api.trainStart(project, { dry_run: dryRun, gazebo_headless: gazeboHeadless });
       setTrainStatus(status);
       log("Training started");
       await refreshProjectData(project);
@@ -246,7 +247,7 @@ export default function App() {
     if (!project || !selectedCheckpoint) return;
     setBusy(true);
     try {
-      const status = await api.trainResume(project, selectedCheckpoint, dryRun);
+      const status = await api.trainResume(project, selectedCheckpoint, dryRun, gazeboHeadless);
       setTrainStatus(status);
       log(`Resuming from ${selectedCheckpoint}`);
       await refreshProjectData(project);
@@ -349,8 +350,10 @@ export default function App() {
             ready={exports?.ready_for_training ?? false}
             selectedCheckpoint={selectedCheckpoint}
             dryRun={dryRun}
+            gazeboHeadless={gazeboHeadless}
             recommendedSim={workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "mock"}
             onDryRunChange={setDryRun}
+            onGazeboHeadlessChange={setGazeboHeadless}
             onStart={startTraining}
             onStop={stopTraining}
             onResume={resumeTraining}

@@ -371,10 +371,18 @@ def main() -> int:
         default=None,
         help="Simulation backend (default: QUADRL_SIM_BACKEND or auto)",
     )
+    parser.add_argument(
+        "--gazebo-headless",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="ROS backend: server-only Gazebo (default true). Use --no-gazebo-headless for GUI.",
+    )
     args = parser.parse_args()
 
     if args.sim_backend:
         os.environ["QUADRL_SIM_BACKEND"] = args.sim_backend
+    if args.gazebo_headless is not None:
+        os.environ["QUADRL_GZ_HEADLESS"] = "true" if args.gazebo_headless else "false"
 
     project_dir = args.project_dir.expanduser().resolve()
 
@@ -411,6 +419,11 @@ def main() -> int:
     _log(f"[train] Config: {config_path}")
     _log(f"[train] Algorithm: {config.get('algorithm', 'PPO')} / {config.get('framework', '')}")
     _log(f"[train] Sim backend: {sim_backend}")
+    if sim_backend == "ros":
+        from quadrl_env.ros_sim import gazebo_headless_enabled
+
+        mode = "headless (server-only)" if gazebo_headless_enabled() else "GUI"
+        _log(f"[train] Gazebo launch: {mode}")
     _log(f"[train] TensorBoard run root: {run_root}")
     _log(f"[train] View with: tensorboard --logdir {project_dir / 'runs'}")
 

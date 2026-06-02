@@ -27,6 +27,7 @@ class TrainManager:
         self._started_at: Optional[str] = None
         self._dry_run = False
         self._resume_checkpoint: Optional[str] = None
+        self._gazebo_headless = True
         self._state: TrainStatus = TrainStatus(project="", state="idle")
         self._log_callbacks: list[Callable[[str, str], None]] = []
         self._reader_task: Optional[asyncio.Task] = None
@@ -96,6 +97,7 @@ class TrainManager:
         dry_run: bool = False,
         resume_checkpoint: Optional[str] = None,
         config_path: Optional[str] = None,
+        gazebo_headless: bool = True,
     ) -> TrainStatus:
         if self.is_running():
             if self._project == project:
@@ -120,10 +122,15 @@ class TrainManager:
             cmd.append("--dry-run")
         if resume_checkpoint:
             cmd.extend(["--resume", resume_checkpoint])
+        if gazebo_headless:
+            cmd.append("--gazebo-headless")
+        else:
+            cmd.append("--no-gazebo-headless")
 
         self._project = project
         self._dry_run = dry_run
         self._resume_checkpoint = resume_checkpoint
+        self._gazebo_headless = gazebo_headless
         self._started_at = datetime.now(timezone.utc).isoformat()
         self._exit_code = None
         self._state = TrainStatus(

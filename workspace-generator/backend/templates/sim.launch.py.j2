@@ -1,6 +1,7 @@
-"""Launch interactive Gazebo sim with ros_gz_bridge and controllers."""
+"""Launch Gazebo sim with ros_gz_bridge and controllers (headless by default)."""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler, TimerAction
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
@@ -32,18 +33,32 @@ def generate_launch_description():
         output='screen',
     )
 
+    world_sdf = PathJoinSubstitution([FindPackageShare(bringup_pkg), 'worlds', 'flat.world'])
+
     return LaunchDescription([
         DeclareLaunchArgument('robot_name', default_value='{{ project_name }}'),
+        DeclareLaunchArgument(
+            'headless',
+            default_value='true',
+            description='Server-only Gazebo (no GUI). Set false for local debugging with the Gazebo window.',
+        ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
             ]),
             launch_arguments={
-                'gz_args': [
-                    '-r -v 4 ',
-                    PathJoinSubstitution([FindPackageShare(bringup_pkg), 'worlds', 'flat.world']),
-                ],
+                'gz_args': ['-s -r -v 1 ', world_sdf],
             }.items(),
+            condition=IfCondition(LaunchConfiguration('headless')),
+        ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([
+                PathJoinSubstitution([FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'])
+            ]),
+            launch_arguments={
+                'gz_args': ['-r -v 4 ', world_sdf],
+            }.items(),
+            condition=UnlessCondition(LaunchConfiguration('headless')),
         ),
         Node(
             package='robot_state_publisher',

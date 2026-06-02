@@ -62,6 +62,7 @@ class TrainStartRequest(BaseModel):
     dry_run: bool = False
     resume_checkpoint: Optional[str] = None
     config_path: Optional[str] = None
+    gazebo_headless: bool = True
 
 
 class WorkspaceOperationRequest(BaseModel):

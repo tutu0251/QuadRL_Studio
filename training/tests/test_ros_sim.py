@@ -64,3 +64,42 @@ def test_release_rclpy_shutdown_when_last_user() -> None:
 
     mock_rclpy.shutdown.assert_called_once()
     assert rs._rclpy_refcount == 0
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("true", True),
+        ("1", True),
+        ("false", False),
+        ("0", False),
+        ("no", False),
+    ],
+)
+def test_gazebo_headless_enabled(monkeypatch, value: str, expected: bool) -> None:
+    monkeypatch.setenv("QUADRL_GZ_HEADLESS", value)
+    assert rs.gazebo_headless_enabled() is expected
+
+
+def test_acquire_gazebo_launch_includes_headless_flag(monkeypatch) -> None:
+    monkeypatch.setenv("QUADRL_GZ_HEADLESS", "false")
+    captured: dict[str, str] = {}
+
+    class FakeProc:
+        def poll(self):
+            return None
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = " ".join(cmd)
+        return FakeProc()
+
+    artifacts = MagicMock()
+    artifacts.workspace_setup = "/tmp/ws/install/setup.bash"
+    artifacts.bringup_pkg = "demo_bringup"
+
+    with patch.object(rs, "load_ros_environ", return_value={}), patch.object(
+        rs.subprocess, "Popen", side_effect=fake_popen
+    ), patch.object(rs.time, "sleep"):
+        rs._acquire_gazebo(artifacts)
+
+    assert "headless:=false" in captured["cmd"]

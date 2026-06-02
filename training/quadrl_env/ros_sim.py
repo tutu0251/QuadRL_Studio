@@ -73,6 +73,12 @@ def _unregister_ros_node(node: Any) -> None:
         _ros_executor_nodes = max(0, _ros_executor_nodes - 1)
 
 
+def gazebo_headless_enabled() -> bool:
+    """Return True for server-only Gazebo (default). Set QUADRL_GZ_HEADLESS=false for GUI."""
+    raw = os.environ.get("QUADRL_GZ_HEADLESS", "true").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
 def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
     """Launch Gazebo once; additional backends attach to the same sim."""
     global _gazebo_refcount, _shared_launch_proc
@@ -80,9 +86,10 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
         env = load_ros_environ(workspace_setup=artifacts.workspace_setup)
         setup = artifacts.workspace_setup
         pkg = artifacts.bringup_pkg
+        headless = "true" if gazebo_headless_enabled() else "false"
         launch = (
             f"source /opt/ros/humble/setup.bash && source {setup} && "
-            f"ros2 launch {pkg} sim.launch.py headless:=true"
+            f"ros2 launch {pkg} sim.launch.py headless:={headless}"
         )
         _shared_launch_proc = subprocess.Popen(
             ["bash", "-lc", launch],

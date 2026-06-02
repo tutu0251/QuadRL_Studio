@@ -8,8 +8,10 @@ type Props = {
   ready: boolean;
   selectedCheckpoint: string | null;
   dryRun: boolean;
+  gazeboHeadless: boolean;
   recommendedSim: string;
   onDryRunChange: (v: boolean) => void;
+  onGazeboHeadlessChange: (v: boolean) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -22,8 +24,10 @@ export function TrainingPanel({
   ready,
   selectedCheckpoint,
   dryRun,
+  gazeboHeadless,
   recommendedSim,
   onDryRunChange,
+  onGazeboHeadlessChange,
   onStart,
   onStop,
   onResume,
@@ -72,6 +76,15 @@ export function TrainingPanel({
       </p>
 
       <div className="train-controls">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={gazeboHeadless}
+            onChange={(e) => onGazeboHeadlessChange(e.target.checked)}
+            disabled={running}
+          />
+          Headless Gazebo (no GUI — recommended for training servers)
+        </label>
         <label className="checkbox-row">
           <input type="checkbox" checked={dryRun} onChange={(e) => onDryRunChange(e.target.checked)} />
           Dry run (no SB3)

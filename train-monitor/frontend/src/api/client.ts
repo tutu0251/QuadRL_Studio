@@ -96,17 +96,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  trainStart: (name: string, body: { dry_run?: boolean; resume_checkpoint?: string } = {}) =>
+  trainStart: (
+    name: string,
+    body: { dry_run?: boolean; resume_checkpoint?: string; gazebo_headless?: boolean } = {}
+  ) =>
     req<TrainStatus>(`/api/projects/${name}/train/start`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
   trainStop: (name: string) =>
     req<TrainStatus>(`/api/projects/${name}/train/stop`, { method: "POST" }),
-  trainResume: (name: string, resume_checkpoint: string, dry_run = false) =>
+  trainResume: (name: string, resume_checkpoint: string, dry_run = false, gazebo_headless = true) =>
     req<TrainStatus>(`/api/projects/${name}/train/resume`, {
       method: "POST",
-      body: JSON.stringify({ resume_checkpoint, dry_run }),
+      body: JSON.stringify({ resume_checkpoint, dry_run, gazebo_headless }),
     }),
   tbStatus: (name: string) => req<TensorBoardStatus>(`/api/projects/${name}/tensorboard/status`),
   tbStart: (name: string, runId?: string) =>
