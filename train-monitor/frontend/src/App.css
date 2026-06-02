@@ -509,6 +509,99 @@ body {
   display: block;
 }
 
+/* Service control */
+.service-panel .status-grid.compact {
+  padding: 0 12px 8px;
+  gap: 4px 12px;
+}
+
+.status-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.status-pill.status-ok {
+  color: var(--ok);
+  border-color: rgba(102, 187, 106, 0.45);
+}
+
+.status-pill.status-warn {
+  color: var(--tb-orange);
+  border-color: rgba(232, 165, 74, 0.45);
+}
+
+.status-pill.status-bad {
+  color: var(--danger);
+  border-color: rgba(224, 92, 92, 0.45);
+}
+
+.service-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+.service-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  align-items: center;
+}
+
+.service-name {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.service-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  opacity: 0.85;
+}
+
+.service-dot.on {
+  background: var(--ok);
+}
+
+.service-dot.warn {
+  background: var(--tb-orange);
+}
+
+.service-ports {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.btn.secondary {
+  background: var(--bg-panel);
+}
+
+.btn.warn {
+  background: rgba(232, 165, 74, 0.15);
+  border-color: var(--tb-orange);
+  color: #ffd9a8;
+}
+
+.service-message {
+  margin: 0 12px 12px;
+  font-size: 11px;
+  color: var(--accent-bright);
+}
+
 /* Checkpoints */
 .list-timestamp {
   display: block;

@@ -655,6 +655,30 @@
   word-break: break-word;
 }
 
+.machine-panel .machine-service-block {
+  padding: 8px 10px 12px;
+  border-top: 1px solid var(--ppo-border);
+}
+
+.machine-panel .machine-service-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #bbb;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.machine-panel .machine-service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 
 .header-btn {
   background: transparent;

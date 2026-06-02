@@ -1,0 +1,17 @@
+[Unit]
+Description=QuadRL Studio editor stack (all backends and frontends)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=gazebo
+WorkingDirectory=/home/gazebo/QuadRL_Studio
+Environment=QUADRL_HOST=
+ExecStart=/home/gazebo/QuadRL_Studio/scripts/start_all_background.sh
+ExecStop=/home/gazebo/QuadRL_Studio/stop_all_editors.sh
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

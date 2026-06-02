@@ -151,4 +151,33 @@ export const api = {
     req<{ task_id: string; status: string; result?: Record<string, string> }>(
       `/api/tasks/${taskId}`
     ),
+  servicesStatus: () =>
+    req<{
+      checkedAt: string;
+      hostname: string;
+      overall: "running" | "partial" | "stopped";
+      runningCount: number;
+      totalServices: number;
+      uptimeSeconds?: number | null;
+      systemdActive?: boolean | null;
+      services: {
+        id: string;
+        label: string;
+        backendPort: number;
+        frontendPort: number;
+        backendUp: boolean;
+        frontendUp: boolean;
+        state: "running" | "partial" | "stopped";
+      }[];
+    }>("/api/services/status"),
+  restartServices: (scope = "all", delaySeconds = 2) =>
+    req<{ message: string }>(
+      `/api/services/restart?scope=${encodeURIComponent(scope)}&delay_seconds=${delaySeconds}`,
+      { method: "POST" }
+    ),
+  rebootMachine: (delaySeconds = 5) =>
+    req<{ message: string }>(
+      `/api/system/reboot?confirm=true&delay_seconds=${delaySeconds}`,
+      { method: "POST" }
+    ),
 };

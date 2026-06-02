@@ -120,4 +120,15 @@ export const api = {
   tbStop: (name: string) =>
     req<TensorBoardStatus>(`/api/projects/${name}/tensorboard/stop`, { method: "POST" }),
   systemStats: () => req<SystemStatsSample>("/api/system/stats"),
+  servicesStatus: () => req<import("../types").ServicesStatus>("/api/services/status"),
+  restartServices: (scope = "all", delaySeconds = 2) =>
+    req<{ message: string; scope: string; delaySeconds: number }>(
+      `/api/services/restart?scope=${encodeURIComponent(scope)}&delay_seconds=${delaySeconds}`,
+      { method: "POST" }
+    ),
+  rebootMachine: (delaySeconds = 5) =>
+    req<{ message: string; delaySeconds: number }>(
+      `/api/system/reboot?confirm=true&delay_seconds=${delaySeconds}`,
+      { method: "POST" }
+    ),
 };

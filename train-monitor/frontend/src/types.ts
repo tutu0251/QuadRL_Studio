@@ -93,6 +93,31 @@ export type SystemStatsSample = {
   gpuMemoryPercent?: number | null;
 };
 
+export type EditorServiceStatus = {
+  id: string;
+  label: string;
+  backendPort: number;
+  frontendPort: number;
+  backendUp: boolean;
+  frontendUp: boolean;
+  state: "running" | "partial" | "stopped";
+};
+
+export type ServicesStatus = {
+  checkedAt: string;
+  hostname: string;
+  overall: "running" | "partial" | "stopped";
+  runningCount: number;
+  partialCount: number;
+  stoppedCount: number;
+  totalServices: number;
+  uptimeSeconds?: number | null;
+  bootAt?: string | null;
+  systemdUnit: string;
+  systemdActive?: boolean | null;
+  services: EditorServiceStatus[];
+};
+
 export type ProjectSummary = {
   name: string;
   has_rl_export: boolean;

@@ -83,6 +83,38 @@ def system_stats():
     return sample_system_stats()
 
 
+def _service_control():
+    import sys
+
+    repo_root = Path(__file__).resolve().parents[3]
+    scripts_dir = str(repo_root / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import quadrl_service_control
+
+    return quadrl_service_control
+
+
+@app.get("/api/services/status")
+def services_status():
+    return _service_control().all_services_status()
+
+
+@app.post("/api/services/restart")
+def services_restart(scope: str = "all", delay_seconds: float = 2.0):
+    try:
+        return _service_control().schedule_restart(scope=scope, delay_sec=delay_seconds)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/system/reboot")
+def system_reboot(confirm: bool = False, delay_seconds: float = 5.0):
+    if not confirm:
+        raise HTTPException(400, "Set confirm=true to reboot the machine")
+    return _service_control().schedule_reboot(delay_sec=delay_seconds)
+
+
 @app.get("/api/machine/profile")
 def machine_profile():
     from profiler.system_stats import machine_profile_dict

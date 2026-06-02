@@ -8,6 +8,7 @@ import { MetricsPanel } from "./features/tensorboard/MetricsPanel";
 import { RunsPanel } from "./features/runs/RunsPanel";
 import { StatusBar } from "./features/status/StatusBar";
 import { SystemResourcesPanel } from "./features/system/SystemResourcesPanel";
+import { ServiceControlPanel } from "./features/system/ServiceControlPanel";
 import { TrainingPanel } from "./features/training/TrainingPanel";
 import { WorkspacePanel } from "./features/workspace/WorkspacePanel";
 import { useMonitorStore } from "./stores/monitorStore";
@@ -360,6 +361,7 @@ export default function App() {
             busy={busy}
           />
           <SystemResourcesPanel />
+          <ServiceControlPanel />
           <CheckpointsPanel
             checkpoints={checkpoints}
             selected={selectedCheckpoint}
