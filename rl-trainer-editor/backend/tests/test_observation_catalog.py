@@ -103,6 +103,24 @@ def test_merge_preserves_enabled_flags(monkeypatch):
         assert len(merged) >= 7
 
 
+def test_merge_new_terms_enabled_with_all_fields(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "projects" / "bot"
+        (root / "exports").mkdir(parents=True)
+        (root / "exports" / "sens_bot_observations.yaml").write_text(
+            "observations:\n  imu:\n    kind: imu\n    fields: [angular_velocity, linear_acceleration]\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(project_storage, "PROJECTS_ROOT", Path(tmp) / "projects")
+
+        merged = merge_observation_terms([], "bot")
+        imu = next((t for t in merged if t.kind == "imu"), None)
+        assert imu is not None
+        assert imu.enabled is True
+        assert imu.availableFields == ["angular_velocity", "linear_acceleration"]
+        assert imu.fields == ["angular_velocity", "linear_acceleration"]
+
+
 def test_recommend_enables_velocity_and_contact(monkeypatch):
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "projects" / "bot"

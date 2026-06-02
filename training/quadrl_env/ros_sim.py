@@ -13,7 +13,8 @@ import numpy as np
 
 from quadrl_env.mock_sim import MockSimBackend
 from quadrl_env.project_config import ProjectArtifacts
-from quadrl_env.ros_env import ROS_SETUP, load_ros_environ, probe_rclpy_import
+from quadrl_env.ros_env import load_ros_environ, probe_rclpy_import
+from quadrl_env.sensor_packing import normalized_gravity, pack_contact, pack_imu, pack_odom
 from quadrl_env.sim_state import SimState
 
 _rclpy_refcount = 0
@@ -128,6 +129,7 @@ class RosSimBackend:
         self._latest_joint_pos: np.ndarray | None = None
         self._latest_joint_vel: np.ndarray | None = None
         self._sensor_cache: dict[str, np.ndarray] = {}
+        self._imu_raw: dict[str, dict[str, np.ndarray]] = {}
         self._node = None
         self._started = False
 
@@ -145,8 +147,10 @@ class RosSimBackend:
             )
 
         import rclpy
+        from nav_msgs.msg import Odometry
         from rclpy.node import Node
         from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+        from ros_gz_interfaces.msg import Contacts
         from sensor_msgs.msg import Imu, JointState
         from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -181,23 +185,13 @@ class RosSimBackend:
         for key, spec in (self._artifacts.observations_doc.get("observations") or {}).items():
             topic = spec.get("topic")
             kind = (spec.get("kind") or "").lower()
+            fields = list(spec.get("fields") or [])
             if not topic:
                 continue
             if kind == "imu":
 
-                def _imu_cb(msg: Imu, k=key) -> None:
-                    g = np.array(
-                        [
-                            float(msg.linear_acceleration.x),
-                            float(msg.linear_acceleration.y),
-                            float(msg.linear_acceleration.z),
-                        ],
-                        dtype=np.float32,
-                    )
-                    norm = float(np.linalg.norm(g))
-                    if norm > 1e-3:
-                        self._sensor_cache[k] = g / norm
-                    self._sensor_cache[f"{k}_ang"] = np.array(
+                def _imu_cb(msg: Imu, k=key, f=fields) -> None:
+                    ang = np.array(
                         [
                             float(msg.angular_velocity.x),
                             float(msg.angular_velocity.y),
@@ -205,8 +199,54 @@ class RosSimBackend:
                         ],
                         dtype=np.float32,
                     )
+                    lin = np.array(
+                        [
+                            float(msg.linear_acceleration.x),
+                            float(msg.linear_acceleration.y),
+                            float(msg.linear_acceleration.z),
+                        ],
+                        dtype=np.float32,
+                    )
+                    orient = np.array(
+                        [
+                            float(msg.orientation.x),
+                            float(msg.orientation.y),
+                            float(msg.orientation.z),
+                        ],
+                        dtype=np.float32,
+                    )
+                    self._imu_raw[k] = {
+                        "angular_velocity": ang,
+                        "linear_acceleration": lin,
+                        "orientation": orient,
+                    }
+                    self._sensor_cache[k] = pack_imu(
+                        f,
+                        angular_velocity=ang,
+                        linear_acceleration=lin,
+                        orientation=orient,
+                    )
 
                 self._node.create_subscription(Imu, topic, _imu_cb, reliable)
+            elif kind == "contact":
+
+                def _contact_cb(msg: Contacts, k=key, f=fields) -> None:
+                    count = len(msg.contacts) if msg.contacts else 0
+                    self._sensor_cache[k] = pack_contact(f, contact_count=count)
+
+                self._node.create_subscription(Contacts, topic, _contact_cb, reliable)
+            elif kind == "odom":
+
+                def _odom_cb(msg: Odometry, k=key, f=fields) -> None:
+                    twist = msg.twist.twist
+                    self._sensor_cache[k] = pack_odom(
+                        f,
+                        linear_velocity_x=float(twist.linear.x),
+                        linear_velocity_y=float(twist.linear.y),
+                        angular_velocity_z=float(twist.angular.z),
+                    )
+
+                self._node.create_subscription(Odometry, topic, _odom_cb, reliable)
 
         self._jtc_pub = self._node.create_publisher(
             JointTrajectory,
@@ -263,19 +303,23 @@ class RosSimBackend:
             state.joint_pos = self._latest_joint_pos.copy()
         if self._latest_joint_vel is not None:
             state.joint_vel = self._latest_joint_vel.copy()
-        ang_key = next((k for k in self._sensor_cache if k.endswith("_ang")), None)
-        if ang_key:
-            state.base_ang_vel = self._sensor_cache[ang_key].copy()
         grav_key = next(
-            (k for k, spec in (self._artifacts.observations_doc.get("observations") or {}).items() if (spec.get("kind") or "").lower() == "imu"),
+            (
+                k
+                for k, spec in (self._artifacts.observations_doc.get("observations") or {}).items()
+                if (spec.get("kind") or "").lower() == "imu"
+            ),
             None,
         )
-        if grav_key and grav_key in self._sensor_cache:
-            state.projected_gravity = self._sensor_cache[grav_key].copy()
+        if grav_key and grav_key in self._imu_raw:
+            raw = self._imu_raw[grav_key]
+            state.base_ang_vel = raw["angular_velocity"].copy()
+            state.projected_gravity = normalized_gravity(raw["linear_acceleration"])
         return state
 
     def action_to_targets(self, action: np.ndarray) -> np.ndarray:
         return self._mock.action_to_targets(action)
 
     def sensor_vectors(self) -> dict[str, np.ndarray]:
-        return dict(self._sensor_cache)
+        obs_keys = set((self._artifacts.observations_doc.get("observations") or {}).keys())
+        return {k: v.copy() for k, v in self._sensor_cache.items() if k in obs_keys}

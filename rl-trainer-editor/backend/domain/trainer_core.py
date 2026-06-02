@@ -89,6 +89,10 @@ class TrainerCore:
             self._model.trainingCheckpoint = body.trainingCheckpoint
         if body.useRecommended is not None:
             self._model.useRecommended = body.useRecommended
+        if body.observationsSetupComplete is not None:
+            self._model.observationsSetupComplete = body.observationsSetupComplete
+        if body.observationWizardDismissed is not None:
+            self._model.observationWizardDismissed = body.observationWizardDismissed
         if body.curriculum is not None:
             self._model.curriculum = body.curriculum
             self._sync_curriculum_to_library()

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, wsLogsUrl } from "./api/client";
+import {
+  ObservationWizardHost,
+  openObservationWizardIfNeeded,
+} from "./features/observations/ObservationWizardHost";
 import { useTrainerStore } from "./stores/trainerStore";
 import { MenuBar } from "./features/menu/MenuBar";
 import { Toolbar } from "./features/toolbar/Toolbar";
@@ -70,6 +74,7 @@ export default function App() {
       const r = await api.loadProject(name);
       setProject(r.project);
       setModel(r.model);
+      openObservationWizardIfNeeded(r.model);
       log(`Loaded ${name}`);
       setValidation(await api.validate(name));
       await refreshProjects();
@@ -84,6 +89,7 @@ export default function App() {
     try {
       const r = await api.bootstrap(project);
       setModel(r.model);
+      openObservationWizardIfNeeded(r.model);
       log("Bootstrapped RL trainer config");
       setValidation(await api.validate(project));
       await refreshProjects();
@@ -144,6 +150,7 @@ export default function App() {
       </div>
 
       <StatusBar connected={connected} />
+      <ObservationWizardHost />
     </div>
   );
 }
