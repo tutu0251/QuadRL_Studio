@@ -48,7 +48,7 @@ export function ExportsPanel({ bundle, selectedPath, preview, onSelect }: Props)
       )}
 
       <p className="panel-hint">
-        Sim: {bundle.recommended_sim_backend ?? "mock"}
+        Sim: {bundle.recommended_sim_backend ?? "unavailable"}
         {bundle.workspace_ready ? " · workspace built" : " · workspace not built"}
         {!bundle.sensor_exports_ready && " · sensor/control exports incomplete"}
       </p>

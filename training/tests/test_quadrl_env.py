@@ -1,10 +1,11 @@
-"""Unit tests for quadruped env (mock backend, no ROS)."""
+"""Unit tests for quadruped env components (no live Gazebo)."""
 from __future__ import annotations
 
 import tempfile
 from pathlib import Path
 
 import numpy as np
+import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
@@ -12,10 +13,10 @@ import sys
 
 sys.path.insert(0, str(REPO / "training"))
 
-from quadrl_env.env_factory import make_quadruped_env
 from quadrl_env.observations import ObservationBuilder
 from quadrl_env.project_config import load_project_artifacts
 from quadrl_env.rewards import RewardEngine
+from quadrl_env.sensor_packing import fit_dim, pack_imu, pack_odom, sensor_term_dim
 from quadrl_env.sim_state import SimState
 from quadrl_env.termination import TerminationEngine
 
@@ -110,13 +111,124 @@ def test_termination_skips_null_max_joint_torque():
     assert reason == ""
 
 
-def test_quadruped_env_episode():
-    with tempfile.TemporaryDirectory() as tmp:
-        proj = _write_minimal_project(Path(tmp) / "bot", "bot")
-        env = make_quadruped_env(proj, backend="mock")
-        obs, info = env.reset()
-        assert obs.shape == env.observation_space.shape
-        obs2, reward, term, trunc, info2 = env.step(env.action_space.sample())
-        assert obs2.shape == obs.shape
-        assert isinstance(reward, float)
-        env.close()
+def test_sensor_term_fits_declared_dim_when_vector_wrong_length():
+    rl_config = {
+        "observations": {
+            "terms": [
+                {
+                    "id": "sensor:imu",
+                    "source": "sensor",
+                    "kind": "imu",
+                    "enabled": True,
+                    "available": True,
+                    "key": "base_imu",
+                    "fields": ["angular_velocity", "linear_acceleration", "orientation"],
+                    "scale": 1.0,
+                }
+            ]
+        }
+    }
+    obs_doc = {"observations": {"base_imu": {"kind": "imu", "fields": ["angular_velocity", "linear_acceleration", "orientation"]}}}
+    builder = ObservationBuilder(rl_config, obs_doc, ["j1", "j2"])
+    assert builder.observation_dim == 9
+
+    state = SimState(
+        joint_pos=np.zeros(2),
+        joint_vel=np.zeros(2),
+        base_lin_vel=np.zeros(3),
+        base_ang_vel=np.zeros(3),
+        projected_gravity=np.array([0.0, 0.0, -1.0]),
+        base_height=0.35,
+    )
+    wrong = builder.build(state, command={}, last_action=np.zeros(2), sensor_vectors={"base_imu": np.ones(3, dtype=np.float32)})
+    full = builder.build(
+        state,
+        command={},
+        last_action=np.zeros(2),
+        sensor_vectors={
+            "base_imu": pack_imu(
+                ["angular_velocity", "linear_acceleration", "orientation"],
+                angular_velocity=np.array([1.0, 0.0, 0.0]),
+                linear_acceleration=np.array([0.0, 0.0, -9.8]),
+                orientation=np.array([0.0, 0.0, 0.0]),
+            )
+        },
+    )
+    assert wrong.shape == (9,)
+    assert full.shape == (9,)
+
+
+def test_imu_packing_nine_dims():
+    vec = pack_imu(
+        ["angular_velocity", "linear_acceleration", "orientation"],
+        angular_velocity=np.array([1.0, 2.0, 3.0]),
+        linear_acceleration=np.array([4.0, 5.0, 6.0]),
+        orientation=np.array([7.0, 8.0, 9.0]),
+    )
+    assert vec.shape == (9,)
+    assert vec[0] == 1.0
+    assert vec[3] == 4.0
+    assert vec[6] == 7.0
+
+
+def test_odom_packing_three_scalars():
+    vec = pack_odom(
+        ["linear_velocity_x", "linear_velocity_y", "angular_velocity_z"],
+        linear_velocity_x=0.5,
+        linear_velocity_y=-0.1,
+        angular_velocity_z=0.2,
+    )
+    assert vec.shape == (3,)
+    assert vec[0] == pytest.approx(0.5)
+    assert vec[1] == pytest.approx(-0.1)
+    assert vec[2] == pytest.approx(0.2)
+    assert sensor_term_dim("odom", ["linear_velocity_x", "linear_velocity_y", "angular_velocity_z"]) == 3
+
+
+def test_my_robot_like_observation_dim_is_66():
+    n_joints = 12
+    terms = [
+        {"id": "joint_positions", "source": "procedural", "enabled": True, "available": True},
+        {"id": "joint_velocities", "source": "procedural", "enabled": True, "available": True},
+        {"id": "last_actions", "source": "procedural", "enabled": True, "available": True},
+        {"id": "commands", "source": "procedural", "enabled": True, "available": True},
+        {"id": "base_lin_vel", "source": "procedural", "enabled": True, "available": True},
+        {"id": "base_ang_vel", "source": "procedural", "enabled": True, "available": True},
+        {"id": "projected_gravity", "source": "procedural", "enabled": True, "available": True},
+        {
+            "id": "sensor:imu",
+            "source": "sensor",
+            "kind": "imu",
+            "enabled": True,
+            "available": True,
+            "key": "base_link_imu",
+            "fields": ["angular_velocity", "linear_acceleration", "orientation"],
+        },
+        *[
+            {
+                "id": f"sensor:foot_{i}",
+                "source": "sensor",
+                "kind": "contact",
+                "enabled": True,
+                "available": True,
+                "key": f"foot_{i}",
+                "fields": ["contacts"],
+            }
+            for i in range(4)
+        ],
+        {
+            "id": "sensor:odom",
+            "source": "sensor",
+            "kind": "odom",
+            "enabled": True,
+            "available": True,
+            "key": "base_link_odom",
+            "fields": ["linear_velocity_x", "linear_velocity_y", "angular_velocity_z"],
+        },
+    ]
+    obs_doc = {"observations": {}}
+    builder = ObservationBuilder({"observations": {"terms": terms}}, obs_doc, [f"j{i}" for i in range(n_joints)])
+    assert builder.observation_dim == 66
+    assert sensor_term_dim("imu", ["angular_velocity", "linear_acceleration", "orientation"]) == 9
+    assert fit_dim(np.ones(3), 9).shape == (9,)
+

@@ -38,6 +38,7 @@ from domain.service import GeometryCore
 from exporter.sdf_exporter import SdfConversionError, export_sdf_from_urdf
 from exporter.urdf_exporter import export_urdf, urdf_to_string
 from storage import project_storage
+from domain.pose_utils import write_default_pose_export
 from templates.registry import list_templates
 from validator.validator import GeometryValidator
 from validator.runtime_validator import ExportValidationResult, validate_geometry_export
@@ -162,6 +163,14 @@ class CopyRequest(BaseModel):
 
 class PoseCreate(BaseModel):
     name: str
+
+
+class PoseJointUpdate(BaseModel):
+    value: float
+
+
+class DefaultPoseSet(BaseModel):
+    pose_id: str
 
 
 class MeasureDistanceRequest(BaseModel):
@@ -414,6 +423,44 @@ def load_pose(name: str, pose_id: str):
     return {"pose": pose, "model": core.get_model()}
 
 
+@app.get("/api/projects/{name}/default-pose")
+def get_default_pose_api(name: str):
+    core = _get_core(name)
+    model = core.get_model()
+    pose = core.get_default_pose()
+    return {"pose": pose, "default_pose_id": model.defaultPoseId, "model": model}
+
+
+@app.put("/api/projects/{name}/default-pose")
+def set_default_pose_api(name: str, body: DefaultPoseSet):
+    core = _get_core(name)
+    pose = core.set_default_pose(body.pose_id)
+    if not pose:
+        raise HTTPException(404, "Pose not found")
+    _save(name, core)
+    return {"pose": pose, "model": core.get_model()}
+
+
+@app.patch("/api/projects/{name}/poses/{pose_id}/joints/{joint_id}")
+def update_pose_joint_api(name: str, pose_id: str, joint_id: str, body: PoseJointUpdate):
+    core = _get_core(name)
+    pose = core.update_pose_joint(pose_id, joint_id, body.value)
+    if not pose:
+        raise HTTPException(404, "Pose or joint not found")
+    _save(name, core)
+    return {"pose": pose, "model": core.get_model()}
+
+
+@app.post("/api/projects/{name}/default-pose/reset-stand")
+def reset_default_pose_stand(name: str):
+    core = _get_core(name)
+    pose = core.reset_default_pose_to_stand()
+    if not pose:
+        raise HTTPException(400, "No default pose on project")
+    _save(name, core)
+    return {"pose": pose, "model": core.get_model()}
+
+
 @app.post("/api/projects/{name}/mirror")
 def mirror_leg(name: str, body: MirrorRequest):
     core = _get_core(name)
@@ -529,6 +576,11 @@ async def _validate_geometry_export(tid: str, exports_dir: Path) -> ExportValida
     return await asyncio.to_thread(validate_geometry_export, exports_dir, on_log=_runtime_log)
 
 
+def _export_default_pose_file(name: str, core: GeometryCore) -> None:
+    out = project_storage.export_default_pose_path(name)
+    write_default_pose_export(core.get_model(), out)
+
+
 async def _finish_geometry_export(tid: str, payload: dict[str, Any]) -> None:
     exports_dir = project_storage.project_dir(payload["project"]) / "exports"
     validation = await _validate_geometry_export(tid, exports_dir)
@@ -580,6 +632,7 @@ async def export_urdf_api(name: str):
         await asyncio.sleep(0.05)
         out = project_storage.export_urdf_path(name)
         export_urdf(core.get_model(), out)
+        _export_default_pose_file(name, core)
         task_manager.log(tid, "info", f"Exported URDF to {out}")
         await _finish_geometry_export(
             tid,
@@ -613,6 +666,7 @@ async def export_gazebo(name: str):
             task_manager.log(tid, "error", str(e))
             task_manager.set_status(tid, "failed", {"error": str(e)})
             return
+        _export_default_pose_file(name, core)
         task_manager.log(tid, "info", f"Exported SDF to {sdf_out}")
         await _finish_geometry_export(
             tid,
@@ -646,6 +700,7 @@ async def export_both(name: str):
             task_manager.log(tid, "error", str(e))
             task_manager.set_status(tid, "failed", {"error": str(e)})
             return
+        _export_default_pose_file(name, core)
         task_manager.log(tid, "info", f"Exported SDF: {sdf_out}")
         await _finish_geometry_export(
             tid,

@@ -12,6 +12,7 @@ CONTROL_FILE = "control_model.json"
 PHYSICS_FILE = "physics_model.json"
 EXPORTS_DIR = "exports"
 PHY_PREFIX = "phy_"
+GEO_PREFIX = "geo_"
 CTRL_PREFIX = "ctrl_"
 
 
@@ -41,6 +42,23 @@ def export_controllers_yaml_path(name: str) -> Path:
 
 def export_gains_yaml_path(name: str) -> Path:
     return project_dir(name) / EXPORTS_DIR / f"{CTRL_PREFIX}{name}_gains.yaml"
+
+
+def geo_default_pose_path(name: str) -> Path:
+    return project_dir(name) / EXPORTS_DIR / f"{GEO_PREFIX}{name}_default_pose.yaml"
+
+
+def load_geo_default_pose_joints(name: str) -> dict[str, float]:
+    path = geo_default_pose_path(name)
+    if not path.is_file():
+        return {}
+    import yaml
+
+    text = path.read_text(encoding="utf-8")
+    body = "\n".join(line for line in text.splitlines() if not line.strip().startswith("#"))
+    doc = yaml.safe_load(body) or {}
+    joints = doc.get("joints") or {}
+    return {str(k): float(v) for k, v in joints.items()}
 
 
 def ensure_project_dirs(name: str) -> Path:

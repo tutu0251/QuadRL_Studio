@@ -177,6 +177,7 @@ export interface ObservationTerm {
   parentLink?: string;
   rateHz?: number;
   fields?: string[];
+  availableFields?: string[];
   sensorId?: string;
   scale: number;
   offset: number;
@@ -201,6 +202,8 @@ export interface RlTrainerModel {
   activeCurriculumId: string | null;
   trainingCheckpoint: TrainingCheckpointConfig;
   useRecommended: boolean;
+  observationsSetupComplete?: boolean;
+  observationWizardDismissed?: boolean;
   customParams: Record<string, CustomParamValue>;
   metadata: Record<string, unknown>;
 }
@@ -451,3 +454,13 @@ export function defaultTrainingCheckpoint(): TrainingCheckpointConfig {
     checkpointDirectory: "checkpoints",
   };
 }
+
+export {
+  buildObservationVectorBreakdown,
+  computeObservationFieldDim,
+  computeObservationTermDim,
+  formatObservationTermDimLabel,
+  type ObservationDimContext,
+  type ObservationVectorBreakdown,
+  type ObservationVectorSegment,
+} from "./observationDimensions";

@@ -8,6 +8,7 @@ interface TrainerState {
   activeTab: string;
   selectedStageId: string | null;
   selectedGaitTypeId: string | null;
+  observationWizardOpen: boolean;
   logs: string[];
   setProject: (p: string | null) => void;
   setModel: (m: RlTrainerModel | null) => void;
@@ -15,6 +16,7 @@ interface TrainerState {
   setActiveTab: (tab: string) => void;
   setSelectedStageId: (id: string | null) => void;
   setSelectedGaitTypeId: (id: string | null) => void;
+  setObservationWizardOpen: (open: boolean) => void;
   log: (msg: string) => void;
 }
 
@@ -25,6 +27,7 @@ export const useTrainerStore = create<TrainerState>((set) => ({
   activeTab: "curriculum",
   selectedStageId: null,
   selectedGaitTypeId: null,
+  observationWizardOpen: false,
   logs: [],
   setProject: (p) => set({ project: p }),
   setModel: (m) => set({ model: m }),
@@ -32,5 +35,6 @@ export const useTrainerStore = create<TrainerState>((set) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
   setSelectedStageId: (id) => set({ selectedStageId: id }),
   setSelectedGaitTypeId: (id) => set({ selectedGaitTypeId: id }),
+  setObservationWizardOpen: (open) => set({ observationWizardOpen: open }),
   log: (msg) => set((s) => ({ logs: [...s.logs.slice(-200), msg] })),
 }));

@@ -121,6 +121,11 @@ def _load_sensor_model(name: str) -> dict[str, Any] | None:
         return None
 
 
+def _attach_sensor_fields(fields: list[str]) -> tuple[list[str], list[str]]:
+    avail = list(fields)
+    return avail, list(avail)
+
+
 def _sensor_terms_from_model(project: str) -> list[ObservationTerm]:
     doc = _load_sensor_model(project)
     if not doc:
@@ -138,6 +143,8 @@ def _sensor_terms_from_model(project: str) -> list[ObservationTerm]:
         kind = str(sensor.get("kind") or "").lower()
         name = str(sensor.get("name") or sensor_id or kind)
         key = _observation_key(name)
+        export_fields = _fields_for_sensor(kind, sensor)
+        avail, selected = _attach_sensor_fields(export_fields)
         terms.append(
             ObservationTerm(
                 id=f"sensor:{sensor_id or key}",
@@ -151,7 +158,8 @@ def _sensor_terms_from_model(project: str) -> list[ObservationTerm]:
                 topic=str(sensor.get("rosTopic") or ""),
                 parentLink=str(sensor.get("parentLink") or ""),
                 rateHz=float(sensor.get("updateRate") or 0),
-                fields=_fields_for_sensor(kind, sensor),
+                fields=selected,
+                availableFields=avail,
                 sensorId=sensor_id,
             )
         )
@@ -171,6 +179,8 @@ def _sensor_terms_from_yaml(project: str) -> list[ObservationTerm]:
         if not isinstance(spec, dict):
             continue
         kind = str(spec.get("kind") or "").lower()
+        export_fields = list(spec.get("fields") or [])
+        avail, selected = _attach_sensor_fields(export_fields)
         terms.append(
             ObservationTerm(
                 id=f"sensor:{key}",
@@ -185,7 +195,8 @@ def _sensor_terms_from_yaml(project: str) -> list[ObservationTerm]:
                 msgType=str(spec.get("msg_type") or ""),
                 parentLink=str(spec.get("parent_link") or ""),
                 rateHz=float(spec.get("rate_hz") or 0),
-                fields=list(spec.get("fields") or []),
+                fields=selected,
+                availableFields=avail,
                 sensorId=key,
             )
         )
@@ -224,18 +235,31 @@ def merge_observation_terms(
     merged: list[ObservationTerm] = []
     for cat in catalog:
         prev = by_id.get(cat.id)
+        avail = list(cat.availableFields or cat.fields or [])
         if prev:
             term = cat.model_copy(deep=True)
-            term.enabled = prev.enabled if prev.available or cat.available else False
+            term.availableFields = avail
+            term.enabled = prev.enabled if (prev.available or cat.available) else False
             term.scale = prev.scale if prev.scale > 0 else cat.scale
             term.offset = prev.offset
             term.clipMin = prev.clipMin
             term.clipMax = prev.clipMax
             if prev.label and cat.source == "sensor":
                 term.label = prev.label
+            if term.source == "sensor" and avail:
+                prev_fields = list(prev.fields or prev.availableFields or avail)
+                term.fields = [f for f in prev_fields if f in avail]
+                if term.enabled and not term.fields:
+                    term.fields = list(avail)
             merged.append(term)
         else:
-            merged.append(cat)
+            term = cat.model_copy(deep=True)
+            term.availableFields = avail
+            if term.available:
+                term.enabled = True
+                if term.source == "sensor" and avail:
+                    term.fields = list(avail)
+            merged.append(term)
     return merged
 
 

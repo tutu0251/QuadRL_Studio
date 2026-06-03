@@ -103,6 +103,7 @@ class RobotModel(BaseModel):
     links: list[Link] = Field(default_factory=list)
     joints: list[Joint] = Field(default_factory=list)
     poses: list[Pose] = Field(default_factory=list)
+    defaultPoseId: Optional[str] = None
     templates: list[str] = Field(default_factory=list)
     namingConvention: NamingConvention = NamingConvention.LOWER
     metadata: dict[str, Any] = Field(default_factory=dict)

@@ -6,7 +6,7 @@ import { ObservationsPanel } from "../observations/ObservationsPanel";
 const TABS = [
   { id: "curriculum", label: "Curriculum", hint: "Stages & training order" },
   { id: "gait", label: "Gate Type", hint: "None, walk, trot, gallop — cycle & phase params" },
-  { id: "observations", label: "Observations", hint: "Select procedural + sensor observations for the policy vector" },
+  { id: "observations", label: "Observations", hint: "Policy vector size, layout, and per-term normalization" },
 ] as const;
 
 export function InspectorTabs() {

@@ -9,7 +9,7 @@ PPO training launcher that loads **all QuadRL editor exports** for quadruped loc
 | `sens_<project>_observations.yaml` | Sensor topics, fields, bridge contract |
 | `ctrl_<project>_controllers.yaml` | Joint names, JTC action targets |
 | `ctrl_<project>_gains.yaml` | `action_scale`, default positions, PD metadata |
-| `workspace/` (built) | ROS 2 + Gazebo sim when using `ros` backend |
+| `workspace/` (built) | ROS 2 + Gazebo simulation |
 
 ## Install
 
@@ -36,16 +36,15 @@ The training launcher re-execs under `source /opt/ros/humble/setup.bash` so **rc
 
 Options:
 
-- `--sim-backend auto|mock|ros` — `auto` uses ROS when workspace + rclpy are available
+- `--sim-backend auto|ros` — `auto` requires a built workspace and rclpy
 - `--resume checkpoints/ppo_final.zip`
 - `--dry-run` — no SB3
 
 Environment variable: `QUADRL_SIM_BACKEND` (same as `--sim-backend`).
 
-## Backends
+## Simulation
 
-- **mock** — lightweight integrator; uses exported joint/action/reward/obs contracts. Default for CI and multi-env (`num_envs` > 1).
-- **ros** — launches `sim.launch.py`, subscribes to observation topics, publishes `joint_trajectory_controller` goals. Single env only.
+Training uses **ROS 2 + Gazebo** only: launches `sim.launch.py`, subscribes to observation topics, and publishes `joint_trajectory_controller` goals. Only one parallel env is supported (`num_envs` > 1 is clamped to 1).
 
 Train Monitor (`train-monitor/`) calls this script automatically.
 
@@ -54,4 +53,10 @@ Train Monitor (`train-monitor/`) calls this script automatically.
 ```bash
 ./scripts/ensure_venv.sh
 PYTHONPATH=training .venv/bin/python -m pytest training/tests/ -q
+```
+
+End-to-end training smoke test (requires built workspace + Gazebo):
+
+```bash
+QUADRL_INTEGRATION=1 PYTHONPATH=training .venv/bin/python -m pytest training/tests/test_tensorboard_smoke.py -q
 ```

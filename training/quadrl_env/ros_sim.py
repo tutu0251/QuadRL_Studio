@@ -1,6 +1,7 @@
 """ROS 2 + Gazebo sim backend — subscribes to exported observation topics, commands JTC."""
 from __future__ import annotations
 
+import atexit
 import os
 import signal
 import subprocess
@@ -11,9 +12,12 @@ from typing import Any
 
 import numpy as np
 
-from quadrl_env.mock_sim import MockSimBackend
-from quadrl_env.project_config import ProjectArtifacts
-from quadrl_env.ros_env import ROS_SETUP, load_ros_environ, probe_rclpy_import
+from quadrl_env.disturbances import DisturbanceEngine
+from quadrl_env.gazebo_cleanup import cleanup_training_gazebo, terminate_process_group
+from quadrl_env.gazebo_reset import apply_ros_wrench, reset_gazebo_robot
+from quadrl_env.project_config import JointGains, ProjectArtifacts
+from quadrl_env.ros_env import load_ros_environ, probe_rclpy_import
+from quadrl_env.sensor_packing import normalized_gravity, pack_contact, pack_imu, pack_odom
 from quadrl_env.sim_state import SimState
 
 _rclpy_refcount = 0
@@ -23,6 +27,7 @@ _ros_executor = None
 _ros_spin_thread: threading.Thread | None = None
 _ros_executor_lock = threading.Lock()
 _ros_executor_nodes = 0
+_gazebo_atexit_registered = False
 
 
 def _ensure_rclpy_initialized() -> None:
@@ -52,10 +57,26 @@ def _register_ros_node(node: Any) -> None:
     with _ros_executor_lock:
         if _ros_executor is None:
             _ros_executor = SingleThreadedExecutor()
-            _ros_spin_thread = threading.Thread(target=_ros_executor.spin, daemon=True)
+            def _spin_safely() -> None:
+                try:
+                    _ros_executor.spin()
+                except Exception:
+                    # During SIGTERM / rclpy.shutdown(), the executor can raise
+                    # ExternalShutdownException. Treat all shutdown-time errors as normal exit.
+                    return
+
+            _ros_spin_thread = threading.Thread(target=_spin_safely, daemon=True)
             _ros_spin_thread.start()
         _ros_executor.add_node(node)
         _ros_executor_nodes += 1
+
+
+def wait_rcl_future(future: Any, *, timeout_sec: float) -> bool:
+    """Wait for an async ROS future while the process-wide executor spins the node."""
+    deadline = time.time() + timeout_sec
+    while not future.done() and time.time() < deadline:
+        time.sleep(0.02)
+    return bool(future.done() and not future.cancelled())
 
 
 def _unregister_ros_node(node: Any) -> None:
@@ -70,6 +91,29 @@ def _unregister_ros_node(node: Any) -> None:
         _ros_executor_nodes = max(0, _ros_executor_nodes - 1)
 
 
+def _gazebo_headless_from_env() -> bool:
+    """True = server-only (-s). Default headless when unset."""
+    raw = os.environ.get("QUADRL_GAZEBO_HEADLESS", "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def shutdown_shared_gazebo() -> None:
+    """Stop the shared Gazebo launch and any stray sim processes (safe if already stopped)."""
+    global _gazebo_refcount, _shared_launch_proc
+    proc = _shared_launch_proc
+    _gazebo_refcount = 0
+    _shared_launch_proc = None
+    launch_pid = proc.pid if proc is not None and proc.poll() is None else None
+    cleanup_training_gazebo(launch_pid)
+
+
+def _register_gazebo_atexit() -> None:
+    global _gazebo_atexit_registered
+    if not _gazebo_atexit_registered:
+        atexit.register(shutdown_shared_gazebo)
+        _gazebo_atexit_registered = True
+
+
 def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
     """Launch Gazebo once; additional backends attach to the same sim."""
     global _gazebo_refcount, _shared_launch_proc
@@ -77,9 +121,11 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
         env = load_ros_environ(workspace_setup=artifacts.workspace_setup)
         setup = artifacts.workspace_setup
         pkg = artifacts.bringup_pkg
+        headless = _gazebo_headless_from_env()
+        headless_arg = "true" if headless else "false"
         launch = (
             f"source /opt/ros/humble/setup.bash && source {setup} && "
-            f"ros2 launch {pkg} sim.launch.py headless:=true"
+            f"ros2 launch {pkg} sim.launch.py headless:={headless_arg}"
         )
         _shared_launch_proc = subprocess.Popen(
             ["bash", "-lc", launch],
@@ -87,7 +133,9 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
+            start_new_session=True,
         )
+        _register_gazebo_atexit()
         time.sleep(float(os.environ.get("QUADRL_SIM_WARMUP_S", "25")))
     _gazebo_refcount += 1
     return _shared_launch_proc
@@ -98,13 +146,11 @@ def _release_gazebo() -> None:
     _gazebo_refcount = max(0, _gazebo_refcount - 1)
     if _gazebo_refcount > 0 or _shared_launch_proc is None:
         return
-    if _shared_launch_proc.poll() is None:
-        _shared_launch_proc.send_signal(signal.SIGINT)
-        try:
-            _shared_launch_proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            _shared_launch_proc.kill()
+    proc = _shared_launch_proc
     _shared_launch_proc = None
+    if proc.poll() is None:
+        terminate_process_group(proc.pid)
+    cleanup_training_gazebo()
 
 
 def ros_stack_available(*, workspace_setup: Path | str | None = None) -> bool:
@@ -118,18 +164,37 @@ def ros_stack_available(*, workspace_setup: Path | str | None = None) -> bool:
 
 
 class RosSimBackend:
-    """Wraps a running Gazebo workspace; falls back to mock physics if topics are unavailable."""
+    """Wraps a running Gazebo workspace and streams state from ROS topics."""
 
     def __init__(self, artifacts: ProjectArtifacts, *, env_id: int = 0) -> None:
         self._artifacts = artifacts
         self._env_id = env_id
-        self._mock = MockSimBackend(artifacts, seed=env_id)
         self._launch_proc: subprocess.Popen[str] | None = None
         self._latest_joint_pos: np.ndarray | None = None
         self._latest_joint_vel: np.ndarray | None = None
         self._sensor_cache: dict[str, np.ndarray] = {}
+        self._imu_raw: dict[str, dict[str, np.ndarray]] = {}
+        self._odom_raw: dict[str, dict[str, float]] = {}
+        self._contact_raw: dict[str, int] = {}
+        self._disturbance = DisturbanceEngine({})
+        self._world_name = os.environ.get("QUADRL_GZ_WORLD", "flat")
+        self._entity_name = artifacts.project_name
         self._node = None
         self._started = False
+        self._command: dict[str, Any] = {}
+        self._step = 0
+        self._last_state: SimState | None = None
+
+    def set_stage_context(
+        self,
+        *,
+        command: dict[str, Any] | None = None,
+        disturbance: dict[str, Any] | None = None,
+    ) -> None:
+        if command is not None:
+            self._command = dict(command)
+        if disturbance is not None:
+            self._disturbance = DisturbanceEngine(disturbance)
 
     def start(self) -> None:
         if self._started:
@@ -145,8 +210,10 @@ class RosSimBackend:
             )
 
         import rclpy
+        from nav_msgs.msg import Odometry
         from rclpy.node import Node
         from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+        from ros_gz_interfaces.msg import Contacts
         from sensor_msgs.msg import Imu, JointState
         from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -181,23 +248,13 @@ class RosSimBackend:
         for key, spec in (self._artifacts.observations_doc.get("observations") or {}).items():
             topic = spec.get("topic")
             kind = (spec.get("kind") or "").lower()
+            fields = list(spec.get("fields") or [])
             if not topic:
                 continue
             if kind == "imu":
 
-                def _imu_cb(msg: Imu, k=key) -> None:
-                    g = np.array(
-                        [
-                            float(msg.linear_acceleration.x),
-                            float(msg.linear_acceleration.y),
-                            float(msg.linear_acceleration.z),
-                        ],
-                        dtype=np.float32,
-                    )
-                    norm = float(np.linalg.norm(g))
-                    if norm > 1e-3:
-                        self._sensor_cache[k] = g / norm
-                    self._sensor_cache[f"{k}_ang"] = np.array(
+                def _imu_cb(msg: Imu, k=key, f=fields) -> None:
+                    ang = np.array(
                         [
                             float(msg.angular_velocity.x),
                             float(msg.angular_velocity.y),
@@ -205,8 +262,62 @@ class RosSimBackend:
                         ],
                         dtype=np.float32,
                     )
+                    lin = np.array(
+                        [
+                            float(msg.linear_acceleration.x),
+                            float(msg.linear_acceleration.y),
+                            float(msg.linear_acceleration.z),
+                        ],
+                        dtype=np.float32,
+                    )
+                    orient = np.array(
+                        [
+                            float(msg.orientation.x),
+                            float(msg.orientation.y),
+                            float(msg.orientation.z),
+                        ],
+                        dtype=np.float32,
+                    )
+                    self._imu_raw[k] = {
+                        "angular_velocity": ang,
+                        "linear_acceleration": lin,
+                        "orientation": orient,
+                    }
+                    self._sensor_cache[k] = pack_imu(
+                        f,
+                        angular_velocity=ang,
+                        linear_acceleration=lin,
+                        orientation=orient,
+                    )
 
                 self._node.create_subscription(Imu, topic, _imu_cb, reliable)
+            elif kind == "contact":
+
+                def _contact_cb(msg: Contacts, k=key, f=fields) -> None:
+                    count = len(msg.contacts) if msg.contacts else 0
+                    self._contact_raw[k] = count
+                    self._sensor_cache[k] = pack_contact(f, contact_count=count)
+
+                self._node.create_subscription(Contacts, topic, _contact_cb, reliable)
+            elif kind == "odom":
+
+                def _odom_cb(msg: Odometry, k=key, f=fields) -> None:
+                    twist = msg.twist.twist
+                    pos = msg.pose.pose.position
+                    self._odom_raw[k] = {
+                        "linear_velocity_x": float(twist.linear.x),
+                        "linear_velocity_y": float(twist.linear.y),
+                        "angular_velocity_z": float(twist.angular.z),
+                        "position_z": float(pos.z),
+                    }
+                    self._sensor_cache[k] = pack_odom(
+                        f,
+                        linear_velocity_x=float(twist.linear.x),
+                        linear_velocity_y=float(twist.linear.y),
+                        angular_velocity_z=float(twist.angular.z),
+                    )
+
+                self._node.create_subscription(Odometry, topic, _odom_cb, reliable)
 
         self._jtc_pub = self._node.create_publisher(
             JointTrajectory,
@@ -235,18 +346,83 @@ class RosSimBackend:
     def reset(self, *, command: dict[str, Any] | None = None) -> SimState:
         if not self._started:
             self.start()
-        state = self._mock.reset(command=command)
-        return self._merge_ros_state(state)
+        if command:
+            self._command = dict(command)
+        self._disturbance.reset(seed=self._env_id)
+        self._step = 0
+        default_targets = _default_joint_positions(self._artifacts)
+        try:
+            import rclpy
+
+            ros_live = rclpy.ok()
+        except ImportError:
+            ros_live = False
+        if ros_live:
+            reset_gazebo_robot(
+                self._node,
+                world_name=self._world_name,
+                entity_name=self._entity_name,
+                spawn=dict(self._artifacts.spawn_config),
+                joint_names=list(self._artifacts.joint_names),
+                joint_positions=default_targets,
+                jtc_pub=self._jtc_pub,
+                joint_trajectory_msg_cls=self._JointTrajectory,
+                joint_trajectory_point_cls=self._JointTrajectoryPoint,
+                control_dt=self._artifacts.control_dt,
+                wait_future=wait_rcl_future,
+            )
+        base_h = float(self._command.get("target_body_height", self._artifacts.spawn_config.get("z", 0.5)))
+        fallback = SimState(
+            joint_pos=default_targets.astype(np.float32, copy=True),
+            joint_vel=np.zeros(len(self._artifacts.joint_names), dtype=np.float32),
+            base_lin_vel=np.zeros(3, dtype=np.float32),
+            base_ang_vel=np.zeros(3, dtype=np.float32),
+            projected_gravity=np.array([0.0, 0.0, -1.0], dtype=np.float32),
+            base_height=base_h,
+            contact_forces={k: 0.0 for k in _foot_keys_from_observations(self._artifacts.observations_doc)},
+            foot_air_time={},
+            episode_step=0,
+        )
+        self._last_state = self._merge_ros_state(fallback)
+        return self._last_state
 
     def step(self, target_positions: np.ndarray, *, command: dict[str, Any] | None = None) -> SimState:
+        if command:
+            self._command = dict(command)
+        wrench = self._disturbance.ros_wrench()
+        if wrench and self._node is not None:
+            force, torque = wrench
+            apply_ros_wrench(
+                self._node,
+                world_name=self._world_name,
+                entity_name=self._entity_name,
+                force=force,
+                torque=torque,
+            )
         self._publish_trajectory(target_positions)
         dt = self._artifacts.control_dt
         time.sleep(dt)
-        state = self._mock.step(target_positions, command=command)
-        return self._merge_ros_state(state)
+        self._step += 1
+        last = self._last_state
+        if last is None:
+            last = self.reset(command=self._command)
+        fallback = last.copy()
+        fallback.episode_step = self._step
+        # If ROS joint states aren't ready yet, prefer commanded targets over stale defaults.
+        if self._latest_joint_pos is None:
+            fallback.joint_pos = np.asarray(target_positions, dtype=np.float32).copy()
+        self._last_state = self._merge_ros_state(fallback)
+        return self._last_state
 
     def _publish_trajectory(self, positions: np.ndarray) -> None:
         if self._node is None:
+            return
+        try:
+            import rclpy
+
+            if not rclpy.ok():
+                return
+        except ImportError:
             return
         msg = self._JointTrajectory()
         msg.joint_names = list(self._artifacts.joint_names)
@@ -255,7 +431,10 @@ class RosSimBackend:
         point.time_from_start.sec = 0
         point.time_from_start.nanosec = int(self._artifacts.control_dt * 1e9)
         msg.points = [point]
-        self._jtc_pub.publish(msg)
+        try:
+            self._jtc_pub.publish(msg)
+        except Exception:
+            return
 
     def _merge_ros_state(self, fallback: SimState) -> SimState:
         state = fallback.copy()
@@ -263,19 +442,73 @@ class RosSimBackend:
             state.joint_pos = self._latest_joint_pos.copy()
         if self._latest_joint_vel is not None:
             state.joint_vel = self._latest_joint_vel.copy()
-        ang_key = next((k for k in self._sensor_cache if k.endswith("_ang")), None)
-        if ang_key:
-            state.base_ang_vel = self._sensor_cache[ang_key].copy()
+
         grav_key = next(
-            (k for k, spec in (self._artifacts.observations_doc.get("observations") or {}).items() if (spec.get("kind") or "").lower() == "imu"),
+            (
+                k
+                for k, spec in (self._artifacts.observations_doc.get("observations") or {}).items()
+                if (spec.get("kind") or "").lower() == "imu"
+            ),
             None,
         )
-        if grav_key and grav_key in self._sensor_cache:
-            state.projected_gravity = self._sensor_cache[grav_key].copy()
+        if grav_key and grav_key in self._imu_raw:
+            raw = self._imu_raw[grav_key]
+            state.base_ang_vel = raw["angular_velocity"].copy()
+            state.projected_gravity = normalized_gravity(raw["linear_acceleration"])
+
+        odom_key = next(
+            (
+                k
+                for k, spec in (self._artifacts.observations_doc.get("observations") or {}).items()
+                if (spec.get("kind") or "").lower() == "odom"
+            ),
+            None,
+        )
+        if odom_key and odom_key in self._odom_raw:
+            raw = self._odom_raw[odom_key]
+            state.base_lin_vel[0] = float(raw.get("linear_velocity_x", state.base_lin_vel[0]))
+            state.base_lin_vel[1] = float(raw.get("linear_velocity_y", state.base_lin_vel[1]))
+            if "position_z" in raw:
+                state.base_height = float(raw["position_z"])
+
+        foot_keys = _foot_keys_from_observations(self._artifacts.observations_doc)
+        contacts: dict[str, float] = {}
+        for key in foot_keys:
+            count = self._contact_raw.get(key, 0)
+            contacts[key] = 40.0 if count > 0 else 0.0
+        if contacts:
+            state.contact_forces = contacts
+
         return state
 
     def action_to_targets(self, action: np.ndarray) -> np.ndarray:
-        return self._mock.action_to_targets(action)
+        return _action_to_targets(self._artifacts, action)
 
     def sensor_vectors(self) -> dict[str, np.ndarray]:
-        return dict(self._sensor_cache)
+        obs_keys = set((self._artifacts.observations_doc.get("observations") or {}).keys())
+        return {k: v.copy() for k, v in self._sensor_cache.items() if k in obs_keys}
+
+
+def _default_joint_positions(artifacts: ProjectArtifacts) -> np.ndarray:
+    return np.array(
+        [artifacts.joint_gains[n].default_position for n in artifacts.joint_names],
+        dtype=np.float32,
+    )
+
+
+def _action_to_targets(artifacts: ProjectArtifacts, action: np.ndarray) -> np.ndarray:
+    action = np.asarray(action, dtype=np.float32)
+    targets = np.zeros(len(artifacts.joint_names), dtype=np.float32)
+    for i, name in enumerate(artifacts.joint_names):
+        g = artifacts.joint_gains.get(name) or JointGains(name=name)
+        a = float(action[i]) if i < len(action) else 0.0
+        targets[i] = g.default_position + a * g.action_scale
+    return targets
+
+
+def _foot_keys_from_observations(doc: dict[str, Any]) -> list[str]:
+    keys: list[str] = []
+    for key, spec in (doc.get("observations") or {}).items():
+        if (spec.get("kind") or "").lower() == "contact":
+            keys.append(key)
+    return keys or ["fl_contact", "fr_contact", "rl_contact", "rr_contact"]

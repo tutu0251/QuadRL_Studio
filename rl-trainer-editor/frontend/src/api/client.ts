@@ -52,6 +52,8 @@ export type ObservationsSummary = {
   simUrdf?: string;
   observations: ObservationEntry[];
   kinds: string[];
+  jointCount?: number;
+  jointNames?: string[];
 };
 
 export type ModelPatch = {
@@ -65,6 +67,8 @@ export type ModelPatch = {
   activeCurriculumId?: string | null;
   trainingCheckpoint?: TrainingCheckpointConfig;
   useRecommended?: boolean;
+  observationsSetupComplete?: boolean;
+  observationWizardDismissed?: boolean;
   customParams?: Record<string, string | number | boolean>;
 };
 

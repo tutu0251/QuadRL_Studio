@@ -93,6 +93,32 @@ def has_sensor_pipeline(name: str) -> bool:
     return sensor_model_path(name).exists()
 
 
+def load_joint_names(name: str) -> list[str]:
+    """Joint names from controllers export, else gains yaml, else empty."""
+    exports = project_dir(name) / EXPORTS_DIR
+    controllers_path = exports / f"{CTRL_PREFIX}{name}_controllers.yaml"
+    if controllers_path.exists():
+        try:
+            doc = yaml.safe_load(controllers_path.read_text()) or {}
+            jtc = (doc.get("joint_trajectory_controller") or {}).get("ros__parameters") or {}
+            joints = jtc.get("joints") or []
+            if isinstance(joints, list) and joints:
+                return [str(j) for j in joints]
+        except (yaml.YAMLError, OSError):
+            pass
+
+    gains_path = gains_yaml_path(name)
+    if gains_path.exists():
+        try:
+            doc = yaml.safe_load(gains_path.read_text()) or {}
+            block = doc.get("joints") or {}
+            if isinstance(block, dict) and block:
+                return list(block.keys())
+        except (yaml.YAMLError, OSError):
+            pass
+    return []
+
+
 def load_robot_name(name: str) -> Optional[str]:
     path = sensor_model_path(name)
     if path.exists():

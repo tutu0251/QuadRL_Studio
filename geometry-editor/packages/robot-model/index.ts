@@ -67,6 +67,7 @@ export interface RobotModel {
   links: Link[];
   joints: Joint[];
   poses: Pose[];
+  defaultPoseId?: string | null;
   templates: string[];
   namingConvention: NamingConvention;
   metadata: Record<string, unknown>;

@@ -52,6 +52,8 @@ function logValidationResult(
 export function Toolbar() {
   const project = useEditorStore((s) => s.project);
   const log = useEditorStore((s) => s.log);
+  const editorMode = useEditorStore((s) => s.editorMode);
+  const setEditorMode = useEditorStore((s) => s.setEditorMode);
   const showLinkFrames = useEditorStore((s) => s.showLinkFrames);
   const showJointFrames = useEditorStore((s) => s.showJointFrames);
   const showJointAxes = useEditorStore((s) => s.showJointAxes);
@@ -91,6 +93,24 @@ export function Toolbar() {
 
   return (
     <header className="toolbar">
+      <div className="btn-row toolbar-mode-row">
+        <span className="toolbar-mode-label">View</span>
+        <button
+          type="button"
+          className={editorMode === "model" ? "active" : ""}
+          onClick={() => setEditorMode("model")}
+        >
+          Model
+        </button>
+        <button
+          type="button"
+          className={editorMode === "pose" ? "active" : ""}
+          onClick={() => setEditorMode("pose")}
+          title="Edit default stand pose for training spawn and reset"
+        >
+          Default Pose
+        </button>
+      </div>
       <div className="btn-row">
         <button type="button" className={showLinkFrames ? "active" : ""} onClick={toggleLinkFrames}>
           Link Frames

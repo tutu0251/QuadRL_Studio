@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import sys
 import time
 from pathlib import Path
@@ -15,6 +16,36 @@ import yaml
 _TRAINING_ROOT = Path(__file__).resolve().parents[1]
 if str(_TRAINING_ROOT) not in sys.path:
     sys.path.insert(0, str(_TRAINING_ROOT))
+
+_shutdown_requested = False
+
+
+def _install_shutdown_handlers() -> None:
+    def _handler(signum: int, frame: object | None) -> None:
+        del signum, frame
+        global _shutdown_requested
+        _shutdown_requested = True
+
+    signal.signal(signal.SIGTERM, _handler)
+    signal.signal(signal.SIGINT, _handler)
+
+
+def _is_ros_shutdown_error(exc: BaseException) -> bool:
+    name = type(exc).__name__
+    if name in ("RCLError", "ExternalShutdownException"):
+        return True
+    msg = str(exc).lower()
+    return "context is invalid" in msg or "rcl_shutdown" in msg
+
+
+def _prepend_callback(callbacks, first):
+    from stable_baselines3.common.callbacks import CallbackList
+
+    if callbacks is None:
+        return first
+    if isinstance(callbacks, CallbackList):
+        return CallbackList([first, *callbacks.callbacks])
+    return CallbackList([first, callbacks])
 
 
 def _load_config(config_path: Path) -> dict:
@@ -123,24 +154,18 @@ def _checkpoint_basename(config: dict, stage: dict | None) -> str:
 
 
 def _make_vec_env(project_dir: Path, config: dict, stage: dict | None, num_envs: int):
-    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
     from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
 
-    backend = resolve_sim_backend(project_dir)
-    if backend == "ros" and num_envs > 1:
-        _log("[warn] ROS sim supports one Gazebo instance — using mock backend for parallel envs")
-        backend = "mock"
-        os.environ["QUADRL_SIM_BACKEND"] = "mock"
-
-    _log(f"[train] Sim backend: {backend} (num_envs={num_envs})")
-
-    if num_envs > 1 and (config.get("parallel") or {}).get("vec_env_type") == "subproc":
-        fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=i, backend=backend) for i in range(num_envs)]
-        return VecMonitor(SubprocVecEnv(fns))
-    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=0, backend=backend)]
+    resolve_sim_backend(project_dir)
     if num_envs > 1:
-        fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=i, backend=backend) for i in range(num_envs)]
+        _log("[warn] ROS sim supports one Gazebo instance — forcing num_envs=1")
+        num_envs = 1
+
+    _log(f"[train] Sim backend: ros (num_envs={num_envs})")
+
+    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=0)]
     return VecMonitor(DummyVecEnv(fns))
 
 
@@ -150,9 +175,8 @@ def _make_eval_vec_env(project_dir: Path, config: dict, stage: dict | None):
 
     from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
 
-    backend = resolve_sim_backend(project_dir)
-    eval_env_id = 1 if backend == "ros" else 0
-    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=eval_env_id, backend=backend)]
+    resolve_sim_backend(project_dir)
+    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=1)]
     return VecMonitor(DummyVecEnv(fns))
 
 
@@ -212,6 +236,16 @@ def _build_learn_callbacks(
     return CallbackList(callbacks)
 
 
+def _make_stop_training_callback():
+    from stable_baselines3.common.callbacks import BaseCallback
+
+    class StopTrainingCallback(BaseCallback):
+        def _on_step(self) -> bool:
+            return not _shutdown_requested
+
+    return StopTrainingCallback(verbose=0)
+
+
 def _save_best_model_copy(config: dict, checkpoint_dir: Path, source_ckpt: Path) -> None:
     best = config.get("best_model") or {}
     if not best.get("enabled", True):
@@ -256,8 +290,13 @@ def _train_stage_sb3(
 ) -> None:
     from stable_baselines3 import PPO
 
+    _install_shutdown_handlers()
+
     hp = config.get("hyperparameters") or {}
     num_envs = max(1, int((config.get("parallel") or {}).get("num_envs", 1)))
+    if num_envs > 1:
+        _log("[warn] ROS sim supports one Gazebo instance — forcing num_envs=1")
+        num_envs = 1
 
     env = _make_vec_env(project_dir, config, stage, num_envs)
     eval_env = _make_eval_vec_env(project_dir, config, stage)
@@ -304,20 +343,32 @@ def _train_stage_sb3(
     progress_bar = _use_progress_bar()
     if not progress_bar:
         _log("[train] progress_bar disabled (install tqdm and rich for a live bar)")
-    callbacks = _build_learn_callbacks(
-        config,
-        checkpoint_dir,
-        stage,
-        eval_env=eval_env,
-        num_envs=num_envs,
+    callbacks = _prepend_callback(
+        _build_learn_callbacks(
+            config,
+            checkpoint_dir,
+            stage,
+            eval_env=eval_env,
+            num_envs=num_envs,
+        ),
+        _make_stop_training_callback(),
     )
-    model.learn(
-        total_timesteps=timesteps,
-        progress_bar=progress_bar,
-        callback=callbacks,
-    )
-    env.close()
-    eval_env.close()
+    try:
+        model.learn(
+            total_timesteps=timesteps,
+            progress_bar=progress_bar,
+            callback=callbacks,
+        )
+    except Exception as exc:
+        if not (_shutdown_requested or _is_ros_shutdown_error(exc)):
+            raise
+        _log("[train] Training interrupted during shutdown")
+    finally:
+        env.close()
+        eval_env.close()
+
+    if _shutdown_requested:
+        return
 
     if not (config.get("checkpoint") or {}).get("enabled", True):
         _log("[train] Checkpoints disabled in config — skipping save")
@@ -367,14 +418,34 @@ def main() -> int:
     )
     parser.add_argument(
         "--sim-backend",
-        choices=("auto", "mock", "ros"),
+        choices=("auto", "ros"),
         default=None,
-        help="Simulation backend (default: QUADRL_SIM_BACKEND or auto)",
+        help="Simulation backend (default: QUADRL_SIM_BACKEND or auto; requires ROS workspace)",
+    )
+    gazebo_mode = parser.add_mutually_exclusive_group()
+    gazebo_mode.add_argument(
+        "--gazebo-headless",
+        action="store_true",
+        default=None,
+        help="Run Gazebo server-only, no GUI window (default)",
+    )
+    gazebo_mode.add_argument(
+        "--gazebo-gui",
+        action="store_true",
+        help="Run Gazebo with GUI to watch the robot during training (requires DISPLAY)",
     )
     args = parser.parse_args()
+    _install_shutdown_handlers()
 
     if args.sim_backend:
         os.environ["QUADRL_SIM_BACKEND"] = args.sim_backend
+    if args.gazebo_gui:
+        os.environ["QUADRL_GAZEBO_HEADLESS"] = "0"
+        from quadrl_env.display import ensure_display_for_gui
+
+        ensure_display_for_gui()
+    elif args.gazebo_headless or os.environ.get("QUADRL_GAZEBO_HEADLESS") is None:
+        os.environ["QUADRL_GAZEBO_HEADLESS"] = "1"
 
     project_dir = args.project_dir.expanduser().resolve()
 
@@ -411,6 +482,13 @@ def main() -> int:
     _log(f"[train] Config: {config_path}")
     _log(f"[train] Algorithm: {config.get('algorithm', 'PPO')} / {config.get('framework', '')}")
     _log(f"[train] Sim backend: {sim_backend}")
+    gazebo_headless = os.environ.get("QUADRL_GAZEBO_HEADLESS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    _log(f"[train] Gazebo: {'headless' if gazebo_headless else 'gui'}")
     _log(f"[train] TensorBoard run root: {run_root}")
     _log(f"[train] View with: tensorboard --logdir {project_dir / 'runs'}")
 
@@ -431,6 +509,8 @@ def main() -> int:
         _log(f"[train] Curriculum: {curriculum.get('name', '')} ({len(stages)} stages)")
         prev_ckpt: Path | None = None
         for i, stage in enumerate(stages):
+            if _shutdown_requested:
+                break
             _log(f"[train] === Stage {i + 1}/{len(stages)}: {stage.get('name')} ===")
             cmd = stage.get("command") or {}
             _log(
@@ -479,9 +559,23 @@ def main() -> int:
         else:
             _dry_run_stage(config, None, total, checkpoint_dir, run_root, curriculum=False)
 
+    if _shutdown_requested:
+        _log("[train] Training stopped by user")
+        return 0
+
     _log("[train] Training finished successfully")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = 0
+    try:
+        exit_code = main()
+    finally:
+        try:
+            from quadrl_env.ros_sim import shutdown_shared_gazebo
+
+            shutdown_shared_gazebo()
+        except Exception:
+            pass
+    sys.exit(exit_code)

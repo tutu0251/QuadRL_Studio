@@ -80,8 +80,10 @@ def migrate_model(model: RlTrainerModel) -> RlTrainerModel:
     model.rewardTerms = merge_reward_terms(model.rewardTerms)
     model.termination = merge_termination_config(model.termination)
     sync_observations(model)
-    if model.observationTerms and model.version in ("2.0", "2.2", "2.3"):
+    if model.observationTerms:
         for term in model.observationTerms:
+            if term.source == "sensor" and not term.availableFields:
+                term.availableFields = list(term.fields)
             apply_recommended_normalization(term)
-    model.version = "2.4"
+    model.version = "2.5"
     return model

@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from quadrl_env.sensor_packing import fit_dim, sensor_term_dim
 from quadrl_env.sim_state import SimState
 
 
@@ -71,11 +72,7 @@ class ObservationBuilder:
             sens = self._sensor_doc.get(key) or {}
             fields = term.get("fields") or sens.get("fields") or []
             kind = (term.get("kind") or sens.get("kind") or "").lower()
-            if kind == "contact":
-                return max(1, len(fields) or 1)
-            if kind == "lidar":
-                return 16
-            return max(3, len(fields) * 3)
+            return sensor_term_dim(kind, list(fields))
         return 1
 
     def build(
@@ -137,10 +134,9 @@ class ObservationBuilder:
 
         if term.get("source") == "sensor":
             key = term.get("key") or ""
-            if key in sensor_vectors:
-                vec = sensor_vectors[key]
-                return _normalize_vec(vec, scale=scale, offset=offset, clip_min=clip_min, clip_max=clip_max)
-            return np.zeros(self._term_dim(term), dtype=np.float32)
+            expected = self._term_dim(term)
+            vec = fit_dim(sensor_vectors.get(key), expected)
+            return _normalize_vec(vec, scale=scale, offset=offset, clip_min=clip_min, clip_max=clip_max)
 
         return np.array([_normalize(0.0, scale=scale, offset=offset, clip_min=clip_min, clip_max=clip_max)], dtype=np.float32)
 

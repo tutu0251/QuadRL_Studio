@@ -168,6 +168,8 @@ def get_observations(name: str):
             "robotName": project_storage.load_robot_name(name),
             "observations": [],
             "kinds": [],
+            "jointCount": len(project_storage.load_joint_names(name)),
+            "jointNames": project_storage.load_joint_names(name),
         }
     obs = doc.get("observations") or {}
     entries = []
@@ -188,6 +190,7 @@ def get_observations(name: str):
             )
     entries.sort(key=lambda e: (str(e.get("kind", "")), str(e.get("key", ""))))
     kinds = sorted({str(e["kind"]).lower() for e in entries if e.get("kind")})
+    joint_names = project_storage.load_joint_names(name)
     return {
         "found": True,
         "path": str(path),
@@ -196,6 +199,8 @@ def get_observations(name: str):
         "simUrdf": doc.get("sim_urdf", ""),
         "observations": entries,
         "kinds": kinds,
+        "jointCount": len(joint_names),
+        "jointNames": joint_names,
     }
 
 

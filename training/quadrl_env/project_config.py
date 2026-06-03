@@ -58,6 +58,8 @@ class ProjectArtifacts:
     control_dt: float = 0.02
     workspace_setup: Path | None = None
     bringup_pkg: str | None = None
+    default_pose: dict[str, Any] = field(default_factory=dict)
+    spawn_config: dict[str, float] = field(default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.5, "roll": 0.0, "pitch": 0.0, "yaw": 0.0})
 
     @property
     def exports_dir(self) -> Path:
@@ -74,7 +76,22 @@ class ProjectArtifacts:
         merged["task"] = task
         merged["stage"] = stage
         merged["command"] = stage.get("command") or {}
+        merged["disturbance"] = stage.get("disturbance") or {}
         return merged
+
+
+def _load_default_pose(exports: Path, project_name: str) -> dict[str, Any]:
+    path = exports / f"geo_{project_name}_default_pose.yaml"
+    if not path.is_file():
+        return {}
+    return load_yaml(path)
+
+
+def _apply_default_pose_to_gains(joint_gains: dict[str, JointGains], pose_doc: dict[str, Any]) -> None:
+    joints = pose_doc.get("joints") or {}
+    for name, val in joints.items():
+        if name in joint_gains:
+            joint_gains[name].default_position = float(val)
 
 
 def _joint_names_from_controllers(doc: dict[str, Any]) -> list[str]:
@@ -146,6 +163,10 @@ def load_project_artifacts(
 
     joint_gains = _parse_gains(gains_doc, joint_names)
 
+    default_pose_doc = _load_default_pose(exports, project_name)
+    if default_pose_doc:
+        _apply_default_pose_to_gains(joint_gains, default_pose_doc)
+
     control = observations_doc.get("control") or {}
     ctrl_yaml_name = control.get("controllers_yaml") or f"ctrl_{project_name}_controllers.yaml"
     if not controllers_doc and (exports / ctrl_yaml_name).is_file():
@@ -160,6 +181,16 @@ def load_project_artifacts(
     hp = rl_config.get("hyperparameters") or {}
     control_dt = float(hp.get("control_dt", rl_config.get("control_dt", 0.02)))
 
+    spawn_raw = default_pose_doc.get("spawn") or {}
+    spawn_config = {
+        "x": float(spawn_raw.get("x", 0.0)),
+        "y": float(spawn_raw.get("y", 0.0)),
+        "z": float(spawn_raw.get("z", 0.5)),
+        "roll": float(spawn_raw.get("roll", 0.0)),
+        "pitch": float(spawn_raw.get("pitch", 0.0)),
+        "yaw": float(spawn_raw.get("yaw", 0.0)),
+    }
+
     return ProjectArtifacts(
         project_dir=project_dir,
         project_name=project_name,
@@ -172,4 +203,6 @@ def load_project_artifacts(
         control_dt=control_dt,
         workspace_setup=workspace_setup,
         bringup_pkg=f"{pkg}_bringup",
+        default_pose=default_pose_doc,
+        spawn_config=spawn_config,
     )

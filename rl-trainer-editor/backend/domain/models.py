@@ -56,6 +56,7 @@ class ObservationTerm(BaseModel):
     parentLink: str = ""
     rateHz: float = 0.0
     fields: list[str] = Field(default_factory=list)
+    availableFields: list[str] = Field(default_factory=list)
     sensorId: str = ""
     scale: float = 1.0
     offset: float = 0.0
@@ -219,6 +220,8 @@ class RlTrainerModel(BaseModel):
         default_factory=TrainingCheckpointConfig
     )
     useRecommended: bool = True
+    observationsSetupComplete: bool = False
+    observationWizardDismissed: bool = False
     customParams: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -259,4 +262,6 @@ class RlTrainerPatch(BaseModel):
     activeCurriculumId: Optional[str] = None
     trainingCheckpoint: Optional[TrainingCheckpointConfig] = None
     useRecommended: Optional[bool] = None
+    observationsSetupComplete: Optional[bool] = None
+    observationWizardDismissed: Optional[bool] = None
     customParams: Optional[dict[str, Any]] = None

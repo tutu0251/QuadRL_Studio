@@ -13,6 +13,7 @@ from domain.models import (
     JointControlConfig,
     apply_fortress_gazebo_defaults,
 )
+from storage import project_storage
 
 
 def _indent(elem: ET.Element, level: int = 0) -> None:
@@ -116,7 +117,8 @@ def export_controllers_yaml(model: ControlModel, output_path: Path) -> Path:
     return output_path
 
 
-def export_gains_yaml(model: ControlModel, output_path: Path) -> Path:
+def export_gains_yaml(model: ControlModel, output_path: Path, *, project_name: str | None = None) -> Path:
+    pose_joints = project_storage.load_geo_default_pose_joints(project_name or model.robotName)
     gains = {
         "profile": model.trainingProfile.value,
         "controller_type": model.controllerType,
@@ -124,7 +126,7 @@ def export_gains_yaml(model: ControlModel, output_path: Path) -> Path:
             j.name: {
                 "kp": j.kp,
                 "kd": j.kd,
-                "default_position": j.defaultPosition,
+                "default_position": float(pose_joints.get(j.name, j.defaultPosition)),
                 "action_scale": j.actionScale,
                 "effort_limit": j.effort,
                 "velocity_limit": j.velocity,
@@ -182,7 +184,7 @@ def export_all(
     tree.write(urdf_out, encoding="unicode", xml_declaration=True)
 
     export_controllers_yaml(model, controllers_out)
-    export_gains_yaml(model, gains_out)
+    export_gains_yaml(model, gains_out, project_name=model.robotName)
 
     return {
         "urdf": str(urdf_out),

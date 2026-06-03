@@ -63,7 +63,7 @@ def scan_exports(name: str) -> ExportBundle:
     sensor_exports_ready = sens_obs.is_file() and ctrl_gains.is_file() and ctrl_ctrl.is_file()
     workspace_setup = root / "workspace" / "install" / "setup.bash"
     workspace_ready = workspace_setup.is_file()
-    recommended = "ros" if workspace_ready and sensor_exports_ready else "mock"
+    recommended = "ros" if workspace_ready and sensor_exports_ready else "unavailable"
 
     return ExportBundle(
         project=name,
