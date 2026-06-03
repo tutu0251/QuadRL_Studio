@@ -1,10 +1,15 @@
 import { useState } from "react";
 import type { MeasurementResult } from "@robot-model";
 import { useEditorStore } from "../../stores/editorStore";
-import { api } from "../../api/client";
+import {
+  measureAngle,
+  measureDistance,
+  measureHeight,
+  measureLegReach,
+  measureLinkLength,
+} from "../../utils/measure";
 
 export function MeasurePanel() {
-  const project = useEditorStore((s) => s.project);
   const model = useEditorStore((s) => s.model);
   const setMeasurement = useEditorStore((s) => s.setMeasurement);
   const log = useEditorStore((s) => s.log);
@@ -20,10 +25,15 @@ export function MeasurePanel() {
     log(`${r.label}: ${r.value.toFixed(4)} ${r.unit}`);
   };
 
-  const measure = async (fn: () => Promise<MeasurementResult>) => {
-    if (!project) return;
+  const measure = (fn: () => MeasurementResult | null) => {
+    if (!model) return;
     try {
-      apply(await fn());
+      const r = fn();
+      if (!r) {
+        log("Measurement failed: entity not found");
+        return;
+      }
+      apply(r);
     } catch (e) {
       log(String(e));
     }
@@ -60,28 +70,28 @@ export function MeasurePanel() {
         <button
           type="button"
           disabled={!linkA || !linkB}
-          onClick={() => measure(() => api.measureDistance(project!, linkA, linkB))}
+          onClick={() => measure(() => measureDistance(model, linkA, linkB))}
         >
           Distance
         </button>
         <button
           type="button"
           disabled={!linkA}
-          onClick={() => measure(() => api.measureHeight(project!, linkA))}
+          onClick={() => measure(() => measureHeight(model, linkA))}
         >
           Height
         </button>
         <button
           type="button"
           disabled={!linkB}
-          onClick={() => measure(() => api.measureLinkLength(project!, linkB))}
+          onClick={() => measure(() => measureLinkLength(model, linkB))}
         >
           Link length
         </button>
         <button
           type="button"
           disabled={!linkA || !linkB}
-          onClick={() => measure(() => api.measureLegReach(project!, linkA, linkB))}
+          onClick={() => measure(() => measureLegReach(model, linkA, linkB))}
         >
           Leg reach
         </button>
@@ -111,7 +121,7 @@ export function MeasurePanel() {
       <button
         type="button"
         disabled={!jointA || !jointB}
-        onClick={() => measure(() => api.measureAngle(project!, jointA, jointB))}
+        onClick={() => measure(() => measureAngle(model, jointA, jointB))}
       >
         Angle between axes
       </button>

@@ -18,7 +18,7 @@ export function MeasurementOverlay() {
         color="#ffcc00"
         lineWidth={2}
       />
-      <Html position={[mid.x, mid.y + 0.05, mid.z]} center>
+      <Html position={[mid.x, mid.y, mid.z + 0.05]} center>
         <div className="measure-label">
           {measurement.value.toFixed(3)} {measurement.unit}
         </div>

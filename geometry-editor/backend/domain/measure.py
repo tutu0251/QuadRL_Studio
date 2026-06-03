@@ -14,7 +14,10 @@ from domain.math_utils import (
     vec3_sub,
     angle_between,
 )
-from domain.models import JointType, MeasurementResult, Quat, RobotModel, Vec3
+from domain.models import JointType, MeasurementResult, PrimitiveType, Quat, RobotModel, Vec3
+
+# Three.js cylinder/capsule geometries are Y-aligned; robot primitives are Z-aligned.
+_Z_ALIGNED_VISUAL_ROTATION = axis_angle_quat(Vec3(x=1.0, y=0.0, z=0.0), math.pi / 2)
 
 
 @dataclass
@@ -90,6 +93,65 @@ def compute_world_transforms(model: RobotModel) -> dict[str, WorldTransform]:
     return transforms
 
 
+def _shape_half_extents(shape) -> tuple[float, float, float]:
+    d = shape.dimensions
+    if shape.type == PrimitiveType.BOX:
+        return d[0] / 2, d[1] / 2, d[2] / 2
+    if shape.type == PrimitiveType.SPHERE:
+        return d[0], d[0], d[0]
+    if shape.type in (PrimitiveType.CYLINDER, PrimitiveType.CAPSULE):
+        r = d[0]
+        h = (d[1] if len(d) > 1 else d[0]) / 2
+        return r, h, r
+    return 0.05, 0.05, 0.05
+
+
+def compute_geometry_min_z(model: RobotModel) -> float:
+    """Lowest world-space Z of all shape geometry (matches viewport grounding)."""
+    tf = compute_world_transforms(model)
+    min_z = math.inf
+    for link in model.links:
+        ltf = tf.get(link.id)
+        if not ltf:
+            continue
+        for shape in link.shapes:
+            hx, hy, hz = _shape_half_extents(shape)
+            lp = shape.localPosition
+            pos = vec3_add(ltf.position, quat_rotate_vec(ltf.rotation, lp))
+            rot = ltf.rotation
+            if shape.type in (PrimitiveType.CYLINDER, PrimitiveType.CAPSULE):
+                rot = quat_multiply(rot, _Z_ALIGNED_VISUAL_ROTATION)
+            for sx in (-hx, hx):
+                for sy in (-hy, hy):
+                    for sz in (-hz, hz):
+                        corner = quat_rotate_vec(rot, Vec3(x=sx, y=sy, z=sz))
+                        min_z = min(min_z, pos.z + corner.z)
+    return 0.0 if not math.isfinite(min_z) else min_z
+
+
+def compute_joint_world_transforms(model: RobotModel) -> dict[str, WorldTransform]:
+    link_tfs = compute_world_transforms(model)
+    out: dict[str, WorldTransform] = {}
+    for joint in model.joints:
+        parent_tf = link_tfs.get(joint.parentLinkId)
+        if not parent_tf:
+            continue
+        j_rot = quat_multiply(
+            joint.originRotation,
+            _joint_motion_quat(joint.type, joint.axis, joint.defaultValue),
+        )
+        j_offset = vec3_add(
+            joint.originPosition,
+            _joint_motion_offset(joint.type, joint.axis, joint.defaultValue),
+        )
+        rotated = quat_rotate_vec(parent_tf.rotation, j_offset)
+        out[joint.id] = WorldTransform(
+            position=vec3_add(parent_tf.position, rotated),
+            rotation=quat_multiply(parent_tf.rotation, j_rot),
+        )
+    return out
+
+
 def measure_distance(model: RobotModel, link_a_id: str, link_b_id: str) -> Optional[MeasurementResult]:
     tf = compute_world_transforms(model)
     if link_a_id not in tf or link_b_id not in tf:
@@ -99,10 +161,12 @@ def measure_distance(model: RobotModel, link_a_id: str, link_b_id: str) -> Optio
     return MeasurementResult(tool="distance", value=d, unit="m", label="Point-to-point", points=[pa, pb])
 
 
-def measure_height(model: RobotModel, link_id: str, ground_z: float = 0.0) -> Optional[MeasurementResult]:
+def measure_height(model: RobotModel, link_id: str, ground_z: float | None = None) -> Optional[MeasurementResult]:
     tf = compute_world_transforms(model)
     if link_id not in tf:
         return None
+    if ground_z is None:
+        ground_z = compute_geometry_min_z(model)
     p = tf[link_id].position
     h = p.z - ground_z
     return MeasurementResult(
@@ -119,9 +183,10 @@ def measure_link_length(model: RobotModel, child_link_id: str) -> Optional[Measu
     if not joint:
         return None
     tf = compute_world_transforms(model)
-    if joint.parentLinkId not in tf or child_link_id not in tf:
+    joint_tfs = compute_joint_world_transforms(model)
+    if joint.id not in joint_tfs or child_link_id not in tf:
         return None
-    pa = tf[joint.parentLinkId].position
+    pa = joint_tfs[joint.id].position
     pb = tf[child_link_id].position
     d = vec3_norm(vec3_sub(pb, pa))
     return MeasurementResult(tool="link_length", value=d, unit="m", label="Parent to child link", points=[pa, pb])

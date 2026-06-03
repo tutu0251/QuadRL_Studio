@@ -4,20 +4,8 @@ import { Line } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { Joint, Link, PrimitiveShape, RobotModel } from "@robot-model";
 import { useEditorStore } from "../../stores/editorStore";
+import { jointMotionOffset, jointMotionQuat } from "../../utils/kinematics";
 import { shapeVisualQuaternion } from "../../utils/primitiveVisual";
-
-function jointMotionQuat(joint: Joint): THREE.Quaternion {
-  if (joint.type === "fixed" || joint.type === "prismatic") return new THREE.Quaternion();
-  const axis = new THREE.Vector3(joint.axis.x, joint.axis.y, joint.axis.z).normalize();
-  if (axis.lengthSq() < 1e-12) return new THREE.Quaternion();
-  return new THREE.Quaternion().setFromAxisAngle(axis, joint.defaultValue);
-}
-
-function jointMotionOffset(joint: Joint): THREE.Vector3 {
-  if (joint.type !== "prismatic") return new THREE.Vector3();
-  const axis = new THREE.Vector3(joint.axis.x, joint.axis.y, joint.axis.z).normalize();
-  return axis.multiplyScalar(joint.defaultValue);
-}
 
 function hexColor(c: string): number {
   const h = c.startsWith("#") ? c.slice(1) : c;
