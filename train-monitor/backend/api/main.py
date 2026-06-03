@@ -83,6 +83,14 @@ def system_stats():
     return sample_system_stats()
 
 
+@app.get("/api/system/display")
+def system_display():
+    from display_probe import display_status_dict
+    from domain.models import DisplayStatus
+
+    return DisplayStatus(**display_status_dict()).model_dump()
+
+
 @app.get("/api/machine/profile")
 def machine_profile():
     from profiler.system_stats import machine_profile_dict
@@ -166,6 +174,7 @@ async def train_start(name: str, body: TrainStartRequest):
         status = await train_manager.start(
             name,
             dry_run=body.dry_run,
+            gazebo_headless=body.gazebo_headless,
             resume_checkpoint=body.resume_checkpoint,
             config_path=body.config_path,
         )
@@ -251,6 +260,7 @@ async def train_resume(name: str, body: TrainStartRequest):
         status = await train_manager.start(
             name,
             dry_run=body.dry_run,
+            gazebo_headless=body.gazebo_headless,
             resume_checkpoint=body.resume_checkpoint,
             config_path=body.config_path,
         )

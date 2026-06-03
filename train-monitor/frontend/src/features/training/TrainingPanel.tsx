@@ -8,8 +8,12 @@ type Props = {
   ready: boolean;
   selectedCheckpoint: string | null;
   dryRun: boolean;
+  gazeboHeadless: boolean;
   recommendedSim: string;
+  guiAvailable: boolean;
+  resolvedDisplay: string | null;
   onDryRunChange: (v: boolean) => void;
+  onGazeboHeadlessChange: (v: boolean) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -22,8 +26,12 @@ export function TrainingPanel({
   ready,
   selectedCheckpoint,
   dryRun,
+  gazeboHeadless,
   recommendedSim,
+  guiAvailable,
+  resolvedDisplay,
   onDryRunChange,
+  onGazeboHeadlessChange,
   onStart,
   onStop,
   onResume,
@@ -68,10 +76,41 @@ export function TrainingPanel({
       )}
 
       <p className="panel-hint">
-        Simulation: ROS/Gazebo ({recommendedSim} when workspace and exports are ready)
+        Simulation: ROS/Gazebo ({recommendedSim} when workspace and exports are ready). Metrics via
+        TensorBoard below.
       </p>
 
       <div className="train-controls">
+        <fieldset className="gazebo-mode-fieldset" disabled={running}>
+          <legend className="gazebo-mode-legend">Gazebo</legend>
+          <label className="radio-row">
+            <input
+              type="radio"
+              name="gazebo-mode"
+              checked={gazeboHeadless}
+              onChange={() => onGazeboHeadlessChange(true)}
+            />
+            Headless
+          </label>
+          <label className="radio-row" title={guiAvailable ? undefined : "No X11 display on training host"}>
+            <input
+              type="radio"
+              name="gazebo-mode"
+              checked={!gazeboHeadless}
+              disabled={!guiAvailable}
+              onChange={() => onGazeboHeadlessChange(false)}
+            />
+            GUI (watch simulation)
+          </label>
+        </fieldset>
+        {!guiAvailable && (
+          <p className="panel-warn">
+            No display on server — use Headless, or start VNC/desktop (set QUADRL_DISPLAY=:10).
+          </p>
+        )}
+        {guiAvailable && resolvedDisplay && (
+          <p className="panel-hint">GUI will use DISPLAY={resolvedDisplay}</p>
+        )}
         <label className="checkbox-row">
           <input type="checkbox" checked={dryRun} onChange={(e) => onDryRunChange(e.target.checked)} />
           Dry run (no SB3)
@@ -119,6 +158,12 @@ export function TrainingPanel({
             <>
               <dt>PID</dt>
               <dd>{status.pid}</dd>
+            </>
+          )}
+          {status.state !== "idle" && (
+            <>
+              <dt>Gazebo</dt>
+              <dd>{status.gazebo_headless === false ? "GUI" : "Headless"}</dd>
             </>
           )}
         </dl>

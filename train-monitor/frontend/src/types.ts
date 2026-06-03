@@ -67,6 +67,12 @@ export type ScalarSeries = {
   values: number[];
 };
 
+export type DisplayStatus = {
+  gui_available: boolean;
+  resolved_display?: string | null;
+  env_display?: string | null;
+};
+
 export type TrainStatus = {
   project: string;
   state: "idle" | "starting" | "running" | "stopping" | "failed";
@@ -77,6 +83,7 @@ export type TrainStatus = {
   progress_message?: string | null;
   resume_checkpoint?: string | null;
   dry_run: boolean;
+  gazebo_headless?: boolean;
   exit_code?: number | null;
 };
 

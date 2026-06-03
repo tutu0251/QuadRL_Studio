@@ -383,6 +383,38 @@ body {
   color: var(--text-muted);
 }
 
+.gazebo-mode-fieldset {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  margin: 0 0 10px;
+  padding: 8px 10px 6px;
+}
+
+.gazebo-mode-fieldset:disabled {
+  opacity: 0.55;
+}
+
+.gazebo-mode-legend {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 4px;
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.radio-row:last-child {
+  margin-bottom: 0;
+}
+
 .train-elapsed {
   display: flex;
   flex-wrap: wrap;

@@ -42,6 +42,16 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dryRun, setDryRun] = useState(false);
+  const [gazeboHeadless, setGazeboHeadless] = useState(() => {
+    try {
+      const v = localStorage.getItem("quadrl.gazeboHeadless");
+      return v !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const [guiAvailable, setGuiAvailable] = useState(true);
+  const [resolvedDisplay, setResolvedDisplay] = useState<string | null>(null);
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [tbStatus, setTbStatus] = useState<TensorBoardStatus | null>(null);
@@ -115,6 +125,16 @@ export default function App() {
       .then(() => {
         setConnected(true);
         log("Connected to Train Monitor API", { component: "api", level: "info" });
+        api
+          .displayStatus()
+          .then((d) => {
+            setGuiAvailable(d.gui_available);
+            setResolvedDisplay(d.resolved_display ?? null);
+            if (!d.gui_available) setGazeboHeadless(true);
+          })
+          .catch(() => {
+            setGuiAvailable(false);
+          });
       })
       .catch(() => {
         setConnected(false);
@@ -230,7 +250,10 @@ export default function App() {
     setError(null);
     try {
       setScalars([]);
-      const status = await api.trainStart(project, { dry_run: dryRun });
+      const status = await api.trainStart(project, {
+        dry_run: dryRun,
+        gazebo_headless: gazeboHeadless,
+      });
       setTrainStatus(status);
       log("Training started");
       await refreshProjectData(project);
@@ -260,7 +283,10 @@ export default function App() {
     if (!project || !selectedCheckpoint) return;
     setBusy(true);
     try {
-      const status = await api.trainResume(project, selectedCheckpoint, dryRun);
+      const status = await api.trainResume(project, selectedCheckpoint, {
+        dry_run: dryRun,
+        gazebo_headless: gazeboHeadless,
+      });
       setTrainStatus(status);
       log(`Resuming from ${selectedCheckpoint}`);
       await refreshProjectData(project);
@@ -363,8 +389,19 @@ export default function App() {
             ready={exports?.ready_for_training ?? false}
             selectedCheckpoint={selectedCheckpoint}
             dryRun={dryRun}
+            gazeboHeadless={gazeboHeadless}
+            guiAvailable={guiAvailable}
+            resolvedDisplay={resolvedDisplay}
             recommendedSim={workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "unavailable"}
             onDryRunChange={setDryRun}
+            onGazeboHeadlessChange={(v) => {
+              setGazeboHeadless(v);
+              try {
+                localStorage.setItem("quadrl.gazeboHeadless", v ? "1" : "0");
+              } catch {
+                /* ignore */
+              }
+            }}
             onStart={startTraining}
             onStop={stopTraining}
             onResume={resumeTraining}

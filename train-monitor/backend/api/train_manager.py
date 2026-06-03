@@ -16,7 +16,15 @@ from storage import project_storage, run_registry
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TRAIN_SCRIPT = REPO_ROOT / "training" / "scripts" / "run_rl_train.py"
+GAZEBO_CLEANUP_SCRIPT = REPO_ROOT / "training" / "scripts" / "cleanup_gazebo.py"
 TRAIN_VENV_PYTHON = REPO_ROOT / "training" / ".venv" / "bin" / "python"
+TRAINING_DIR = REPO_ROOT / "training"
+TRAIN_STOP_TIMEOUT_S = float(os.environ.get("QUADRL_TRAIN_STOP_TIMEOUT_S", "30"))
+
+if str(TRAINING_DIR) not in sys.path:
+    sys.path.insert(0, str(TRAINING_DIR))
+
+from quadrl_env.display import resolve_display  # noqa: E402
 
 
 class TrainManager:
@@ -26,6 +34,7 @@ class TrainManager:
         self._run_id: Optional[str] = None
         self._started_at: Optional[str] = None
         self._dry_run = False
+        self._gazebo_headless = True
         self._resume_checkpoint: Optional[str] = None
         self._state: TrainStatus = TrainStatus(project="", state="idle")
         self._log_callbacks: list[Callable[[str, str], None]] = []
@@ -50,6 +59,22 @@ class TrainManager:
         if TRAIN_VENV_PYTHON.is_file():
             return str(TRAIN_VENV_PYTHON)
         return sys.executable
+
+    def _cleanup_gazebo_after_train(self) -> None:
+        """Stop orphaned Gazebo when training died before env.close() (e.g. SIGKILL / -9)."""
+        if not GAZEBO_CLEANUP_SCRIPT.is_file():
+            return
+        try:
+            subprocess.run(
+                [self._python_executable(), str(GAZEBO_CLEANUP_SCRIPT)],
+                cwd=str(TRAINING_DIR),
+                timeout=45,
+                capture_output=True,
+                text=True,
+            )
+            self._emit("info", "Gazebo cleanup finished")
+        except Exception as exc:
+            self._emit("warn", f"Gazebo cleanup failed: {exc}")
 
     def _sync_process_state(self) -> None:
         if self._process is None:
@@ -89,11 +114,27 @@ class TrainManager:
         self._sync_process_state()
         return self._process is not None
 
+    @staticmethod
+    def _training_env(*, gazebo_headless: bool) -> dict[str, str]:
+        env = os.environ.copy()
+        if gazebo_headless:
+            return env
+        display = resolve_display()
+        if not display:
+            raise RuntimeError(
+                "No usable X11 display on this host — Gazebo GUI cannot start.\n"
+                "Use Headless mode, open a desktop/VNC session (e.g. DISPLAY=:10), "
+                "or set QUADRL_DISPLAY before starting Train Monitor."
+            )
+        env["DISPLAY"] = display
+        return env
+
     async def start(
         self,
         project: str,
         *,
         dry_run: bool = False,
+        gazebo_headless: bool = True,
         resume_checkpoint: Optional[str] = None,
         config_path: Optional[str] = None,
     ) -> TrainStatus:
@@ -108,6 +149,8 @@ class TrainManager:
         if not project_storage.has_rl_export(project):
             raise FileNotFoundError(f"Missing RL export for project '{project}'")
 
+        train_env = self._training_env(gazebo_headless=gazebo_headless)
+
         project_dir = project_storage.project_dir(project)
         cmd = [
             self._python_executable(),
@@ -118,11 +161,16 @@ class TrainManager:
             cmd.extend(["--config", config_path])
         if dry_run:
             cmd.append("--dry-run")
+        if gazebo_headless:
+            cmd.append("--gazebo-headless")
+        else:
+            cmd.append("--gazebo-gui")
         if resume_checkpoint:
             cmd.extend(["--resume", resume_checkpoint])
 
         self._project = project
         self._dry_run = dry_run
+        self._gazebo_headless = gazebo_headless
         self._resume_checkpoint = resume_checkpoint
         self._started_at = datetime.now(timezone.utc).isoformat()
         self._exit_code = None
@@ -132,10 +180,16 @@ class TrainManager:
             started_at=self._started_at,
             resume_checkpoint=resume_checkpoint,
             dry_run=dry_run,
+            gazebo_headless=gazebo_headless,
         )
+
+        if not gazebo_headless:
+            self._emit("info", f"Gazebo GUI using DISPLAY={train_env.get('DISPLAY')}")
 
         self._emit("info", f"Starting training: {' '.join(cmd)}")
 
+        # Do not use setsid here — killpg(SIGKILL) on stop used to kill the whole session
+        # before env.close(), causing exit -9 and orphaned Gazebo GUI processes.
         self._process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -143,7 +197,7 @@ class TrainManager:
             text=True,
             bufsize=1,
             cwd=str(REPO_ROOT / "training"),
-            preexec_fn=os.setsid if hasattr(os, "setsid") else None,
+            env=train_env,
         )
         self._state.state = "running"
         self._state.pid = self._process.pid
@@ -175,6 +229,7 @@ class TrainManager:
                                 "progress_message": self._state.progress_message,
                                 "resume_checkpoint": self._resume_checkpoint,
                                 "dry_run": self._dry_run,
+                                "gazebo_headless": self._gazebo_headless,
                             },
                         )
         finally:
@@ -197,6 +252,7 @@ class TrainManager:
                     },
                 )
             self._emit("info" if code == 0 else "error", f"Training process exited with code {code}")
+            self._cleanup_gazebo_after_train()
             self._process = None
 
     async def stop(self, project: Optional[str] = None) -> TrainStatus:
@@ -210,26 +266,29 @@ class TrainManager:
 
         self._state.state = "stopping"
         self._emit("warn", "Stopping training (SIGTERM)…")
-        pid = proc.pid
         try:
-            # SIGTERM the training process only so Gazebo/ROS stay alive until env.close().
+            # SIGTERM lets run_rl_train stop learn + env.close() + shutdown Gazebo.
             proc.terminate()
         except ProcessLookupError:
             pass
 
-        for _ in range(50):
+        stop_steps = max(10, int(TRAIN_STOP_TIMEOUT_S * 10))
+        for _ in range(stop_steps):
             if proc.poll() is not None:
                 break
             await asyncio.sleep(0.1)
         else:
-            self._emit("warn", "Force killing training process")
+            self._emit("warn", "Training did not exit in time — sending SIGKILL to training only")
             try:
-                if hasattr(os, "killpg"):
-                    os.killpg(os.getpgid(pid), signal.SIGKILL)
-                else:
-                    proc.kill()
+                proc.kill()
             except ProcessLookupError:
                 pass
+            for _ in range(30):
+                if proc.poll() is not None:
+                    break
+                await asyncio.sleep(0.1)
+
+        self._cleanup_gazebo_after_train()
 
         if self._run_id and self._project:
             run_registry.write_monitor_state(

@@ -1,6 +1,7 @@
 """ROS 2 + Gazebo sim backend — subscribes to exported observation topics, commands JTC."""
 from __future__ import annotations
 
+import atexit
 import os
 import signal
 import subprocess
@@ -12,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from quadrl_env.disturbances import DisturbanceEngine
+from quadrl_env.gazebo_cleanup import cleanup_training_gazebo, terminate_process_group
 from quadrl_env.gazebo_reset import apply_ros_wrench, reset_gazebo_robot
 from quadrl_env.project_config import JointGains, ProjectArtifacts
 from quadrl_env.ros_env import load_ros_environ, probe_rclpy_import
@@ -25,6 +27,7 @@ _ros_executor = None
 _ros_spin_thread: threading.Thread | None = None
 _ros_executor_lock = threading.Lock()
 _ros_executor_nodes = 0
+_gazebo_atexit_registered = False
 
 
 def _ensure_rclpy_initialized() -> None:
@@ -88,6 +91,29 @@ def _unregister_ros_node(node: Any) -> None:
         _ros_executor_nodes = max(0, _ros_executor_nodes - 1)
 
 
+def _gazebo_headless_from_env() -> bool:
+    """True = server-only (-s). Default headless when unset."""
+    raw = os.environ.get("QUADRL_GAZEBO_HEADLESS", "1").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def shutdown_shared_gazebo() -> None:
+    """Stop the shared Gazebo launch and any stray sim processes (safe if already stopped)."""
+    global _gazebo_refcount, _shared_launch_proc
+    proc = _shared_launch_proc
+    _gazebo_refcount = 0
+    _shared_launch_proc = None
+    launch_pid = proc.pid if proc is not None and proc.poll() is None else None
+    cleanup_training_gazebo(launch_pid)
+
+
+def _register_gazebo_atexit() -> None:
+    global _gazebo_atexit_registered
+    if not _gazebo_atexit_registered:
+        atexit.register(shutdown_shared_gazebo)
+        _gazebo_atexit_registered = True
+
+
 def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
     """Launch Gazebo once; additional backends attach to the same sim."""
     global _gazebo_refcount, _shared_launch_proc
@@ -95,10 +121,11 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
         env = load_ros_environ(workspace_setup=artifacts.workspace_setup)
         setup = artifacts.workspace_setup
         pkg = artifacts.bringup_pkg
+        headless = _gazebo_headless_from_env()
+        headless_arg = "true" if headless else "false"
         launch = (
             f"source /opt/ros/humble/setup.bash && source {setup} && "
-            # headless:=true adds -s (server-only); without it ign gazebo exits on headless hosts.
-            f"ros2 launch {pkg} sim.launch.py headless:=true"
+            f"ros2 launch {pkg} sim.launch.py headless:={headless_arg}"
         )
         _shared_launch_proc = subprocess.Popen(
             ["bash", "-lc", launch],
@@ -106,7 +133,9 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
+            start_new_session=True,
         )
+        _register_gazebo_atexit()
         time.sleep(float(os.environ.get("QUADRL_SIM_WARMUP_S", "25")))
     _gazebo_refcount += 1
     return _shared_launch_proc
@@ -117,13 +146,11 @@ def _release_gazebo() -> None:
     _gazebo_refcount = max(0, _gazebo_refcount - 1)
     if _gazebo_refcount > 0 or _shared_launch_proc is None:
         return
-    if _shared_launch_proc.poll() is None:
-        _shared_launch_proc.send_signal(signal.SIGINT)
-        try:
-            _shared_launch_proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            _shared_launch_proc.kill()
+    proc = _shared_launch_proc
     _shared_launch_proc = None
+    if proc.poll() is None:
+        terminate_process_group(proc.pid)
+    cleanup_training_gazebo()
 
 
 def ros_stack_available(*, workspace_setup: Path | str | None = None) -> bool:

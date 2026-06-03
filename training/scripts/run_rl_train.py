@@ -422,11 +422,30 @@ def main() -> int:
         default=None,
         help="Simulation backend (default: QUADRL_SIM_BACKEND or auto; requires ROS workspace)",
     )
+    gazebo_mode = parser.add_mutually_exclusive_group()
+    gazebo_mode.add_argument(
+        "--gazebo-headless",
+        action="store_true",
+        default=None,
+        help="Run Gazebo server-only, no GUI window (default)",
+    )
+    gazebo_mode.add_argument(
+        "--gazebo-gui",
+        action="store_true",
+        help="Run Gazebo with GUI to watch the robot during training (requires DISPLAY)",
+    )
     args = parser.parse_args()
     _install_shutdown_handlers()
 
     if args.sim_backend:
         os.environ["QUADRL_SIM_BACKEND"] = args.sim_backend
+    if args.gazebo_gui:
+        os.environ["QUADRL_GAZEBO_HEADLESS"] = "0"
+        from quadrl_env.display import ensure_display_for_gui
+
+        ensure_display_for_gui()
+    elif args.gazebo_headless or os.environ.get("QUADRL_GAZEBO_HEADLESS") is None:
+        os.environ["QUADRL_GAZEBO_HEADLESS"] = "1"
 
     project_dir = args.project_dir.expanduser().resolve()
 
@@ -463,6 +482,13 @@ def main() -> int:
     _log(f"[train] Config: {config_path}")
     _log(f"[train] Algorithm: {config.get('algorithm', 'PPO')} / {config.get('framework', '')}")
     _log(f"[train] Sim backend: {sim_backend}")
+    gazebo_headless = os.environ.get("QUADRL_GAZEBO_HEADLESS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    _log(f"[train] Gazebo: {'headless' if gazebo_headless else 'gui'}")
     _log(f"[train] TensorBoard run root: {run_root}")
     _log(f"[train] View with: tensorboard --logdir {project_dir / 'runs'}")
 
@@ -542,4 +568,14 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = 0
+    try:
+        exit_code = main()
+    finally:
+        try:
+            from quadrl_env.ros_sim import shutdown_shared_gazebo
+
+            shutdown_shared_gazebo()
+        except Exception:
+            pass
+    sys.exit(exit_code)

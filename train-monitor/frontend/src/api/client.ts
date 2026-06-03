@@ -37,6 +37,14 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!r.ok) {
     const text = await r.text();
+    try {
+      const j = JSON.parse(text) as { detail?: string | { msg?: string } };
+      const d = j.detail;
+      if (typeof d === "string") throw new Error(d);
+      if (d && typeof d === "object" && "msg" in d) throw new Error(String(d.msg));
+    } catch (e) {
+      if (e instanceof Error && e.message !== text) throw e;
+    }
     throw new Error(text || r.statusText);
   }
   return r.json() as Promise<T>;
@@ -96,17 +104,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  trainStart: (name: string, body: { dry_run?: boolean; resume_checkpoint?: string } = {}) =>
+  trainStart: (
+    name: string,
+    body: { dry_run?: boolean; gazebo_headless?: boolean; resume_checkpoint?: string } = {}
+  ) =>
     req<TrainStatus>(`/api/projects/${name}/train/start`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
   trainStop: (name: string) =>
     req<TrainStatus>(`/api/projects/${name}/train/stop`, { method: "POST" }),
-  trainResume: (name: string, resume_checkpoint: string, dry_run = false) =>
+  trainResume: (
+    name: string,
+    resume_checkpoint: string,
+    options: { dry_run?: boolean; gazebo_headless?: boolean } = {}
+  ) =>
     req<TrainStatus>(`/api/projects/${name}/train/resume`, {
       method: "POST",
-      body: JSON.stringify({ resume_checkpoint, dry_run }),
+      body: JSON.stringify({ resume_checkpoint, ...options }),
     }),
   tbStatus: (name: string) => req<TensorBoardStatus>(`/api/projects/${name}/tensorboard/status`),
   tbStart: (name: string, runId?: string) =>
@@ -117,4 +132,8 @@ export const api = {
   tbStop: (name: string) =>
     req<TensorBoardStatus>(`/api/projects/${name}/tensorboard/stop`, { method: "POST" }),
   systemStats: () => req<SystemStatsSample>("/api/system/stats"),
+  displayStatus: () =>
+    req<{ gui_available: boolean; resolved_display?: string | null; env_display?: string | null }>(
+      "/api/system/display"
+    ),
 };

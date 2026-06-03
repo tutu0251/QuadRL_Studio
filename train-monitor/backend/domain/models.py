@@ -62,6 +62,7 @@ class TrainStartRequest(BaseModel):
     dry_run: bool = False
     resume_checkpoint: Optional[str] = None
     config_path: Optional[str] = None
+    gazebo_headless: bool = True
 
 
 class WorkspaceOperationRequest(BaseModel):
@@ -99,6 +100,7 @@ class TrainStatus(BaseModel):
     progress_message: Optional[str] = None
     resume_checkpoint: Optional[str] = None
     dry_run: bool = False
+    gazebo_headless: bool = True
     exit_code: Optional[int] = None
 
 
@@ -111,6 +113,12 @@ class TensorBoardStatus(BaseModel):
     logdir: Optional[str] = None
     run_id: Optional[str] = None
     error: Optional[str] = None
+
+
+class DisplayStatus(BaseModel):
+    gui_available: bool = False
+    resolved_display: Optional[str] = None
+    env_display: Optional[str] = None
 
 
 class SystemStatsSample(BaseModel):
