@@ -171,7 +171,7 @@ class MeasureDistanceRequest(BaseModel):
 
 class MeasureHeightRequest(BaseModel):
     link_id: str
-    ground_z: float = 0.0
+    ground_z: Optional[float] = None
 
 
 class MeasureLinkLengthRequest(BaseModel):

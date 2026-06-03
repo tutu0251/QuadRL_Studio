@@ -22,7 +22,7 @@ function compose(parent: Transform, pos: Vec3, rot: Quat): Transform {
   return { position: p, quaternion: r };
 }
 
-function jointMotionQuat(joint: { type: string; axis: Vec3; defaultValue: number }): THREE.Quaternion {
+export function jointMotionQuat(joint: { type: string; axis: Vec3; defaultValue: number }): THREE.Quaternion {
   if (joint.type === "fixed" || joint.type === "prismatic") {
     return new THREE.Quaternion();
   }
@@ -31,7 +31,7 @@ function jointMotionQuat(joint: { type: string; axis: Vec3; defaultValue: number
   return new THREE.Quaternion().setFromAxisAngle(axis, joint.defaultValue);
 }
 
-function jointMotionOffset(joint: { type: string; axis: Vec3; defaultValue: number }): THREE.Vector3 {
+export function jointMotionOffset(joint: { type: string; axis: Vec3; defaultValue: number }): THREE.Vector3 {
   if (joint.type !== "prismatic") return new THREE.Vector3();
   const axis = v3(joint.axis).normalize();
   return axis.multiplyScalar(joint.defaultValue);
@@ -149,4 +149,67 @@ export function relativeTransform(parent: Transform, world: Transform): Transfor
     position: world.position.clone().sub(parent.position).applyQuaternion(inv.quaternion),
     quaternion: inv.quaternion.clone().multiply(world.quaternion),
   };
+}
+
+function shapeLocalBoundingBox(shape: PrimitiveShape): THREE.Box3 {
+  const d = shape.dimensions;
+  let geom: THREE.BufferGeometry;
+  switch (shape.type) {
+    case "box":
+      geom = new THREE.BoxGeometry(d[0], d[1], d[2]);
+      break;
+    case "cylinder":
+      geom = new THREE.CylinderGeometry(d[0], d[0], d[1] ?? d[0], 16);
+      break;
+    case "sphere":
+      geom = new THREE.SphereGeometry(d[0], 16, 16);
+      break;
+    case "capsule":
+      geom = new THREE.CapsuleGeometry(d[0], Math.max(0.01, (d[1] ?? 0.1) - 2 * d[0]), 8, 16);
+      break;
+    default:
+      geom = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+  }
+  geom.computeBoundingBox();
+  const box = geom.boundingBox!.clone();
+  geom.dispose();
+  return box;
+}
+
+const _worldCorner = new THREE.Vector3();
+
+function forEachBoundingBoxCorner(box: THREE.Box3, fn: (corner: THREE.Vector3) => void) {
+  const { min, max } = box;
+  for (const x of [min.x, max.x]) {
+    for (const y of [min.y, max.y]) {
+      for (const z of [min.z, max.z]) {
+        fn(new THREE.Vector3(x, y, z));
+      }
+    }
+  }
+}
+
+/** Z translation so the lowest shape geometry sits on z=0 (visual-only). */
+export function computeVisualGroundOffset(model: RobotModel): number {
+  const linkTfs = computeLinkWorldTransforms(model);
+  let minZ = Infinity;
+
+  for (const link of model.links) {
+    const linkTf = linkTfs.get(link.id);
+    if (!linkTf) continue;
+
+    for (const shape of link.shapes) {
+      const visualRot = shapeVisualQuaternion(shape);
+      const position = v3(shape.localPosition).applyQuaternion(linkTf.quaternion).add(linkTf.position);
+      const quaternion = linkTf.quaternion.clone().multiply(visualRot);
+      const localBox = shapeLocalBoundingBox(shape);
+
+      forEachBoundingBoxCorner(localBox, (corner) => {
+        _worldCorner.copy(corner).applyQuaternion(quaternion).add(position);
+        minZ = Math.min(minZ, _worldCorner.z);
+      });
+    }
+  }
+
+  return Number.isFinite(minZ) ? -minZ : 0;
 }

@@ -3,6 +3,7 @@ import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from "@react-three/dr
 import { RobotScene } from "./RobotScene";
 import { GizmoLayer } from "./GizmoLayer";
 import { MeasurementOverlay } from "./MeasurementOverlay";
+import { GroundedRobot } from "./GroundedRobot";
 
 /** URDF/SDF/Gazebo use Z-up; match that in the scene view. */
 const WORLD_UP: [number, number, number] = [0, 0, 1];
@@ -23,9 +24,11 @@ export function Viewport3D() {
           sectionColor="#444444"
         />
         <axesHelper args={[0.3]} />
-        <RobotScene />
-        <GizmoLayer />
-        <MeasurementOverlay />
+        <GroundedRobot>
+          <RobotScene />
+          <GizmoLayer />
+          <MeasurementOverlay />
+        </GroundedRobot>
         <OrbitControls makeDefault enableDamping up={WORLD_UP} />
         <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
           <GizmoViewport />

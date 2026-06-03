@@ -4,6 +4,7 @@ import { Line } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { Joint, Link, PrimitiveShape, RobotModel } from "@robot-model";
 import { useEditorStore } from "../../stores/editorStore";
+import { jointMotionOffset, jointMotionQuat } from "../../utils/kinematics";
 import { shapeVisualQuaternion } from "../../utils/primitiveVisual";
 
 function hexColor(c: string): number {
@@ -161,15 +162,22 @@ function JointGroup({
 
   if (!childLink) return null;
 
+  const motionOffset = jointMotionOffset(joint);
+  const originRot = new THREE.Quaternion(
+    joint.originRotation.x,
+    joint.originRotation.y,
+    joint.originRotation.z,
+    joint.originRotation.w
+  ).multiply(jointMotionQuat(joint));
+
   return (
     <group
-      position={[joint.originPosition.x, joint.originPosition.y, joint.originPosition.z]}
-      quaternion={new THREE.Quaternion(
-        joint.originRotation.x,
-        joint.originRotation.y,
-        joint.originRotation.z,
-        joint.originRotation.w
-      )}
+      position={[
+        joint.originPosition.x + motionOffset.x,
+        joint.originPosition.y + motionOffset.y,
+        joint.originPosition.z + motionOffset.z,
+      ]}
+      quaternion={originRot}
       onClick={(e) => handleClick(e, () => onSelectJoint(joint.id))}
     >
       {showJointFrames && <FrameAxes size={selJoint ? 0.07 : 0.05} />}
