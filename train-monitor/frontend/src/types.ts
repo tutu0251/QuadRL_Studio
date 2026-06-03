@@ -1,3 +1,20 @@
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
+export type LogEntry = {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  message: string;
+  component?: string;
+};
+
+export type WsLogPayload = {
+  timestamp: string;
+  level: string;
+  message: string;
+  component?: string;
+};
+
 export type ExportFileInfo = {
   category: string;
   filename: string;

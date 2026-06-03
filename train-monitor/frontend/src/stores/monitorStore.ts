@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import type { CheckpointInfo, ExportBundle, RunInfo, ScalarSeries, TrainStatus } from "../types";
+import type { CheckpointInfo, ExportBundle, LogEntry, LogLevel, RunInfo, ScalarSeries, TrainStatus } from "../types";
+import { createLogEntry, nextLogId } from "../utils/logUtils";
+
+const MAX_LOGS = 500;
 
 type MonitorState = {
   project: string | null;
@@ -11,7 +14,7 @@ type MonitorState = {
   selectedRunId: string | null;
   selectedExportPath: string | null;
   exportPreview: string | null;
-  logs: string[];
+  logs: LogEntry[];
   setProject: (name: string | null) => void;
   setExports: (bundle: ExportBundle | null) => void;
   setCheckpoints: (items: CheckpointInfo[]) => void;
@@ -21,9 +24,14 @@ type MonitorState = {
   setSelectedRunId: (id: string | null) => void;
   setSelectedExportPath: (path: string | null) => void;
   setExportPreview: (text: string | null) => void;
-  log: (message: string) => void;
+  log: (message: string, options?: { level?: LogLevel; component?: string }) => void;
+  appendLog: (entry: Omit<LogEntry, "id">) => void;
   clearLogs: () => void;
 };
+
+function trimLogs(logs: LogEntry[]): LogEntry[] {
+  return logs.length > MAX_LOGS ? logs.slice(-MAX_LOGS) : logs;
+}
 
 export const useMonitorStore = create<MonitorState>((set) => ({
   project: null,
@@ -45,9 +53,16 @@ export const useMonitorStore = create<MonitorState>((set) => ({
   setSelectedRunId: (selectedRunId) => set({ selectedRunId }),
   setSelectedExportPath: (selectedExportPath) => set({ selectedExportPath }),
   setExportPreview: (exportPreview) => set({ exportPreview }),
-  log: (message) =>
+  appendLog: (entry) =>
     set((s) => ({
-      logs: [...s.logs.slice(-400), `[${new Date().toLocaleTimeString()}] ${message}`],
+      logs: trimLogs([...s.logs, { ...entry, id: nextLogId() }]),
+    })),
+  log: (message, options) =>
+    set((s) => ({
+      logs: trimLogs([
+        ...s.logs,
+        { id: nextLogId(), ...createLogEntry(message, { component: options?.component ?? "ui", ...options }) },
+      ]),
     })),
   clearLogs: () => set({ logs: [] }),
 }));

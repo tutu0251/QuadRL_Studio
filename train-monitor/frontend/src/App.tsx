@@ -11,7 +11,8 @@ import { SystemResourcesPanel } from "./features/system/SystemResourcesPanel";
 import { TrainingPanel } from "./features/training/TrainingPanel";
 import { WorkspacePanel } from "./features/workspace/WorkspacePanel";
 import { useMonitorStore } from "./stores/monitorStore";
-import type { ProjectSummary, TensorBoardStatus, WorkspaceStatus } from "./types";
+import type { ProjectSummary, TensorBoardStatus, TrainStatus, WorkspaceStatus, WsLogPayload } from "./types";
+import { normalizeLogLevel, parseLogComponent } from "./utils/logUtils";
 
 export default function App() {
   const project = useMonitorStore((s) => s.project);
@@ -24,6 +25,7 @@ export default function App() {
   const selectedExportPath = useMonitorStore((s) => s.selectedExportPath);
   const exportPreview = useMonitorStore((s) => s.exportPreview);
   const log = useMonitorStore((s) => s.log);
+  const appendLog = useMonitorStore((s) => s.appendLog);
   const setProject = useMonitorStore((s) => s.setProject);
   const setExports = useMonitorStore((s) => s.setExports);
   const setCheckpoints = useMonitorStore((s) => s.setCheckpoints);
@@ -112,7 +114,7 @@ export default function App() {
       .health()
       .then(() => {
         setConnected(true);
-        log("Connected to Train Monitor API");
+        log("Connected to Train Monitor API", { component: "api", level: "info" });
       })
       .catch(() => {
         setConnected(false);
@@ -125,8 +127,20 @@ export default function App() {
     try {
       ws = new WebSocket(wsTrainLogsUrl());
       ws.onmessage = (ev) => {
-        const data = JSON.parse(ev.data);
-        if (data.entry) log(`[${data.entry.level}] ${data.entry.message}`);
+        const data = JSON.parse(ev.data) as {
+          entry?: WsLogPayload;
+          status?: TrainStatus;
+          workspace?: WorkspaceStatus;
+        };
+        if (data.entry) {
+          const { timestamp, level, message, component } = data.entry;
+          appendLog({
+            timestamp,
+            level: normalizeLogLevel(level),
+            message,
+            component: component ?? parseLogComponent(message),
+          });
+        }
         if (data.status) setTrainStatus(data.status);
         if (data.workspace) setWorkspaceStatus(data.workspace);
       };
@@ -134,7 +148,7 @@ export default function App() {
       /* ignore */
     }
     return () => ws?.close();
-  }, [log, setTrainStatus]);
+  }, [appendLog, setTrainStatus]);
 
   useEffect(() => {
     if (!project) return;
