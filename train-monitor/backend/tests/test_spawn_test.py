@@ -20,7 +20,8 @@ def test_build_test_spawn_command():
     cmd = build_test_spawn_command("demo", spawn_z=0.55)
     assert "ign gazebo -s" in cmd
     assert "ros_gz_sim create" in cmd
-    assert "0.55" in cmd
+    assert "-z 0.55" in cmd
+    assert "-x " in cmd
 
 
 def test_build_spawn_test_stop_command():

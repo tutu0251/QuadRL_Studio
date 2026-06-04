@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from api.spawn_config_manager import get_spawn_config
+from api.spawn_grounding import resolve_test_spawn_create_pose
 from domain.models import SpawnTestResult, SpawnTestStatus
 from storage import project_storage
 
@@ -96,15 +97,15 @@ class SpawnTestManager:
         return env
 
     def _cleanup_gazebo(self) -> None:
-        from spawn_runtime import _stop_process
+        from api.gazebo_shutdown import graceful_stop_gazebo_process
 
         proc = self._gz_proc
+        pid = self._gz_pid
         self._gz_proc = None
         self._gz_pid = None
-        if proc is not None:
-            _stop_process(proc)
-        for pattern in ("ign gazebo", "gz sim"):
-            subprocess.run(["pkill", "-f", pattern], check=False)
+
+        graceful_stop_gazebo_process(proc, pid)
+
         if self._gz_log_path and self._gz_log_path.is_file():
             try:
                 self._gz_log_path.unlink()
@@ -138,7 +139,7 @@ class SpawnTestManager:
 
             model_file = self._resolve_model_file(project)
             cfg = get_spawn_config(project)
-            spawn_z = float(cfg.effective_spawn.get("z", 0.5))
+            create_pose = resolve_test_spawn_create_pose(project, cfg)
             run_env = self._spawn_env(headless=headless)
             create_pkg = stack.get("createPackage")
             if not create_pkg:
@@ -147,7 +148,7 @@ class SpawnTestManager:
 
             mode = "headless" if headless else "GUI"
             self._emit("info", f"[spawn-test] Starting {mode} spawn test for {project}")
-            self._emit("info", f"[spawn-test] Model: {model_file.name} spawn_z={spawn_z}")
+            self._emit("info", f"[spawn-test] Model: {model_file.name} create_z={create_pose['z']:.4f} (grounded)")
             if not headless:
                 self._emit("info", f"[spawn-test] DISPLAY={run_env.get('DISPLAY')}")
 
@@ -169,6 +170,7 @@ class SpawnTestManager:
                 stderr=subprocess.STDOUT,
                 env=run_env,
                 text=True,
+                start_new_session=True,
             )
             gz_log_handle.close()
             self._gz_pid = self._gz_proc.pid
@@ -183,7 +185,8 @@ class SpawnTestManager:
                 f"-world {DEFAULT_WORLD_NAME} "
                 f"-file {model_file.resolve()} "
                 f"-name {project} "
-                f"-z {spawn_z} "
+                f"-x {create_pose['x']} -y {create_pose['y']} -z {create_pose['z']} "
+                f"-R {create_pose['roll']} -P {create_pose['pitch']} -Y {create_pose['yaw']} "
                 f"-allow_renaming true"
             )
             self._emit("info", "[spawn-test] Spawning model...")
@@ -261,12 +264,15 @@ class SpawnTestManager:
     async def stop(self, project: Optional[str] = None) -> SpawnTestStatus:
         if project and self._project and project != self._project:
             raise RuntimeError(f"No spawn test running for '{project}'")
-        if not self.is_running():
+
+        has_process = self._gz_proc is not None or self._gz_pid is not None
+        if not self.is_running() and not has_process:
             return self.get_status(project)
 
         self._state = "stopping"
-        self._emit("warn", "[spawn-test] Stop requested")
+        self._emit("warn", "[spawn-test] Stop requested — shutting down Gazebo gracefully")
         self._stop_event.set()
+        self._cleanup_gazebo()
 
         thread = self._thread
         if thread is not None:

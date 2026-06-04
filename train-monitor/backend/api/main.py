@@ -162,6 +162,7 @@ def spawn_config_patch(name: str, body: SpawnConfigUpdate):
 @app.post("/api/projects/{name}/spawn/test")
 async def spawn_test(name: str, body: SpawnTestRequest = SpawnTestRequest()):
     from api.command_builder import build_spawn_test_stop_command, build_test_spawn_command
+    from api.spawn_grounding import resolve_test_spawn_create_pose
 
     try:
         cfg = get_spawn_config(name)
@@ -171,11 +172,8 @@ async def spawn_test(name: str, body: SpawnTestRequest = SpawnTestRequest()):
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
     out = result.model_dump()
-    out["command"] = build_test_spawn_command(
-        name,
-        spawn_z=float(cfg.effective_spawn.get("z", 0.5)),
-        headless=body.headless,
-    )
+    create_pose = resolve_test_spawn_create_pose(name, cfg)
+    out["command"] = build_test_spawn_command(name, create_pose=create_pose, headless=body.headless)
     out["stop_command"] = build_spawn_test_stop_command(name)
     return out
 

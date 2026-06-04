@@ -22,15 +22,19 @@ def pkill_gazebo_strays(*, sig: int = signal.SIGTERM) -> None:
 
 
 def terminate_process_group(root_pid: int, *, grace_sec: float = 12.0) -> None:
-    """Send SIGTERM then SIGKILL to every process in root_pid's process group."""
+    """Send SIGINT, SIGTERM, then SIGKILL to every process in root_pid's process group."""
     try:
         pgid = os.getpgid(root_pid)
     except ProcessLookupError:
         return
 
-    for sig, wait in ((signal.SIGTERM, grace_sec), (signal.SIGKILL, 3.0)):
+    for sig, wait in ((signal.SIGINT, 4.0), (signal.SIGTERM, grace_sec), (signal.SIGKILL, 3.0)):
         try:
             os.killpg(pgid, sig)
+        except ProcessLookupError:
+            return
+        try:
+            os.kill(root_pid, sig)
         except ProcessLookupError:
             return
         deadline = time.time() + wait

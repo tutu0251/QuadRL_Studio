@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { ActionButton } from "./ActionButton";
 import { api } from "../api/client";
 import { useCommandPreview } from "../hooks/useCommandPreview";
-import { useMonitorStore } from "../stores/monitorStore";
 
 type Props = {
   project: string | null;
@@ -25,10 +24,8 @@ export function TestSpawnBar({
   onError,
   onGazeboHeadlessChange,
 }: Props) {
-  const spawnConfig = useMonitorStore((s) => s.spawnConfig);
   const [running, setRunning] = useState(false);
   const preview = useCommandPreview(project, "test_spawn", {
-    spawn_z: spawnConfig?.effective_spawn?.z ?? 0.5,
     headless: gazeboHeadless,
   });
   const stopPreview = useCommandPreview(project, "test_spawn_stop");

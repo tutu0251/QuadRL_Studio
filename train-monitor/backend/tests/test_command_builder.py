@@ -31,7 +31,7 @@ def test_preview_test_spawn_gui():
 def test_preview_test_spawn():
     out = preview_command("test_spawn", "mybot", {"spawn_z": 0.6})
     assert "ros_gz_sim create" in out["command"]
-    assert "0.6" in out["command"]
+    assert "-z " in out["command"]
 
 
 def test_preview_test_spawn_stop():

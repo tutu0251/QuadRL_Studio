@@ -108,13 +108,21 @@ def build_test_spawn_command(
     project: str,
     *,
     spawn_z: Optional[float] = None,
+    create_pose: Optional[dict[str, float]] = None,
     headless: bool = True,
 ) -> str:
     exports = project_storage.exports_dir(project)
     sdf = exports / f"geo_{project}.sdf"
     urdf = exports / f"geo_{project}.urdf"
     model = sdf if sdf.is_file() else urdf
-    z = spawn_z if spawn_z is not None else 0.5
+    if create_pose is None:
+        from api.spawn_config_manager import get_spawn_config
+        from api.spawn_grounding import resolve_test_spawn_create_pose
+
+        cfg = get_spawn_config(project)
+        create_pose = resolve_test_spawn_create_pose(project, cfg)
+    if spawn_z is not None:
+        create_pose = {**create_pose, "z": spawn_z}
     world = "/usr/share/ignition/ignition-gazebo6/worlds/empty.sdf"
     create_pkg = "ros_gz_sim"
     gz_line = (
@@ -127,7 +135,9 @@ def build_test_spawn_command(
         f"sleep 5 && source {shlex.quote(str(ROS_SETUP))} && "
         f"ros2 run {create_pkg} create -world empty "
         f"-file {shlex.quote(str(model))} -name {shlex.quote(project)} "
-        f"-z {z} -allow_renaming true"
+        f"-x {create_pose['x']} -y {create_pose['y']} -z {create_pose['z']} "
+        f"-R {create_pose['roll']} -P {create_pose['pitch']} -Y {create_pose['yaw']} "
+        f"-allow_renaming true"
     )
 
 
@@ -213,13 +223,11 @@ def preview_command(action: str, project: str, params: Optional[dict[str, Any]] 
         cmd = build_spawn_test_stop_command(project)
         description = "Stop active spawn test session"
     elif action == "test_spawn":
-        z = p.get("spawn_z")
         cmd = build_test_spawn_command(
             project,
-            spawn_z=float(z) if z is not None else None,
             headless=bool(p.get("headless", True)),
         )
-        description = "Gazebo spawn test (geometry export)"
+        description = "Gazebo spawn test (geometry export, grounded on z=0)"
     else:
         cmd = f"# unknown action: {action}"
 
