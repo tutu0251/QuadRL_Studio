@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
+from api.command_builder import build_train_command
 from domain.models import TrainStatus
 from storage import project_storage, run_registry
 
@@ -96,6 +97,21 @@ class TrainManager:
             done = progress_match.group(1).replace(",", "")
             total = progress_match.group(2).replace(",", "")
             self._state.progress_message = f"{done} / {total} timesteps"
+        summary_match = re.search(
+            r"\[train\] stage=(?P<stage>[^ ]+) progress=(?P<done>[\d,]+)/(?P<total>[\d,]+)"
+            r" rollout=(?P<rollout>\d+) episodes=(?P<episodes>\d+) last_term=(?P<term>\S+)",
+            line,
+        )
+        if summary_match:
+            self._state.current_stage = summary_match.group("stage")
+            done = summary_match.group("done").replace(",", "")
+            total = summary_match.group("total").replace(",", "")
+            self._state.progress_message = f"{done} / {total} timesteps"
+            self._state.rollout_count = int(summary_match.group("rollout"))
+            self._state.episode_count = int(summary_match.group("episodes"))
+            term = summary_match.group("term")
+            if term and term != "-":
+                self._state.last_termination_reason = term
         run_match = re.search(r"TensorBoard run root: (.+)", line)
         if run_match:
             run_path = Path(run_match.group(1).strip())
@@ -115,8 +131,10 @@ class TrainManager:
         return self._process is not None
 
     @staticmethod
-    def _training_env(*, gazebo_headless: bool) -> dict[str, str]:
+    def _training_env(*, gazebo_headless: bool, controller_apply_delay_s: Optional[float] = None) -> dict[str, str]:
         env = os.environ.copy()
+        if controller_apply_delay_s is not None:
+            env["QUADRL_SIM_WARMUP_S"] = str(controller_apply_delay_s)
         if gazebo_headless:
             return env
         display = resolve_display()
@@ -149,7 +167,10 @@ class TrainManager:
         if not project_storage.has_rl_export(project):
             raise FileNotFoundError(f"Missing RL export for project '{project}'")
 
-        train_env = self._training_env(gazebo_headless=gazebo_headless)
+        from api.spawn_config_manager import controller_apply_delay_for_project
+
+        delay_s = controller_apply_delay_for_project(project)
+        train_env = self._training_env(gazebo_headless=gazebo_headless, controller_apply_delay_s=delay_s)
 
         project_dir = project_storage.project_dir(project)
         cmd = [
@@ -167,6 +188,16 @@ class TrainManager:
             cmd.append("--gazebo-gui")
         if resume_checkpoint:
             cmd.extend(["--resume", resume_checkpoint])
+
+        shell_cmd = build_train_command(
+            project,
+            dry_run=dry_run,
+            gazebo_headless=gazebo_headless,
+            resume_checkpoint=resume_checkpoint,
+            config_path=config_path,
+            controller_apply_delay_s=delay_s,
+        )
+        self._state.command = shell_cmd
 
         self._project = project
         self._dry_run = dry_run
@@ -186,7 +217,7 @@ class TrainManager:
         if not gazebo_headless:
             self._emit("info", f"Gazebo GUI using DISPLAY={train_env.get('DISPLAY')}")
 
-        self._emit("info", f"Starting training: {' '.join(cmd)}")
+        self._emit("info", f"Starting training: {shell_cmd}")
 
         # Do not use setsid here — killpg(SIGKILL) on stop used to kill the whole session
         # before env.close(), causing exit -9 and orphaned Gazebo GUI processes.

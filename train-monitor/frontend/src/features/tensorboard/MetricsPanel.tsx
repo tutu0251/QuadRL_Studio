@@ -1,5 +1,6 @@
 import { useId, useMemo, type CSSProperties } from "react";
 import { getApiBaseUrl, tbOpenUrl } from "../../api/client";
+import { ActionButton } from "../../components/ActionButton";
 import type { ScalarSeries, TensorBoardStatus } from "../../types";
 
 type Props = {
@@ -10,6 +11,10 @@ type Props = {
   onOpenTb: () => void;
   onStopTb: () => void;
   busy: boolean;
+  tbStartCommand?: string | null;
+  tbStopCommand?: string | null;
+  tbStartLoading?: boolean;
+  tbStopLoading?: boolean;
 };
 
 const TB_COLORS = ["#e8a54a", "#5c9fd4", "#66bb6a", "#ce93d8", "#ef5350", "#80cbc4"];
@@ -112,6 +117,10 @@ export function MetricsPanel({
   onOpenTb,
   onStopTb,
   busy,
+  tbStartCommand,
+  tbStopCommand,
+  tbStartLoading,
+  tbStopLoading,
 }: Props) {
   const tbLink =
     project && tbStatus?.running
@@ -137,11 +146,17 @@ export function MetricsPanel({
             {trainingActive && <span className="metrics-live"> · updating live</span>}
           </p>
         </div>
-        <div className="btn-row inline">
+        <div className="btn-row inline metrics-tb-actions">
           {!tbStatus?.running ? (
-            <button type="button" className="btn small accent" disabled={busy || !project} onClick={onOpenTb}>
+            <ActionButton
+              className="btn small accent"
+              disabled={busy || !project}
+              command={tbStartCommand}
+              commandLoading={tbStartLoading}
+              onClick={onOpenTb}
+            >
               TensorBoard
-            </button>
+            </ActionButton>
           ) : (
             <>
               {tbLink && (
@@ -149,9 +164,15 @@ export function MetricsPanel({
                   Open TensorBoard
                 </a>
               )}
-              <button type="button" className="btn small ghost" disabled={busy} onClick={onStopTb}>
+              <ActionButton
+                className="btn small ghost"
+                disabled={busy}
+                command={tbStopCommand}
+                commandLoading={tbStopLoading}
+                onClick={onStopTb}
+              >
                 Stop TB
-              </button>
+              </ActionButton>
             </>
           )}
         </div>

@@ -1,40 +1,43 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, wsTrainLogsUrl } from "./api/client";
-import { CheckpointsPanel } from "./features/checkpoints/CheckpointsPanel";
 import { ConsolePanel } from "./features/console/ConsolePanel";
-import { ExportsPanel } from "./features/exports/ExportsPanel";
+import { ConsoleSplitter } from "./components/ConsoleSplitter";
+import { TestSpawnBar } from "./components/TestSpawnBar";
+import { MetricMonitorPage } from "./features/metric/MetricMonitorPage";
 import { MenuBar } from "./features/menu/MenuBar";
-import { MetricsPanel } from "./features/tensorboard/MetricsPanel";
-import { RunsPanel } from "./features/runs/RunsPanel";
+import { PageNav } from "./features/nav/PageNav";
+import { SpawnMonitorPage } from "./features/spawn/SpawnMonitorPage";
 import { StatusBar } from "./features/status/StatusBar";
-import { SystemResourcesPanel } from "./features/system/SystemResourcesPanel";
-import { TrainingPanel } from "./features/training/TrainingPanel";
-import { WorkspacePanel } from "./features/workspace/WorkspacePanel";
+import { TopicMonitorPage } from "./features/topic/TopicMonitorPage";
+import { TrainingMonitorPage } from "./features/training/TrainingMonitorPage";
 import { useMonitorStore } from "./stores/monitorStore";
-import type { ProjectSummary, TensorBoardStatus, TrainStatus, WorkspaceStatus, WsLogPayload } from "./types";
+import type { MonitorPageId, ProjectSummary, TensorBoardStatus, TrainStatus, WorkspaceStatus, WsLogPayload } from "./types";
 import { normalizeLogLevel, parseLogComponent } from "./utils/logUtils";
 
 export default function App() {
   const project = useMonitorStore((s) => s.project);
+  const activePage = useMonitorStore((s) => s.activePage);
   const exports = useMonitorStore((s) => s.exports);
   const checkpoints = useMonitorStore((s) => s.checkpoints);
   const runs = useMonitorStore((s) => s.runs);
   const trainStatus = useMonitorStore((s) => s.trainStatus);
   const scalars = useMonitorStore((s) => s.scalars);
   const selectedRunId = useMonitorStore((s) => s.selectedRunId);
-  const selectedExportPath = useMonitorStore((s) => s.selectedExportPath);
-  const exportPreview = useMonitorStore((s) => s.exportPreview);
+  const selectedStageLogdir = useMonitorStore((s) => s.selectedStageLogdir);
   const log = useMonitorStore((s) => s.log);
   const appendLog = useMonitorStore((s) => s.appendLog);
   const setProject = useMonitorStore((s) => s.setProject);
+  const setActivePage = useMonitorStore((s) => s.setActivePage);
   const setExports = useMonitorStore((s) => s.setExports);
   const setCheckpoints = useMonitorStore((s) => s.setCheckpoints);
   const setRuns = useMonitorStore((s) => s.setRuns);
   const setTrainStatus = useMonitorStore((s) => s.setTrainStatus);
   const setScalars = useMonitorStore((s) => s.setScalars);
   const setSelectedRunId = useMonitorStore((s) => s.setSelectedRunId);
-  const setSelectedExportPath = useMonitorStore((s) => s.setSelectedExportPath);
-  const setExportPreview = useMonitorStore((s) => s.setExportPreview);
+  const setSelectedStageLogdir = useMonitorStore((s) => s.setSelectedStageLogdir);
+  const setSpawnConfig = useMonitorStore((s) => s.setSpawnConfig);
+  const setTopicsBundle = useMonitorStore((s) => s.setTopicsBundle);
+  const setTrainingConfig = useMonitorStore((s) => s.setTrainingConfig);
 
   const [projects, setProjects] = useState<string[]>([]);
   const [projectDetails, setProjectDetails] = useState<ProjectSummary[]>([]);
@@ -44,8 +47,7 @@ export default function App() {
   const [dryRun, setDryRun] = useState(false);
   const [gazeboHeadless, setGazeboHeadless] = useState(() => {
     try {
-      const v = localStorage.getItem("quadrl.gazeboHeadless");
-      return v !== "0";
+      return localStorage.getItem("quadrl.gazeboHeadless") !== "0";
     } catch {
       return true;
     }
@@ -56,8 +58,7 @@ export default function App() {
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [tbStatus, setTbStatus] = useState<TensorBoardStatus | null>(null);
 
-  const trainingActive =
-    trainStatus?.state === "running" || trainStatus?.state === "starting";
+  const trainingActive = trainStatus?.state === "running" || trainStatus?.state === "starting";
 
   const refreshScalars = useCallback(
     async (name: string, runId: string | null) => {
@@ -74,13 +75,16 @@ export default function App() {
 
   const refreshProjectData = useCallback(
     async (name: string) => {
-      const [exp, ckpt, runList, status, tb, ws] = await Promise.all([
+      const [exp, ckpt, runList, status, tb, ws, spawn, topics, trainCfg] = await Promise.all([
         api.getExports(name),
         api.listCheckpoints(name),
         api.listRuns(name),
         api.trainStatus(name),
         api.tbStatus(name),
         api.workspaceStatus(name),
+        api.getSpawnConfig(name).catch(() => null),
+        api.getTopics(name).catch(() => null),
+        api.getTrainingConfig(name).catch(() => null),
       ]);
       setExports(exp);
       setWorkspaceStatus(ws);
@@ -88,27 +92,19 @@ export default function App() {
       setRuns(runList.runs);
       setTrainStatus(status);
       setTbStatus(tb);
+      if (spawn) setSpawnConfig(spawn);
+      if (topics) setTopicsBundle(topics);
+      if (trainCfg) setTrainingConfig(trainCfg);
 
       const trainingNow = status.state === "running" || status.state === "starting";
       const activeRun =
-        (trainingNow && status.run_id) ||
-        selectedRunId ||
-        runList.runs[0]?.run_id ||
-        null;
+        (trainingNow && status.run_id) || selectedRunId || runList.runs[0]?.run_id || null;
       if (activeRun && activeRun !== selectedRunId) {
         setSelectedRunId(activeRun);
       }
       await refreshScalars(name, activeRun);
     },
-    [
-      selectedRunId,
-      setCheckpoints,
-      setExports,
-      setRuns,
-      setSelectedRunId,
-      setTrainStatus,
-      refreshScalars,
-    ]
+    [selectedRunId, setCheckpoints, setExports, setRuns, setSelectedRunId, setTrainStatus, refreshScalars, setSpawnConfig, setTopicsBundle, setTrainingConfig]
   );
 
   const refreshProjects = useCallback(async () => {
@@ -132,9 +128,7 @@ export default function App() {
             setResolvedDisplay(d.resolved_display ?? null);
             if (!d.gui_available) setGazeboHeadless(true);
           })
-          .catch(() => {
-            setGuiAvailable(false);
-          });
+          .catch(() => setGuiAvailable(false));
       })
       .catch(() => {
         setConnected(false);
@@ -181,8 +175,7 @@ export default function App() {
   useEffect(() => {
     if (!project) return;
     const ms = trainingActive ? 2000 : 8000;
-    const runId =
-      trainingActive && trainStatus?.run_id ? trainStatus.run_id : selectedRunId;
+    const runId = trainingActive && trainStatus?.run_id ? trainStatus.run_id : selectedRunId;
     const id = window.setInterval(() => {
       refreshScalars(project, runId).catch(() => {});
     }, ms);
@@ -190,18 +183,16 @@ export default function App() {
   }, [project, selectedRunId, trainingActive, trainStatus?.run_id, refreshScalars]);
 
   useEffect(() => {
-    if (!project || !trainingActive || !trainStatus?.run_id) return;
-    if (trainStatus.run_id === selectedRunId) return;
-    setSelectedRunId(trainStatus.run_id);
-    refreshScalars(project, trainStatus.run_id).catch(() => {});
-  }, [
-    project,
-    trainingActive,
-    trainStatus?.run_id,
-    selectedRunId,
-    setSelectedRunId,
-    refreshScalars,
-  ]);
+    const onHash = () => {
+      const page = window.location.hash.replace("#", "") as MonitorPageId;
+      if (page === "spawn" || page === "topic" || page === "training" || page === "metric") {
+        setActivePage(page);
+      }
+    };
+    window.addEventListener("hashchange", onHash);
+    onHash();
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [setActivePage]);
 
   const loadProject = async (name: string) => {
     setError(null);
@@ -210,8 +201,7 @@ export default function App() {
       await api.loadProject(name);
       setProject(name);
       setSelectedCheckpoint(null);
-      setSelectedExportPath(null);
-      setExportPreview(null);
+      setSelectedStageLogdir(null);
       await refreshProjectData(name);
       log(`Loaded project ${name}`);
       await refreshProjects();
@@ -222,20 +212,10 @@ export default function App() {
     }
   };
 
-  const selectExport = async (path: string) => {
-    if (!project) return;
-    setSelectedExportPath(path);
-    try {
-      const r = await api.getExportContent(project, path);
-      setExportPreview(r.content);
-    } catch (e) {
-      setExportPreview(String(e));
-    }
-  };
-
   const selectRun = async (runId: string) => {
     if (!project) return;
     setSelectedRunId(runId);
+    setSelectedStageLogdir(null);
     setError(null);
     try {
       await refreshScalars(project, runId);
@@ -250,10 +230,7 @@ export default function App() {
     setError(null);
     try {
       setScalars([]);
-      const status = await api.trainStart(project, {
-        dry_run: dryRun,
-        gazebo_headless: gazeboHeadless,
-      });
+      const status = await api.trainStart(project, { dry_run: dryRun, gazebo_headless: gazeboHeadless });
       setTrainStatus(status);
       log("Training started");
       await refreshProjectData(project);
@@ -268,8 +245,7 @@ export default function App() {
     if (!project) return;
     setBusy(true);
     try {
-      const status = await api.trainStop(project);
-      setTrainStatus(status);
+      setTrainStatus(await api.trainStop(project));
       log("Training stop requested");
       await refreshProjectData(project);
     } catch (e) {
@@ -283,11 +259,9 @@ export default function App() {
     if (!project || !selectedCheckpoint) return;
     setBusy(true);
     try {
-      const status = await api.trainResume(project, selectedCheckpoint, {
-        dry_run: dryRun,
-        gazebo_headless: gazeboHeadless,
-      });
-      setTrainStatus(status);
+      setTrainStatus(
+        await api.trainResume(project, selectedCheckpoint, { dry_run: dryRun, gazebo_headless: gazeboHeadless })
+      );
       log(`Resuming from ${selectedCheckpoint}`);
       await refreshProjectData(project);
     } catch (e) {
@@ -312,28 +286,11 @@ export default function App() {
     }
   };
 
-  const runWorkspace = async (fn: () => Promise<WorkspaceStatus>) => {
-    if (!project) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const ws = await fn();
-      setWorkspaceStatus(ws);
-      if (ws.error) setError(ws.error);
-      await refreshProjectData(project);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const stopTb = async () => {
     if (!project) return;
     setBusy(true);
     try {
-      const tb = await api.tbStop(project);
-      setTbStatus(tb);
+      setTbStatus(await api.tbStop(project));
     } finally {
       setBusy(false);
     }
@@ -342,12 +299,8 @@ export default function App() {
   return (
     <div className="app monitor-app">
       <header className="top-bar">
-        <MenuBar
-          projects={projects}
-          projectDetails={projectDetails}
-          active={project}
-          onLoad={loadProject}
-        />
+        <MenuBar projects={projects} projectDetails={projectDetails} active={project} onLoad={loadProject} />
+        <PageNav active={activePage} onChange={setActivePage} />
       </header>
 
       {error && (
@@ -359,84 +312,86 @@ export default function App() {
         </div>
       )}
 
-      <div className="monitor-body">
-        <aside className="side-col">
-          <WorkspacePanel
-            project={project}
-            status={workspaceStatus}
-            busy={busy}
-            onRefresh={() => project && api.workspaceStatus(project).then(setWorkspaceStatus)}
-            onGenerate={() => runWorkspace(() => api.workspaceGenerate(project!))}
-            onBuild={(clean) => runWorkspace(() => api.workspaceBuild(project!, { clean }))}
-            onValidateExports={() => runWorkspace(() => api.workspaceValidateExports(project!))}
-            onValidate={({ staticOnly, skipRuntime }) =>
-              runWorkspace(() =>
-                api.workspaceValidate(project!, {
-                  static_only: staticOnly,
-                  skip_runtime: skipRuntime,
-                })
-              )
-            }
-            onSetup={({ staticOnly, skipRuntime }) =>
-              runWorkspace(() =>
-                api.workspaceSetup(project!, { static_only: staticOnly, skip_runtime: skipRuntime })
-              )
-            }
-          />
-          <TrainingPanel
-            project={project}
-            status={trainStatus}
-            ready={exports?.ready_for_training ?? false}
-            selectedCheckpoint={selectedCheckpoint}
-            dryRun={dryRun}
-            gazeboHeadless={gazeboHeadless}
-            guiAvailable={guiAvailable}
-            resolvedDisplay={resolvedDisplay}
-            recommendedSim={workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "unavailable"}
-            onDryRunChange={setDryRun}
-            onGazeboHeadlessChange={(v) => {
-              setGazeboHeadless(v);
-              try {
-                localStorage.setItem("quadrl.gazeboHeadless", v ? "1" : "0");
-              } catch {
-                /* ignore */
-              }
-            }}
-            onStart={startTraining}
-            onStop={stopTraining}
-            onResume={resumeTraining}
-            busy={busy}
-          />
-          <SystemResourcesPanel />
-          <CheckpointsPanel
-            checkpoints={checkpoints}
-            selected={selectedCheckpoint}
-            onSelect={setSelectedCheckpoint}
-          />
-          <RunsPanel runs={runs} selectedRunId={selectedRunId} onSelect={selectRun} />
-        </aside>
+      <div className="monitor-main-split">
+        <div className="monitor-page-body">
+          {activePage !== "metric" && (
+            <TestSpawnBar
+              project={project}
+              busy={busy}
+              gazeboHeadless={gazeboHeadless}
+              guiAvailable={guiAvailable}
+              resolvedDisplay={resolvedDisplay}
+              onBusy={setBusy}
+              onError={setError}
+              onGazeboHeadlessChange={(v) => {
+                setGazeboHeadless(v);
+                try {
+                  localStorage.setItem("quadrl.gazeboHeadless", v ? "1" : "0");
+                } catch {
+                  /* ignore */
+                }
+              }}
+            />
+          )}
+          {activePage === "spawn" && (
+            <SpawnMonitorPage project={project} busy={busy} onBusy={setBusy} onError={setError} />
+          )}
+          {activePage === "topic" && (
+            <TopicMonitorPage
+              project={project}
+              workspaceStatus={workspaceStatus}
+              busy={busy}
+              onBusy={setBusy}
+              onError={setError}
+              onWorkspaceDone={setWorkspaceStatus}
+            />
+          )}
+          {activePage === "training" && (
+            <TrainingMonitorPage project={project} trainStatus={trainStatus} busy={busy} onBusy={setBusy} onError={setError} />
+          )}
+          {activePage === "metric" && (
+            <MetricMonitorPage
+              project={project}
+              exports={exports}
+              trainStatus={trainStatus}
+              workspaceStatus={workspaceStatus}
+              checkpoints={checkpoints}
+              runs={runs}
+              scalars={scalars}
+              selectedRunId={selectedRunId}
+              selectedCheckpoint={selectedCheckpoint}
+              selectedStageLogdir={selectedStageLogdir}
+              tbStatus={tbStatus}
+              dryRun={dryRun}
+              gazeboHeadless={gazeboHeadless}
+              guiAvailable={guiAvailable}
+              resolvedDisplay={resolvedDisplay}
+              busy={busy}
+              trainingActive={trainingActive}
+              onDryRunChange={setDryRun}
+              onGazeboHeadlessChange={(v) => {
+                setGazeboHeadless(v);
+                try {
+                  localStorage.setItem("quadrl.gazeboHeadless", v ? "1" : "0");
+                } catch {
+                  /* ignore */
+                }
+              }}
+              onStart={startTraining}
+              onStop={stopTraining}
+              onResume={resumeTraining}
+              onSelectCheckpoint={setSelectedCheckpoint}
+              onSelectRun={selectRun}
+              onSelectStage={setSelectedStageLogdir}
+              onOpenTb={startTb}
+              onStopTb={stopTb}
+            />
+          )}
+        </div>
 
-        <main className="main-col">
-          <MetricsPanel
-            project={project}
-            scalars={scalars}
-            tbStatus={tbStatus}
-            trainingActive={trainingActive}
-            onOpenTb={startTb}
-            onStopTb={stopTb}
-            busy={busy}
-          />
-          <ExportsPanel
-            bundle={exports}
-            selectedPath={selectedExportPath}
-            preview={exportPreview}
-            onSelect={selectExport}
-          />
-        </main>
-      </div>
-
-      <div className="bottom-dock">
-        <ConsolePanel />
+        <ConsoleSplitter>
+          <ConsolePanel />
+        </ConsoleSplitter>
       </div>
 
       <StatusBar connected={connected} project={project} trainingActive={trainingActive} />

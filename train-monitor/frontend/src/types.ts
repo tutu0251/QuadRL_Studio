@@ -81,10 +81,127 @@ export type TrainStatus = {
   started_at?: string | null;
   current_stage?: string | null;
   progress_message?: string | null;
+  rollout_count?: number | null;
+  episode_count?: number | null;
+  last_termination_reason?: string | null;
   resume_checkpoint?: string | null;
   dry_run: boolean;
   gazebo_headless?: boolean;
   exit_code?: number | null;
+  command?: string | null;
+};
+
+export type SpawnTestState = "idle" | "starting" | "running" | "stopping";
+
+export type SpawnTestStatus = {
+  project: string;
+  state: SpawnTestState;
+  headless: boolean;
+  spawn_valid: boolean;
+  pid?: number | null;
+  errors: string[];
+  command?: string;
+};
+
+export type SpawnTestResult = {
+  project: string;
+  valid: boolean;
+  status: string;
+  state?: SpawnTestState;
+  headless?: boolean;
+  pid?: number | null;
+  details?: Record<string, unknown> | null;
+  errors: string[];
+  warnings: string[];
+  command?: string;
+  stop_command?: string;
+};
+
+export type MonitorPageId = "spawn" | "topic" | "training" | "metric";
+
+export type CommandPreview = {
+  action: string;
+  command: string;
+  description?: string;
+};
+
+export type SpawnOffset = {
+  dx: number;
+  dy: number;
+  dz: number;
+  droll: number;
+  dpitch: number;
+  dyaw: number;
+};
+
+export type SpawnConfig = {
+  project: string;
+  export_path: string;
+  pose_name: string;
+  base_spawn: Record<string, number>;
+  spawn_offset: SpawnOffset;
+  effective_spawn: Record<string, number>;
+  joints: Record<string, number>;
+  controller_apply_delay_s: number;
+  pose_confirmed: boolean;
+  missing_export: boolean;
+  command?: string;
+};
+
+export type TopicEntry = {
+  key: string;
+  topic: string;
+  kind: string;
+  bridge_present: boolean;
+  runtime_status: "ok" | "failed" | "pending";
+  runtime_detail?: string | null;
+  confirmed: boolean;
+  echo_command: string;
+};
+
+export type TopicsBundle = {
+  project: string;
+  topics: TopicEntry[];
+  confirmed_topics: string[];
+  bridge_topic_count: number;
+  observations_path: string;
+  command?: string;
+};
+
+export type ActionScaleEntry = {
+  joint: string;
+  action_scale: number;
+  default_position: number;
+};
+
+export type ObservationScaleEntry = {
+  id: string;
+  key: string;
+  topic: string;
+  scale: number;
+  offset: number;
+  clip_min?: number | null;
+  clip_max?: number | null;
+  enabled: boolean;
+};
+
+export type TerminationSummary = {
+  stage_name?: string | null;
+  max_episode_steps: number;
+  fall_base_height_threshold: number;
+  max_tilt_rad: number;
+  enabled_term_ids: string[];
+};
+
+export type TrainingConfig = {
+  project: string;
+  gains_path: string;
+  rl_config_path: string;
+  action_scales: ActionScaleEntry[];
+  observation_scales: ObservationScaleEntry[];
+  terminations: TerminationSummary[];
+  curriculum_enabled: boolean;
+  command?: string;
 };
 
 export type TensorBoardStatus = {

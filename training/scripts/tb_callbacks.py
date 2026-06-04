@@ -132,6 +132,52 @@ class PolicyHistogramCallback(BaseCallback):
         return True
 
 
+class MonitorProgressCallback(BaseCallback):
+    """Emit structured progress lines for Train Monitor log parsing."""
+
+    def __init__(
+        self,
+        *,
+        stage_name: str,
+        total_timesteps: int,
+        log_freq_rollouts: int = 1,
+        verbose: int = 0,
+    ) -> None:
+        super().__init__(verbose)
+        self._stage_name = stage_name
+        self._total_timesteps = max(1, int(total_timesteps))
+        self._log_freq_rollouts = max(1, int(log_freq_rollouts))
+        self._rollout_count = 0
+        self._episode_count = 0
+        self._last_term = "-"
+
+    def _on_step(self) -> bool:
+        infos = self.locals.get("infos")
+        if isinstance(infos, list):
+            for info in infos:
+                if not isinstance(info, dict):
+                    continue
+                reason = info.get("termination_reason")
+                if reason:
+                    self._last_term = str(reason)
+                if info.get("episode"):
+                    self._episode_count += 1
+        return True
+
+    def _on_rollout_end(self) -> None:
+        self._rollout_count += 1
+        if self._rollout_count % self._log_freq_rollouts != 0:
+            return
+        done = self.num_timesteps
+        total = self._total_timesteps
+        print(
+            f"[train] stage={self._stage_name} progress={done:,}/{total:,} "
+            f"rollout={self._rollout_count} episodes={self._episode_count} "
+            f"last_term={self._last_term}",
+            flush=True,
+        )
+
+
 def build_tensorboard_callbacks(
     config: dict,
     *,
@@ -149,6 +195,18 @@ def build_tensorboard_callbacks(
     if logging.get("episode_stats", True):
         threshold = float(logging.get("success_reward_threshold", 499.0))
         callbacks.append(EpisodeStatsCallback(success_threshold=threshold))
+
+    stage_name = stage.get("name", "training") if stage else "training"
+    stage_steps = int(stage.get("timesteps", config.get("total_timesteps", 0) or 0)) if stage else int(
+        config.get("total_timesteps", 0) or 0
+    )
+    if stage_steps <= 0:
+        par = config.get("parallel") or {}
+        hp = config.get("hyperparameters") or {}
+        stage_steps = int(hp.get("n_steps", 2048)) * max(1, int(par.get("num_envs", 1)))
+    callbacks.append(
+        MonitorProgressCallback(stage_name=stage_name, total_timesteps=max(1, stage_steps))
+    )
 
     eval_cfg = logging.get("eval") or {}
     if eval_cfg.get("enabled", True) and eval_env is not None:

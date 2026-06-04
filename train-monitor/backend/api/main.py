@@ -14,10 +14,26 @@ from fastapi.responses import Response
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from api.command_builder import preview_command
+from api.spawn_config_manager import get_spawn_config, update_spawn_config
+from api.spawn_test_manager import spawn_test_manager
 from api.tensorboard_manager import read_scalars, tensorboard_manager
+from api.topics_manager import list_topics, update_confirmations
 from api.train_manager import train_manager
+from api.training_config_manager import get_training_config, update_training_config
 from api.workspace_manager import get_workspace_status, workspace_manager
-from domain.models import ProjectSummary, TrainStartRequest, TrainStatus, WorkspaceOperationRequest, WorkspaceStatus
+from domain.models import (
+    ProjectSummary,
+    SpawnConfigUpdate,
+    SpawnTestRequest,
+    SpawnTestResult,
+    TopicsConfirmUpdate,
+    TrainStartRequest,
+    TrainStatus,
+    TrainingConfigUpdate,
+    WorkspaceOperationRequest,
+    WorkspaceStatus,
+)
 from storage import export_scanner, project_storage, run_registry
 
 _active_project: Optional[str] = None
@@ -37,6 +53,8 @@ async def lifespan(app: FastAPI):
     yield
     if train_manager.is_running():
         await train_manager.stop()
+    if spawn_test_manager.is_running():
+        await spawn_test_manager.stop()
     if workspace_manager.is_running():
         workspace_manager._state = "idle"
     tensorboard_manager.stop()
@@ -117,6 +135,91 @@ def load_project(name: str):
     return {"project": name, "summary": _project_summary(name).model_dump()}
 
 
+@app.get("/api/projects/{name}/commands/preview")
+def command_preview(name: str, action: str, params: Optional[str] = None):
+    import json
+
+    parsed = {}
+    if params:
+        try:
+            parsed = json.loads(params)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(400, f"Invalid params JSON: {exc}") from exc
+    return preview_command(action, name, parsed)
+
+
+@app.get("/api/projects/{name}/spawn-config")
+def spawn_config_get(name: str):
+    return get_spawn_config(name).model_dump()
+
+
+@app.patch("/api/projects/{name}/spawn-config")
+def spawn_config_patch(name: str, body: SpawnConfigUpdate):
+    cfg, command = update_spawn_config(name, body)
+    return {**cfg.model_dump(), "command": command}
+
+
+@app.post("/api/projects/{name}/spawn/test")
+async def spawn_test(name: str, body: SpawnTestRequest = SpawnTestRequest()):
+    from api.command_builder import build_spawn_test_stop_command, build_test_spawn_command
+
+    try:
+        cfg = get_spawn_config(name)
+        result = await spawn_test_manager.start(name, headless=body.headless)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    out = result.model_dump()
+    out["command"] = build_test_spawn_command(
+        name,
+        spawn_z=float(cfg.effective_spawn.get("z", 0.5)),
+        headless=body.headless,
+    )
+    out["stop_command"] = build_spawn_test_stop_command(name)
+    return out
+
+
+@app.get("/api/projects/{name}/spawn/test/status")
+def spawn_test_status(name: str):
+    return spawn_test_manager.get_status(name).model_dump()
+
+
+@app.post("/api/projects/{name}/spawn/test/stop")
+async def spawn_test_stop(name: str):
+    from api.command_builder import build_spawn_test_stop_command
+
+    try:
+        status = await spawn_test_manager.stop(name)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    out = status.model_dump()
+    out["command"] = build_spawn_test_stop_command(name)
+    return out
+
+
+@app.get("/api/projects/{name}/topics")
+def topics_list(name: str):
+    return list_topics(name).model_dump()
+
+
+@app.patch("/api/projects/{name}/topics/confirmations")
+def topics_confirm(name: str, body: TopicsConfirmUpdate):
+    bundle, command = update_confirmations(name, body.confirmed_topics)
+    return {**bundle.model_dump(), "command": command}
+
+
+@app.get("/api/projects/{name}/training-config")
+def training_config_get(name: str):
+    return get_training_config(name).model_dump()
+
+
+@app.patch("/api/projects/{name}/training-config")
+def training_config_patch(name: str, body: TrainingConfigUpdate):
+    cfg, command = update_training_config(name, body)
+    return {**cfg.model_dump(), "command": command}
+
+
 @app.get("/api/projects/{name}/exports")
 def get_exports(name: str):
     return export_scanner.scan_exports(name).model_dump()
@@ -182,7 +285,20 @@ async def train_start(name: str, body: TrainStartRequest):
         raise HTTPException(404, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
-    return status.model_dump()
+    out = status.model_dump()
+    if not out.get("command"):
+        from api.spawn_config_manager import controller_apply_delay_for_project
+
+        out["command"] = preview_command(
+            "train_start",
+            name,
+            {
+                "dry_run": body.dry_run,
+                "gazebo_headless": body.gazebo_headless,
+                "controller_apply_delay_s": controller_apply_delay_for_project(name),
+            },
+        )["command"]
+    return out
 
 
 @app.get("/api/projects/{name}/workspace/status")
@@ -193,54 +309,72 @@ def workspace_status(name: str) -> WorkspaceStatus:
 @app.post("/api/projects/{name}/workspace/generate")
 async def workspace_generate(name: str):
     try:
-        return (await workspace_manager.generate(name)).model_dump()
+        status = await workspace_manager.generate(name)
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
+    out = status.model_dump()
+    out["command"] = preview_command("workspace_generate", name)["command"]
+    return out
 
 
 @app.post("/api/projects/{name}/workspace/build")
 async def workspace_build(name: str, body: WorkspaceOperationRequest):
     try:
-        return (await workspace_manager.build(name, clean=body.clean)).model_dump()
+        status = await workspace_manager.build(name, clean=body.clean)
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
+    out = status.model_dump()
+    action = "workspace_build_clean" if body.clean else "workspace_build"
+    out["command"] = preview_command(action, name)["command"]
+    return out
 
 
 @app.post("/api/projects/{name}/workspace/validate-exports")
 async def workspace_validate_exports(name: str):
     try:
-        return (await workspace_manager.validate_exports(name)).model_dump()
+        status = await workspace_manager.validate_exports(name)
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
+    out = status.model_dump()
+    out["command"] = preview_command("workspace_validate_exports", name)["command"]
+    return out
 
 
 @app.post("/api/projects/{name}/workspace/validate")
 async def workspace_validate(name: str, body: WorkspaceOperationRequest):
     try:
-        return (
-            await workspace_manager.validate(
-                name,
-                static_only=body.static_only,
-                skip_runtime=body.skip_runtime,
-                skip_build=body.skip_build,
-            )
-        ).model_dump()
+        status = await workspace_manager.validate(
+            name,
+            static_only=body.static_only,
+            skip_runtime=body.skip_runtime,
+            skip_build=body.skip_build,
+        )
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
+    out = status.model_dump()
+    if body.static_only:
+        action = "workspace_validate_static"
+    elif body.skip_runtime:
+        action = "workspace_validate_no_gazebo"
+    else:
+        action = "workspace_validate_full"
+    out["command"] = preview_command(action, name)["command"]
+    return out
 
 
 @app.post("/api/projects/{name}/workspace/setup")
 async def workspace_setup(name: str, body: WorkspaceOperationRequest):
     try:
-        return (
-            await workspace_manager.setup(
-                name,
-                static_only=body.static_only,
-                skip_runtime=body.skip_runtime,
-            )
-        ).model_dump()
+        status = await workspace_manager.setup(
+            name,
+            static_only=body.static_only,
+            skip_runtime=body.skip_runtime,
+        )
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
+    out = status.model_dump()
+    out["command"] = preview_command("workspace_setup", name)["command"]
+    return out
 
 
 @app.post("/api/projects/{name}/train/stop")
@@ -249,7 +383,9 @@ async def train_stop(name: str):
         status = await train_manager.stop(name)
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
-    return status.model_dump()
+    out = status.model_dump()
+    out["command"] = preview_command("train_stop", name)["command"]
+    return out
 
 
 @app.post("/api/projects/{name}/train/resume")
@@ -268,7 +404,20 @@ async def train_resume(name: str, body: TrainStartRequest):
         raise HTTPException(404, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
-    return status.model_dump()
+    out = status.model_dump()
+    from api.spawn_config_manager import controller_apply_delay_for_project
+
+    out["command"] = preview_command(
+        "train_resume",
+        name,
+        {
+            "dry_run": body.dry_run,
+            "gazebo_headless": body.gazebo_headless,
+            "resume_checkpoint": body.resume_checkpoint,
+            "controller_apply_delay_s": controller_apply_delay_for_project(name),
+        },
+    )["command"]
+    return out
 
 
 @app.get("/api/projects/{name}/tensorboard/status")
@@ -278,12 +427,16 @@ def tb_status(name: str):
 
 @app.post("/api/projects/{name}/tensorboard/start")
 def tb_start(name: str, run_id: Optional[str] = None):
-    return tensorboard_manager.start(name, run_id=run_id).model_dump()
+    out = tensorboard_manager.start(name, run_id=run_id).model_dump()
+    out["command"] = preview_command("tensorboard_start", name, {"run_id": run_id})["command"]
+    return out
 
 
 @app.post("/api/projects/{name}/tensorboard/stop")
 def tb_stop(name: str):
-    return tensorboard_manager.stop().model_dump()
+    out = tensorboard_manager.stop().model_dump()
+    out["command"] = preview_command("tensorboard_stop", name)["command"]
+    return out
 
 
 @app.api_route(
@@ -356,6 +509,7 @@ async def ws_train_logs(ws: WebSocket):
 
     train_manager.subscribe_logs(on_log)
     workspace_manager.subscribe_logs(on_log)
+    spawn_test_manager.subscribe_logs(on_log)
     try:
         while True:
             try:
@@ -376,3 +530,4 @@ async def ws_train_logs(ws: WebSocket):
     finally:
         train_manager.unsubscribe_logs(on_log)
         workspace_manager.unsubscribe_logs(on_log)
+        spawn_test_manager.unsubscribe_logs(on_log)

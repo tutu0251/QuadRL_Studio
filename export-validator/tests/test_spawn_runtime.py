@@ -7,6 +7,27 @@ from unittest.mock import patch
 from geometry_runtime import validate_geometry_runtime
 from physics_runtime import validate_physics_runtime
 from models import ValidationResult
+from spawn_runtime import _analyze_spawn_logs
+
+
+def test_analyze_spawn_logs_accepts_success_marker_with_zero_rc():
+    spawn_log = "[INFO] [ros_gz_sim]: OK creation of entity."
+    errors, warnings = _analyze_spawn_logs("", spawn_log, 0)
+    assert not errors
+    assert not warnings
+
+
+def test_analyze_spawn_logs_accepts_success_marker_despite_nonzero_rc():
+    spawn_log = "[INFO] [ros_gz_sim]: OK creation of entity."
+    errors, warnings = _analyze_spawn_logs("", spawn_log, 1)
+    assert not errors
+    assert len(warnings) == 1
+    assert warnings[0].code == "spawn_rc_nonzero"
+
+
+def test_analyze_spawn_logs_fails_without_success_marker():
+    errors, _warnings = _analyze_spawn_logs("", "[INFO] waiting...", 0)
+    assert any(e.code == "spawn_no_confirm" for e in errors)
 
 
 def _write_geo_exports(tmp_path: Path, project: str = "bot") -> Path:

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatElapsedSince, formatTimestamp } from "../../utils/format";
+import { ActionButton } from "../../components/ActionButton";
 import type { TrainStatus } from "../../types";
 
 type Props = {
@@ -18,6 +19,12 @@ type Props = {
   onStop: () => void;
   onResume: () => void;
   busy: boolean;
+  startCommand?: string | null;
+  stopCommand?: string | null;
+  resumeCommand?: string | null;
+  startCommandLoading?: boolean;
+  stopCommandLoading?: boolean;
+  resumeCommandLoading?: boolean;
 };
 
 export function TrainingPanel({
@@ -36,6 +43,12 @@ export function TrainingPanel({
   onStop,
   onResume,
   busy,
+  startCommand,
+  stopCommand,
+  resumeCommand,
+  startCommandLoading,
+  stopCommandLoading,
+  resumeCommandLoading,
 }: Props) {
   const running = status?.state === "running" || status?.state === "starting";
   const stateLabel = status?.state ?? "idle";
@@ -115,22 +128,35 @@ export function TrainingPanel({
           <input type="checkbox" checked={dryRun} onChange={(e) => onDryRunChange(e.target.checked)} />
           Dry run (no SB3)
         </label>
-        <div className="btn-row">
-          <button type="button" className="btn primary" disabled={!project || !ready || running || busy} onClick={onStart}>
+        <div className="btn-row train-action-row">
+          <ActionButton
+            className="btn primary"
+            disabled={!project || !ready || running || busy}
+            command={startCommand}
+            commandLoading={startCommandLoading}
+            onClick={onStart}
+          >
             Start
-          </button>
-          <button type="button" className="btn danger" disabled={!running || busy} onClick={onStop}>
+          </ActionButton>
+          <ActionButton
+            className="btn danger"
+            disabled={!running || busy}
+            command={stopCommand}
+            commandLoading={stopCommandLoading}
+            onClick={onStop}
+          >
             Stop
-          </button>
-          <button
-            type="button"
+          </ActionButton>
+          <ActionButton
             className="btn"
             disabled={!project || !ready || !selectedCheckpoint || running || busy}
+            command={resumeCommand}
+            commandLoading={resumeCommandLoading}
             onClick={onResume}
             title={selectedCheckpoint ? `Resume from ${selectedCheckpoint}` : "Select a checkpoint"}
           >
             Resume
-          </button>
+          </ActionButton>
         </div>
       </div>
 

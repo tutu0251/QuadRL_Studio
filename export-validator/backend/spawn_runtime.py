@@ -89,8 +89,9 @@ def _analyze_spawn_logs(gz_log: str, spawn_log: str, spawn_rc: int) -> tuple[lis
     errors: list[ValidationIssue] = []
     warnings: list[ValidationIssue] = []
     combined = f"{gz_log}\n{spawn_log}"
+    spawn_ok = any(marker in spawn_log for marker in SPAWN_SUCCESS_MARKERS)
 
-    if spawn_rc != 0:
+    if spawn_rc != 0 and not spawn_ok:
         excerpt = spawn_log.strip().splitlines()[-1] if spawn_log.strip() else f"exit code {spawn_rc}"
         errors.append(
             _issue(
@@ -100,12 +101,20 @@ def _analyze_spawn_logs(gz_log: str, spawn_log: str, spawn_rc: int) -> tuple[lis
             )
         )
 
-    if spawn_rc == 0 and not any(marker in spawn_log for marker in SPAWN_SUCCESS_MARKERS):
+    if not spawn_ok:
         errors.append(
             _issue(
                 "error",
                 "spawn_no_confirm",
                 "Spawn command did not report entity creation",
+            )
+        )
+    elif spawn_rc != 0:
+        warnings.append(
+            _issue(
+                "warning",
+                "spawn_rc_nonzero",
+                f"ros_gz_sim create exited with code {spawn_rc} but reported entity creation",
             )
         )
 
@@ -133,9 +142,11 @@ def validate_spawn(
     world_name: str = DEFAULT_WORLD_NAME,
     timeout_s: float = DEFAULT_TIMEOUT_S,
     spawn_z: float = DEFAULT_SPAWN_Z,
+    headless: bool = True,
+    env: dict[str, str] | None = None,
     on_log: LogFn | None = None,
 ) -> ValidationResult:
-    """Spawn an exported URDF/SDF in headless Gazebo and verify the model loads."""
+    """Spawn an exported URDF/SDF in Gazebo and verify the model loads."""
     log = on_log or _noop_log
     stack = check_spawn_stack()
     details: dict[str, Any] = {
@@ -206,7 +217,7 @@ def validate_spawn(
     sim_ready_timeout = min(30.0, timeout_s * 0.5)
 
     try:
-        log("  launching headless Gazebo...")
+        log("  launching headless Gazebo..." if headless else "  launching Gazebo GUI...")
         gz_log_handle = tempfile.NamedTemporaryFile(
             mode="w+",
             prefix=f"{editor}_spawn_",
@@ -214,11 +225,16 @@ def validate_spawn(
             delete=False,
         )
         gz_log_path = Path(gz_log_handle.name)
+        gz_args = ["ign", "gazebo"]
+        if headless:
+            gz_args.append("-s")
+        gz_args.append(str(world_sdf))
+        run_env = sim_env(env)
         gz_proc = subprocess.Popen(
-            ["ign", "gazebo", "-s", str(world_sdf)],
+            gz_args,
             stdout=gz_log_handle,
             stderr=subprocess.STDOUT,
-            env=sim_env(),
+            env=run_env,
             text=True,
         )
         gz_log_handle.close()
@@ -250,7 +266,7 @@ def validate_spawn(
             f"-allow_renaming true"
         )
         log(f"  spawning {model_file.name}...")
-        spawn_proc = bash_ros_cmd(spawn_script, timeout=30)
+        spawn_proc = bash_ros_cmd(spawn_script, timeout=30, env=run_env)
         spawn_log = (spawn_proc.stdout or "") + (spawn_proc.stderr or "")
         spawn_rc = spawn_proc.returncode
 

@@ -1,12 +1,19 @@
 import type {
   CheckpointInfo,
+  CommandPreview,
   ExportBundle,
   ProjectSummary,
   RunInfo,
   ScalarSeries,
+  SpawnConfig,
+  SpawnOffset,
+  SpawnTestResult,
+  SpawnTestStatus,
   SystemStatsSample,
   TensorBoardStatus,
+  TopicsBundle,
   TrainStatus,
+  TrainingConfig,
   WorkspaceOperationBody,
   WorkspaceStatus,
 } from "../types";
@@ -136,4 +143,61 @@ export const api = {
     req<{ gui_available: boolean; resolved_display?: string | null; env_display?: string | null }>(
       "/api/system/display"
     ),
+  getCommandPreview: (name: string, action: string, params?: Record<string, unknown>) =>
+    req<CommandPreview>(
+      `/api/projects/${name}/commands/preview?action=${encodeURIComponent(action)}${
+        params ? `&params=${encodeURIComponent(JSON.stringify(params))}` : ""
+      }`
+    ),
+  getSpawnConfig: (name: string) => req<SpawnConfig>(`/api/projects/${name}/spawn-config`),
+  patchSpawnConfig: (
+    name: string,
+    body: Partial<{
+      spawn_offset: SpawnOffset;
+      controller_apply_delay_s: number;
+      pose_confirmed: boolean;
+    }>
+  ) =>
+    req<SpawnConfig & { command: string }>(`/api/projects/${name}/spawn-config`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  testSpawn: (name: string, body: { headless?: boolean } = {}) =>
+    req<SpawnTestResult>(`/api/projects/${name}/spawn/test`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getSpawnTestStatus: (name: string) =>
+    req<SpawnTestStatus>(`/api/projects/${name}/spawn/test/status`),
+  stopSpawnTest: (name: string) =>
+    req<SpawnTestStatus & { command: string }>(`/api/projects/${name}/spawn/test/stop`, {
+      method: "POST",
+    }),
+  getTopics: (name: string) => req<TopicsBundle>(`/api/projects/${name}/topics`),
+  patchTopicConfirmations: (name: string, confirmed_topics: string[]) =>
+    req<TopicsBundle & { command: string }>(`/api/projects/${name}/topics/confirmations`, {
+      method: "PATCH",
+      body: JSON.stringify({ confirmed_topics }),
+    }),
+  getTrainingConfig: (name: string) => req<TrainingConfig>(`/api/projects/${name}/training-config`),
+  patchTrainingConfig: (
+    name: string,
+    body: Partial<{
+      action_scales: { joint: string; action_scale: number; default_position?: number }[];
+      observation_scales: {
+        id: string;
+        key: string;
+        topic?: string;
+        scale: number;
+        offset: number;
+        clip_min?: number | null;
+        clip_max?: number | null;
+        enabled?: boolean;
+      }[];
+    }>
+  ) =>
+    req<TrainingConfig & { command: string }>(`/api/projects/${name}/training-config`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
 };

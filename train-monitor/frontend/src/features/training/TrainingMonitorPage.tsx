@@ -1,0 +1,235 @@
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../../api/client";
+import { ActionButton } from "../../components/ActionButton";
+import { useCommandPreview } from "../../hooks/useCommandPreview";
+import { useMonitorStore } from "../../stores/monitorStore";
+import type { ActionScaleEntry, ObservationScaleEntry, TrainStatus } from "../../types";
+
+type Props = {
+  project: string | null;
+  trainStatus: TrainStatus | null;
+  busy: boolean;
+  onBusy: (v: boolean) => void;
+  onError: (msg: string | null) => void;
+};
+
+export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onError }: Props) {
+  const trainingConfig = useMonitorStore((s) => s.trainingConfig);
+  const setTrainingConfig = useMonitorStore((s) => s.setTrainingConfig);
+  const setConsoleFilter = useMonitorStore((s) => s.setConsoleFilter);
+
+  const [actionScales, setActionScales] = useState<ActionScaleEntry[]>([]);
+  const [obsScales, setObsScales] = useState<ObservationScaleEntry[]>([]);
+
+  useEffect(() => {
+    setConsoleFilter("[train]|Stage |progress |rollout|termination|episode");
+    return () => setConsoleFilter(null);
+  }, [setConsoleFilter]);
+
+  const saveBody = useMemo(
+    () => ({ body: { action_scales: actionScales, observation_scales: obsScales } }),
+    [actionScales, obsScales]
+  );
+  const savePreview = useCommandPreview(project, "training_config_save", saveBody);
+
+  const refresh = async () => {
+    if (!project) return;
+    const cfg = await api.getTrainingConfig(project);
+    setTrainingConfig(cfg);
+    setActionScales(cfg.action_scales);
+    setObsScales(cfg.observation_scales);
+  };
+
+  useEffect(() => {
+    refresh().catch((e) => onError(String(e)));
+  }, [project]);
+
+  const save = async () => {
+    if (!project) return;
+    onBusy(true);
+    onError(null);
+    try {
+      const r = await api.patchTrainingConfig(project, {
+        action_scales: actionScales,
+        observation_scales: obsScales,
+      });
+      setTrainingConfig(r);
+    } catch (e) {
+      onError(String(e));
+    } finally {
+      onBusy(false);
+    }
+  };
+
+  const disabled = !project || busy;
+  const cfg = trainingConfig;
+
+  return (
+    <div className="page-grid training-page">
+      <section className="panel train-summary-panel">
+        <header className="panel-header">
+          <h2>Training Progress</h2>
+        </header>
+        <div className="summary-chips">
+          {trainStatus?.current_stage && <span className="chip">Stage: {trainStatus.current_stage}</span>}
+          {trainStatus?.progress_message && <span className="chip">Steps: {trainStatus.progress_message}</span>}
+          {trainStatus?.rollout_count != null && <span className="chip">Rollouts: {trainStatus.rollout_count}</span>}
+          {trainStatus?.episode_count != null && <span className="chip">Episodes: {trainStatus.episode_count}</span>}
+          {trainStatus?.last_termination_reason && (
+            <span className="chip warn">Last term: {trainStatus.last_termination_reason}</span>
+          )}
+        </div>
+        <p className="panel-hint">Start/stop training from Metric Monitor. Logs filtered below in console.</p>
+      </section>
+
+      <section className="panel">
+        <header className="panel-header">
+          <h2>Action Scale</h2>
+          <span className="panel-hint mono">{cfg?.gains_path}</span>
+        </header>
+        {!project && <p className="panel-hint">Load a project.</p>}
+        {actionScales.length > 0 && (
+          <table className="data-table compact">
+            <thead>
+              <tr>
+                <th>Joint</th>
+                <th>Default pos</th>
+                <th>Action scale</th>
+              </tr>
+            </thead>
+            <tbody>
+              {actionScales.map((row, i) => (
+                <tr key={row.joint}>
+                  <td>{row.joint}</td>
+                  <td className="mono">{row.default_position.toFixed(4)}</td>
+                  <td>
+                    <input
+                      type="number"
+                      step="0.01"
+                      disabled={disabled}
+                      value={row.action_scale}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setActionScales((rows) => rows.map((r, j) => (j === i ? { ...r, action_scale: v } : r)));
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="panel">
+        <header className="panel-header">
+          <h2>Observation Scales</h2>
+          <span className="panel-hint mono">{cfg?.rl_config_path}</span>
+        </header>
+        {obsScales.length > 0 && (
+          <div className="table-scroll">
+            <table className="data-table compact">
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Topic</th>
+                  <th>Scale</th>
+                  <th>Offset</th>
+                  <th>Clip min</th>
+                  <th>Clip max</th>
+                </tr>
+              </thead>
+              <tbody>
+                {obsScales.map((row, i) => (
+                  <tr key={row.id}>
+                    <td>{row.key}</td>
+                    <td className="mono">{row.topic}</td>
+                    <td>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={disabled}
+                        value={row.scale}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 0;
+                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, scale: v } : r)));
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={disabled}
+                        value={row.offset}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 0;
+                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, offset: v } : r)));
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={disabled}
+                        value={row.clip_min ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const v = raw === "" ? null : parseFloat(raw);
+                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, clip_min: v } : r)));
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={disabled}
+                        value={row.clip_max ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const v = raw === "" ? null : parseFloat(raw);
+                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, clip_max: v } : r)));
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="btn-row">
+          <ActionButton
+            className="btn primary"
+            disabled={disabled}
+            command={savePreview.preview?.command}
+            commandLoading={savePreview.loading}
+            onClick={() => void save()}
+          >
+            Save scales to exports
+          </ActionButton>
+        </div>
+      </section>
+
+      <section className="panel">
+        <header className="panel-header">
+          <h2>Termination</h2>
+          {cfg?.curriculum_enabled && <span className="badge badge-running">curriculum</span>}
+        </header>
+        {(cfg?.terminations ?? []).map((t) => (
+          <div key={t.stage_name ?? "base"} className="termination-block">
+            <h3>{t.stage_name ?? "Base task"}</h3>
+            <ul className="workspace-stats mono">
+              <li>max_episode_steps: {t.max_episode_steps}</li>
+              <li>fall_base_height_threshold: {t.fall_base_height_threshold}</li>
+              <li>max_tilt_rad: {t.max_tilt_rad}</li>
+              <li>enabled terms: {t.enabled_term_ids.join(", ") || "—"}</li>
+            </ul>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}

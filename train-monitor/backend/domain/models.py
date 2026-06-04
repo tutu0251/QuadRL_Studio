@@ -98,10 +98,137 @@ class TrainStatus(BaseModel):
     started_at: Optional[str] = None
     current_stage: Optional[str] = None
     progress_message: Optional[str] = None
+    rollout_count: Optional[int] = None
+    episode_count: Optional[int] = None
+    last_termination_reason: Optional[str] = None
     resume_checkpoint: Optional[str] = None
     dry_run: bool = False
     gazebo_headless: bool = True
     exit_code: Optional[int] = None
+    command: Optional[str] = None
+
+
+class CommandPreview(BaseModel):
+    action: str
+    command: str
+    description: str = ""
+
+
+class SpawnOffset(BaseModel):
+    dx: float = 0.0
+    dy: float = 0.0
+    dz: float = 0.0
+    droll: float = 0.0
+    dpitch: float = 0.0
+    dyaw: float = 0.0
+
+
+class SpawnConfig(BaseModel):
+    project: str
+    export_path: str
+    pose_name: str = "Default Stand"
+    base_spawn: dict[str, float] = Field(default_factory=dict)
+    spawn_offset: SpawnOffset = Field(default_factory=SpawnOffset)
+    effective_spawn: dict[str, float] = Field(default_factory=dict)
+    joints: dict[str, float] = Field(default_factory=dict)
+    controller_apply_delay_s: float = 25.0
+    pose_confirmed: bool = False
+    missing_export: bool = False
+
+
+class SpawnConfigUpdate(BaseModel):
+    spawn_offset: Optional[SpawnOffset] = None
+    controller_apply_delay_s: Optional[float] = None
+    pose_confirmed: Optional[bool] = None
+
+
+class SpawnTestRequest(BaseModel):
+    headless: bool = True
+
+
+class SpawnTestStatus(BaseModel):
+    project: str
+    state: Literal["idle", "starting", "running", "stopping"] = "idle"
+    headless: bool = True
+    spawn_valid: bool = False
+    pid: Optional[int] = None
+    errors: list[str] = Field(default_factory=list)
+
+
+class SpawnTestResult(BaseModel):
+    project: str
+    valid: bool
+    status: str = "failed"
+    state: Literal["idle", "starting", "running", "stopping"] = "idle"
+    headless: bool = True
+    pid: Optional[int] = None
+    details: Optional[dict[str, Any]] = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    command: Optional[str] = None
+
+
+class TopicEntry(BaseModel):
+    key: str
+    topic: str
+    kind: str = "contact"
+    bridge_present: bool = False
+    runtime_status: Literal["ok", "failed", "pending"] = "pending"
+    runtime_detail: Optional[str] = None
+    confirmed: bool = False
+    echo_command: str = ""
+
+
+class TopicsBundle(BaseModel):
+    project: str
+    topics: list[TopicEntry] = Field(default_factory=list)
+    confirmed_topics: list[str] = Field(default_factory=list)
+    bridge_topic_count: int = 0
+    observations_path: str = ""
+
+
+class TopicsConfirmUpdate(BaseModel):
+    confirmed_topics: list[str] = Field(default_factory=list)
+
+
+class ActionScaleEntry(BaseModel):
+    joint: str
+    action_scale: float
+    default_position: float = 0.0
+
+
+class ObservationScaleEntry(BaseModel):
+    id: str
+    key: str
+    topic: str = ""
+    scale: float = 1.0
+    offset: float = 0.0
+    clip_min: Optional[float] = None
+    clip_max: Optional[float] = None
+    enabled: bool = True
+
+
+class TerminationSummary(BaseModel):
+    stage_name: Optional[str] = None
+    max_episode_steps: int = 1000
+    fall_base_height_threshold: float = 0.1
+    max_tilt_rad: float = 1.5
+    enabled_term_ids: list[str] = Field(default_factory=list)
+
+
+class TrainingConfig(BaseModel):
+    project: str
+    gains_path: str
+    rl_config_path: str
+    action_scales: list[ActionScaleEntry] = Field(default_factory=list)
+    observation_scales: list[ObservationScaleEntry] = Field(default_factory=list)
+    terminations: list[TerminationSummary] = Field(default_factory=list)
+    curriculum_enabled: bool = False
+
+
+class TrainingConfigUpdate(BaseModel):
+    action_scales: Optional[list[ActionScaleEntry]] = None
+    observation_scales: Optional[list[ObservationScaleEntry]] = None
 
 
 class TensorBoardStatus(BaseModel):
