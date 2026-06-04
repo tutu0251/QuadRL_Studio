@@ -1,5 +1,7 @@
 /** Reward/penalty catalog — mirrors backend planner/reward_catalog.py */
 
+import { PLACEHOLDER_BODY_HEIGHT_M } from "./standingHeights";
+
 export interface RewardParamRange {
   key: string;
   recommended: number;
@@ -31,7 +33,7 @@ export const REWARD_CATALOG: RewardCatalogEntry[] = [
     category: "height",
     recommendedWeight: 1.0,
     params: [
-      { key: "target_height", recommended: 0.35, min: 0.2, max: 0.5, step: 0.01 },
+      { key: "target_height", recommended: PLACEHOLDER_BODY_HEIGHT_M, min: 0.2, max: 0.5, step: 0.01 },
       { key: "sigma", recommended: 0.06, min: 0.02, max: 0.2, step: 0.01 },
     ],
   },

@@ -7,6 +7,7 @@ import numpy as np
 
 from quadrl_env.sensor_packing import fit_dim, sensor_term_dim
 from quadrl_env.sim_state import SimState
+from quadrl_env.standing_heights import PLACEHOLDER_BODY_HEIGHT_M
 
 
 def _normalize(value: float, *, scale: float, offset: float, clip_min: float | None, clip_max: float | None) -> float:
@@ -119,7 +120,7 @@ class ObservationBuilder:
                     float(command.get("target_lin_vel_x", 0)),
                     float(command.get("target_lin_vel_y", 0)),
                     float(command.get("target_ang_vel_z", 0)),
-                    float(command.get("target_body_height", 0.35)),
+                    float(command.get("target_body_height", PLACEHOLDER_BODY_HEIGHT_M)),
                     float(command.get("gait_speed_scale", 1.0)),
                 ],
                 dtype=np.float32,

@@ -92,6 +92,7 @@ class QuadrupedEnv(gym.Env):
             self._state,
             step_reward=reward,
             cumulative_reward=self._cumulative_reward,
+            command=self._command,
         )
         if terminated and reason in ("fall_height", "max_tilt", "contact_loss"):
             self._fall_count += 1

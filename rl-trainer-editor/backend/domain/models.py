@@ -73,7 +73,7 @@ class TerminationTerm(BaseModel):
 
 class TerminationConfig(BaseModel):
     maxEpisodeSteps: int = 1000
-    fallBaseHeightThreshold: float = 0.15
+    fallBaseHeightThreshold: float = 0.25
     maxTiltRad: float = 0.8
     maxJointTorque: Optional[float] = None
     timeoutTruncation: bool = True

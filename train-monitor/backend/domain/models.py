@@ -229,7 +229,7 @@ class ObservationScaleEntry(BaseModel):
 class TerminationSummary(BaseModel):
     stage_name: Optional[str] = None
     max_episode_steps: int = 1000
-    fall_base_height_threshold: float = 0.1
+    fall_base_height_threshold: float = 0.25
     max_tilt_rad: float = 1.5
     enabled_term_ids: list[str] = Field(default_factory=list)
 

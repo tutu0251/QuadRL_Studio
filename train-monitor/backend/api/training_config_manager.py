@@ -41,7 +41,7 @@ def _termination_summary(termination: dict[str, Any], stage_name: str | None = N
     return TerminationSummary(
         stage_name=stage_name,
         max_episode_steps=int(termination.get("max_episode_steps", 1000)),
-        fall_base_height_threshold=float(termination.get("fall_base_height_threshold", 0.1)),
+        fall_base_height_threshold=float(termination.get("fall_base_height_threshold", 0.25)),
         max_tilt_rad=float(termination.get("max_tilt_rad", 1.5)),
         enabled_term_ids=enabled,
     )

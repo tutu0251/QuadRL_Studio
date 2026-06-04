@@ -1,5 +1,16 @@
 /** RL Trainer types — SB3 + ROS2/Gazebo training config. */
 
+import {
+  FALL_DROP_MARGIN_M,
+  HEIGHT_REFERENCE,
+  PLACEHOLDER_BODY_HEIGHT_M,
+  assertHeightPolicyConsistent,
+  fallThresholdForTarget,
+  heightPolicyToYaml,
+  standingHeightParams,
+} from "./standingHeights";
+import type { HeightPolicyYaml, StandingHeightParams } from "./standingHeights";
+
 export type RewardTermType = "reward" | "penalty";
 export type CustomParamValue = number | string | boolean;
 export type TerrainProfile = "flat" | "rough";
@@ -312,7 +323,8 @@ export const STAGE_PARAM_HINTS: Record<string, string> = {
   "command.target_lin_vel_x": "Commanded forward body velocity (m/s) the policy should track.",
   "command.target_lin_vel_y": "Commanded lateral velocity (m/s); usually 0 for straight locomotion.",
   "command.target_ang_vel_z": "Commanded yaw rate (rad/s) for turning behavior.",
-  "command.target_body_height": "Target base height (m) during the stage.",
+  "command.target_body_height":
+    "Target base_link Z (m), same frame as spawn Z and odometry position_z. Should match grounded spawn height.",
   "command.gait_speed_scale": "Multiplier on gait cycle speed; higher = faster footfall timing.",
   "disturbance.enabled": "Master switch for pushes, terrain roughness, and orientation noise.",
   "disturbance.push_force_n": "Periodic push magnitude applied to the base (Newtons).",
@@ -321,7 +333,8 @@ export const STAGE_PARAM_HINTS: Record<string, string> = {
   "disturbance.lateral_impulse_n": "Side impulse strength for lateral stability training (N).",
   "disturbance.orientation_noise_rad": "Random orientation perturbation magnitude (radians).",
   "termination.max_episode_steps": "Maximum steps per episode before timeout.",
-  "termination.fall_base_height_threshold": "End episode if base drops below this height (m).",
+  "termination.fall_base_height_threshold":
+    "End episode if base_link Z drops below this (m). Use ~0.10 m below target_body_height (never above target).",
   "termination.max_tilt_rad": "Maximum body tilt from upright (rad) before failure.",
   "termination.max_joint_torque": "Optional torque limit (N·m); 0 disables this check.",
   "termination.timeout_truncation": "Treat max-step timeout as truncation (not failure) for the learner.",
@@ -432,9 +445,16 @@ export function defaultStageCommand(linX = 0, angZ = 0): StageCommand {
     targetLinVelX: linX,
     targetLinVelY: 0,
     targetAngVelZ: angZ,
-    targetBodyHeight: 0.35,
+    targetBodyHeight: PLACEHOLDER_BODY_HEIGHT_M,
     gaitSpeedScale: 1,
   };
+}
+
+/** Default fall threshold paired with PLACEHOLDER_BODY_HEIGHT_M until spawn sync. */
+export function defaultFallBaseHeightThreshold(
+  targetBodyHeight: number = PLACEHOLDER_BODY_HEIGHT_M
+): number {
+  return fallThresholdForTarget(targetBodyHeight);
 }
 
 export function defaultDisturbance(rough = false): DisturbanceConfig {
@@ -464,3 +484,15 @@ export {
   type ObservationVectorBreakdown,
   type ObservationVectorSegment,
 } from "./observationDimensions";
+
+export {
+  HEIGHT_REFERENCE,
+  FALL_DROP_MARGIN_M,
+  PLACEHOLDER_BODY_HEIGHT_M,
+  assertHeightPolicyConsistent,
+  fallThresholdForTarget,
+  heightPolicyToYaml,
+  standingHeightParams,
+  type HeightPolicyYaml,
+  type StandingHeightParams,
+};

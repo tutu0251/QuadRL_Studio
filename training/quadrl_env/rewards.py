@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from quadrl_env.sim_state import SimState
+from quadrl_env.standing_heights import PLACEHOLDER_BODY_HEIGHT_M
 
 
 def _gaussian_sq(err: float, sigma: float) -> float:
@@ -54,7 +55,7 @@ class RewardEngine:
         if tid == "upright":
             return _gaussian_sq(state.tilt_rad, sigma)
         if tid == "height":
-            target = float(params.get("target_height", command.get("target_body_height", 0.35)))
+            target = float(params.get("target_height", command.get("target_body_height", PLACEHOLDER_BODY_HEIGHT_M)))
             return _gaussian_sq(state.base_height - target, sigma)
         if tid == "posture":
             return _gaussian_sq(float(np.linalg.norm(state.joint_pos)), sigma)

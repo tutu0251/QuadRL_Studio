@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from quadrl_env.sim_state import SimState
+from quadrl_env.standing_heights import PLACEHOLDER_BODY_HEIGHT_M, fall_threshold_for_target
 
 
 def _optional_positive_float(d: dict[str, Any], key: str, *, default: float) -> float | None:
@@ -34,6 +35,7 @@ class TerminationEngine:
         *,
         step_reward: float,
         cumulative_reward: float,
+        command: dict[str, Any] | None = None,
     ) -> tuple[bool, bool, str]:
         """Return (terminated, truncated, reason)."""
         if state.episode_step >= self.max_episode_steps:
@@ -41,7 +43,12 @@ class TerminationEngine:
                 return False, True, "timeout"
             return True, False, "timeout"
 
-        fall_h = float(self._termination.get("fall_base_height_threshold", 0.12))
+        fall_h = float(
+            self._termination.get(
+                "fall_base_height_threshold",
+                fall_threshold_for_target(PLACEHOLDER_BODY_HEIGHT_M),
+            )
+        )
         if state.base_height < fall_h:
             return True, False, "fall_height"
 
@@ -55,8 +62,16 @@ class TerminationEngine:
             if est_torque > max_torque:
                 return True, False, "max_joint_torque"
 
+        nominal_h = float((command or {}).get("target_body_height", PLACEHOLDER_BODY_HEIGHT_M))
+
         for term in self._terms:
-            reason = self._check_term(term, state, step_reward=step_reward, cumulative_reward=cumulative_reward)
+            reason = self._check_term(
+                term,
+                state,
+                step_reward=step_reward,
+                cumulative_reward=cumulative_reward,
+                nominal_body_height=nominal_h,
+            )
             if reason:
                 return True, False, reason
 
@@ -69,6 +84,7 @@ class TerminationEngine:
         *,
         step_reward: float,
         cumulative_reward: float,
+        nominal_body_height: float = PLACEHOLDER_BODY_HEIGHT_M,
     ) -> str:
         tid = term.get("id", "")
         params = term.get("params") or {}
@@ -87,7 +103,10 @@ class TerminationEngine:
                 return "base_ang_vel"
         if tid == "height_deviation_terrain_contact":
             max_dev = float(params.get("max_height_deviation", 0.12))
-            if abs(state.base_height - 0.35) > max_dev and state.num_contacts < int(params.get("min_terrain_contacts", 1)):
+            nominal = float(params.get("nominal_body_height", nominal_body_height))
+            if abs(state.base_height - nominal) > max_dev and state.num_contacts < int(
+                params.get("min_terrain_contacts", 1)
+            ):
                 return "height_deviation"
         if tid == "reward_anomaly":
             if step_reward > float(params.get("max_step_reward", 5.0)):

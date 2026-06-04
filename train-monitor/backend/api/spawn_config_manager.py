@@ -33,7 +33,7 @@ def _timing_from_doc(doc: dict[str, Any]) -> tuple[float, bool]:
 
 def _spawn_dict(raw: dict[str, Any] | None) -> dict[str, float]:
     base = raw or {}
-    return {k: float(base.get(k, 0.0 if k != "z" else 0.5)) for k in _spawn_keys()}
+    return {k: float(base.get(k, 0.0)) for k in _spawn_keys()}
 
 
 def _effective_spawn(base: dict[str, float], offset: SpawnOffset) -> dict[str, float]:
@@ -94,7 +94,7 @@ def update_spawn_config(name: str, update: SpawnConfigUpdate) -> tuple[SpawnConf
     if not doc:
         doc = {
             "name": "Default Stand",
-            "spawn": {"x": 0.0, "y": 0.0, "z": 0.5, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "spawn": {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
             "joints": {},
         }
 
@@ -143,7 +143,7 @@ def resolve_spawn_create_pose(cfg: SpawnConfig) -> dict[str, float]:
     return {
         "x": float(s.get("x", 0.0)),
         "y": float(s.get("y", 0.0)),
-        "z": float(s.get("z", 0.5)),
+        "z": float(s.get("z", 0.0)),
         "roll": float(s.get("roll", 0.0)),
         "pitch": float(s.get("pitch", 0.0)),
         "yaw": float(s.get("yaw", 0.0)),

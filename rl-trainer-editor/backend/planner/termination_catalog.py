@@ -157,7 +157,7 @@ def recommend_term_params(
     if entry.id == "height_deviation_terrain_contact":
         t.params["max_height_deviation"] = _clamp_param(
             "max_height_deviation",
-            max(0.08, 0.1 + abs(cmd.targetBodyHeight - 0.35) * 0.5),
+            max(0.08, 0.1 + abs(cmd.targetBodyHeight) * 0.15),
             entry,
         )
     for spec in entry.params:

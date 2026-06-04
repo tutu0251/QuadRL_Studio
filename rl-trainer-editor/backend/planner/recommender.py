@@ -17,6 +17,7 @@ from domain.models import (
 from domain.stage_gait import stage_gait_type_ids, stage_is_stand_only, stage_primary_gait_for_command
 from planner.gait_defaults import build_gait
 from planner.reward_catalog import merge_reward_terms, recommend_reward_terms_for_stage
+from planner.standing_heights import PLACEHOLDER_BODY_HEIGHT_M, heights_for_target
 from planner.termination_catalog import (
     merge_termination_config,
     recommend_termination_terms_for_stage,
@@ -169,12 +170,14 @@ def recommend_stage_params(
         base_ts = _TIMESTEPS_BY_GAIT[gait_id]
     timesteps = max(50_000, int(base_ts * scale * (1.1 if rough else 1.0)))
 
-    gait = build_gait(gait_id) if gait_id in _VEL_BY_GAIT else None
+    # Height policy follows spawn / command target (base_link Z), not gait kinematics bodyHeight.
+    nominal_h = float(stage.command.targetBodyHeight or PLACEHOLDER_BODY_HEIGHT_M)
+    heights = heights_for_target(nominal_h)
     cmd = StageCommand(
         targetLinVelX=vel,
         targetLinVelY=0.0,
         targetAngVelZ=0.0,
-        targetBodyHeight=gait.bodyHeight if gait and gait.bodyHeight else 0.35,
+        targetBodyHeight=heights.target_body_height,
         gaitSpeedScale=1.0 + stage.order * 0.05,
     )
 
@@ -195,7 +198,7 @@ def recommend_stage_params(
     is_stand = stage_is_stand_only(stage)
     termination = merge_termination_config(stage.termination)
     termination.maxEpisodeSteps = 500 + stage.order * 150
-    termination.fallBaseHeightThreshold = 0.12
+    termination.fallBaseHeightThreshold = heights.fall_base_height_threshold
     termination.maxTiltRad = min(0.85, 0.55 + stage.order * 0.04)
     termination.terminationTerms = recommend_termination_terms_for_stage(
         termination.terminationTerms,

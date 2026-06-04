@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from domain.models import RewardTerm, StageCommand
+from planner.standing_heights import PLACEHOLDER_BODY_HEIGHT_M
 
 REWARD_CATALOG_VERSION = "1"
 
@@ -46,7 +47,7 @@ REWARD_CATALOG: tuple[RewardCatalogEntry, ...] = (
         "height",
         1.0,
         (
-            _p("target_height", 0.35, 0.2, 0.5, 0.01),
+            _p("target_height", PLACEHOLDER_BODY_HEIGHT_M, 0.2, 0.5, 0.01),
             _p("sigma", 0.06, 0.02, 0.2),
         ),
     ),
@@ -439,7 +440,7 @@ def locomotion_reward_terms(
         targetLinVelX=lin_x,
         targetLinVelY=0.0,
         targetAngVelZ=ang_z,
-        targetBodyHeight=0.35,
+        targetBodyHeight=PLACEHOLDER_BODY_HEIGHT_M,  # placeholder; sync from geo spawn height_policy
         gaitSpeedScale=1.0,
     )
     terms = build_full_reward_catalog()

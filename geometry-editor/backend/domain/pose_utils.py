@@ -1,11 +1,15 @@
 """Default pose helpers for geometry editor and export."""
 from __future__ import annotations
 
+import copy
 from typing import Optional
 
 import yaml
 
+from domain.measure import compute_geometry_min_z
 from domain.models import Joint, JointType, Pose, RobotModel
+from domain.standing_heights import standing_height_params
+from domain.transform_bake import bake_link_frames
 
 
 DEFAULT_POSE_NAME = "Default Stand"
@@ -94,6 +98,16 @@ def reset_pose_to_stand(model: RobotModel, pose_id: str) -> Optional[Pose]:
     return sync_pose_from_joints(model, pose_id)
 
 
+def compute_grounded_spawn_z_for_model(model: RobotModel) -> float:
+    """World Z for base_link origin so default-pose feet touch z=0 (matches baked URDF export)."""
+    baked = bake_link_frames(copy.deepcopy(model))
+    pose = get_default_pose(baked)
+    if pose:
+        apply_pose_to_joints(baked, pose.id)
+    min_z = compute_geometry_min_z(baked)
+    return round(float(-min_z), 4)
+
+
 def export_default_pose_yaml(model: RobotModel) -> dict:
     pose = get_default_pose(model)
     joint_map: dict[str, float] = {}
@@ -108,11 +122,20 @@ def export_default_pose_yaml(model: RobotModel) -> dict:
             if j.type != JointType.FIXED:
                 joint_map[j.name] = float(j.defaultValue)
 
-    spawn_z = float(model.metadata.get("standSpawnZ", model.metadata.get("stand_base_z", 0.5)))
+    grounded_z = compute_grounded_spawn_z_for_model(model)
+    heights = standing_height_params(grounded_z)
     return {
         "name": pose.name if pose else DEFAULT_POSE_NAME,
-        "spawn": {"x": 0.0, "y": 0.0, "z": spawn_z, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        "spawn": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": heights.spawn_z,
+            "roll": 0.0,
+            "pitch": 0.0,
+            "yaw": 0.0,
+        },
         "joints": joint_map,
+        "height_policy": heights.as_metadata(),
     }
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from domain.models import GaitPhaseOffsets, GaitType
+from planner.standing_heights import PLACEHOLDER_BODY_HEIGHT_M
 
 _GAIT_CATALOG = ("none", "walk", "trot", "gallop")
 
@@ -21,7 +22,7 @@ _GAIT_SPECS: dict[str, dict] = {
         "phaseOffsets": (0.0, 0.0, 0.0, 0.0),
         "swingHeight": 0.0,
         "stepLength": 0.0,
-        "bodyHeight": 0.35,
+        "bodyHeight": PLACEHOLDER_BODY_HEIGHT_M,
     },
     "walk": {
         "name": "Walk",
@@ -30,7 +31,7 @@ _GAIT_SPECS: dict[str, dict] = {
         "phaseOffsets": (0.0, 0.25, 0.5, 0.75),
         "swingHeight": 0.06,
         "stepLength": 0.12,
-        "bodyHeight": 0.35,
+        "bodyHeight": PLACEHOLDER_BODY_HEIGHT_M,
     },
     "trot": {
         "name": "Trot",
@@ -39,7 +40,7 @@ _GAIT_SPECS: dict[str, dict] = {
         "phaseOffsets": (0.0, 0.5, 0.5, 0.0),
         "swingHeight": 0.08,
         "stepLength": 0.18,
-        "bodyHeight": 0.35,
+        "bodyHeight": PLACEHOLDER_BODY_HEIGHT_M,
     },
     "gallop": {
         "name": "Gallop",
@@ -48,7 +49,7 @@ _GAIT_SPECS: dict[str, dict] = {
         "phaseOffsets": (0.0, 0.15, 0.45, 0.6),
         "swingHeight": 0.12,
         "stepLength": 0.35,
-        "bodyHeight": 0.33,
+        "bodyHeight": PLACEHOLDER_BODY_HEIGHT_M,
     },
 }
 

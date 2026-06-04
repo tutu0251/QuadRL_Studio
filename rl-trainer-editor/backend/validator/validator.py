@@ -6,6 +6,11 @@ from pathlib import Path
 
 from domain.models import RlTrainerModel, ValidationIssue, ValidationResult
 from domain.stage_gait import stage_gait_type_ids, stage_is_stand_only
+from planner.standing_heights import (
+    FALL_DROP_MARGIN_M,
+    PLACEHOLDER_BODY_HEIGHT_M,
+    fall_threshold_for_target,
+)
 from storage import project_storage
 
 
@@ -202,14 +207,61 @@ class RlTrainerValidator:
                     message="maxEpisodeSteps must be at least 1.",
                 )
             )
-        if t.fallBaseHeightThreshold <= 0:
-            errors.append(
-                ValidationIssue(
-                    severity="error",
-                    code="fall_height",
-                    message="fallBaseHeightThreshold must be positive.",
+        stages = self._model.curriculum.stages or []
+        if stages:
+            for stage in stages:
+                target = float(stage.command.targetBodyHeight)
+                fall = float(stage.termination.fallBaseHeightThreshold)
+                expected_fall = fall_threshold_for_target(target)
+                if fall >= target:
+                    errors.append(
+                        ValidationIssue(
+                            severity="error",
+                            code="fall_height",
+                            message=(
+                                f"Stage '{stage.name}': fallBaseHeightThreshold ({fall}) must be "
+                                f"below targetBodyHeight ({target}); use ~{FALL_DROP_MARGIN_M} m below target."
+                            ),
+                        )
+                    )
+                elif abs(fall - expected_fall) > 1e-3:
+                    warnings.append(
+                        ValidationIssue(
+                            severity="warning",
+                            code="fall_height_margin",
+                            message=(
+                                f"Stage '{stage.name}': fallBaseHeightThreshold ({fall}) should be "
+                                f"{expected_fall} (target {target} − {FALL_DROP_MARGIN_M} m). "
+                                "Run spawn height sync or Recommend params."
+                            ),
+                        )
+                    )
+        else:
+            target_h = PLACEHOLDER_BODY_HEIGHT_M
+            expected_fall = fall_threshold_for_target(target_h)
+            if t.fallBaseHeightThreshold >= target_h:
+                errors.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="fall_height",
+                        message=(
+                            f"fallBaseHeightThreshold ({t.fallBaseHeightThreshold}) must be "
+                            f"below targetBodyHeight ({target_h})."
+                        ),
+                    )
                 )
-            )
+            elif abs(t.fallBaseHeightThreshold - expected_fall) > 1e-3:
+                warnings.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="fall_height_margin",
+                        message=(
+                            f"fallBaseHeightThreshold ({t.fallBaseHeightThreshold}) should be "
+                            f"{expected_fall} for placeholder target {target_h}. "
+                            "Run spawn height sync or Recommend params."
+                        ),
+                    )
+                )
         if t.maxTiltRad <= 0 or t.maxTiltRad > math.pi:
             errors.append(
                 ValidationIssue(

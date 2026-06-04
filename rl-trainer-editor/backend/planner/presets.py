@@ -11,6 +11,7 @@ from planner.reward_catalog import (
     recommend_term_params,
     stand_reward_terms,
 )
+from planner.standing_heights import PLACEHOLDER_BODY_HEIGHT_M, heights_for_target
 from planner.termination_catalog import build_full_termination_catalog, merge_termination_config
 
 
@@ -25,7 +26,7 @@ class PresetDefinition:
 
 
 def _velocity_tracking_terms() -> list[RewardTerm]:
-    cmd = StageCommand(targetLinVelX=1.0, targetBodyHeight=0.35)
+    cmd = StageCommand(targetLinVelX=1.0, targetBodyHeight=PLACEHOLDER_BODY_HEIGHT_M)
     terms = build_full_reward_catalog()
     enabled = {
         "forward_tracking",
@@ -46,7 +47,7 @@ def _velocity_tracking_terms() -> list[RewardTerm]:
 
 
 def _efficient_locomotion_terms() -> list[RewardTerm]:
-    cmd = StageCommand(targetLinVelX=1.0, targetBodyHeight=0.35, gaitSpeedScale=1.1)
+    cmd = StageCommand(targetLinVelX=1.0, targetBodyHeight=PLACEHOLDER_BODY_HEIGHT_M, gaitSpeedScale=1.1)
     terms = locomotion_reward_terms(1.0, cmd=cmd)
     extra_on = {"stumble", "slip", "smoothness", "zmp", "contact_balance"}
     for i, t in enumerate(terms):
@@ -64,7 +65,7 @@ PRESET_CATALOG: list[PresetDefinition] = [
         reward_terms=_velocity_tracking_terms(),
         termination=TerminationConfig(
             maxEpisodeSteps=1000,
-            fallBaseHeightThreshold=0.15,
+            fallBaseHeightThreshold=heights_for_target(PLACEHOLDER_BODY_HEIGHT_M).fall_base_height_threshold,
             maxTiltRad=0.8,
         ),
     ),
@@ -76,7 +77,7 @@ PRESET_CATALOG: list[PresetDefinition] = [
         reward_terms=stand_reward_terms(),
         termination=TerminationConfig(
             maxEpisodeSteps=500,
-            fallBaseHeightThreshold=0.12,
+            fallBaseHeightThreshold=heights_for_target(PLACEHOLDER_BODY_HEIGHT_M).fall_base_height_threshold,
             maxTiltRad=0.6,
         ),
     ),
@@ -88,7 +89,7 @@ PRESET_CATALOG: list[PresetDefinition] = [
         reward_terms=_efficient_locomotion_terms(),
         termination=TerminationConfig(
             maxEpisodeSteps=1500,
-            fallBaseHeightThreshold=0.14,
+            fallBaseHeightThreshold=heights_for_target(PLACEHOLDER_BODY_HEIGHT_M).fall_base_height_threshold,
             maxTiltRad=0.75,
         ),
     ),

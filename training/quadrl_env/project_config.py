@@ -33,7 +33,7 @@ class SpawnOffset:
 
 def _spawn_dict(raw: dict[str, Any] | None) -> dict[str, float]:
     base = raw or {}
-    return {k: float(base.get(k, 0.0 if k != "z" else 0.5)) for k in _SPAWN_KEYS}
+    return {k: float(base.get(k, 0.0)) for k in _SPAWN_KEYS}
 
 
 def _offset_from_doc(doc: dict[str, Any]) -> SpawnOffset:
@@ -150,10 +150,10 @@ class ProjectArtifacts:
     workspace_setup: Path | None = None
     bringup_pkg: str | None = None
     base_spawn: dict[str, float] = field(
-        default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.5, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+        default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
     )
     spawn_offset: SpawnOffset = field(default_factory=SpawnOffset)
-    spawn_config: dict[str, float] = field(default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.5, "roll": 0.0, "pitch": 0.0, "yaw": 0.0})
+    spawn_config: dict[str, float] = field(default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0})
 
     def sample_spawn(self, *, rng: np.random.Generator | None = None) -> dict[str, float]:
         return sample_spawn_pose(self.base_spawn, self.spawn_offset, rng=rng)

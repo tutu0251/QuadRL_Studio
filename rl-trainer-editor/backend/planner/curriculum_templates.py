@@ -14,6 +14,7 @@ from domain.models import (
 )
 from planner.gait_defaults import resolve_gait_id
 from planner.recommender import recommend_stage_params
+from planner.standing_heights import PLACEHOLDER_BODY_HEIGHT_M, heights_for_target
 from planner.reward_catalog import locomotion_reward_terms, stand_reward_terms
 
 # (stage_id, gait_type_id, name, description, timesteps, target_lin_vel_x)
@@ -74,7 +75,7 @@ def _build_stage(
         targetLinVelX=lin_vel,
         targetLinVelY=0.0,
         targetAngVelZ=0.0,
-        targetBodyHeight=0.35,
+        targetBodyHeight=PLACEHOLDER_BODY_HEIGHT_M,
         gaitSpeedScale=1.0 + order * 0.05,
     )
     stage = CurriculumStage(
@@ -91,7 +92,7 @@ def _build_stage(
         rewardTerms=rewards,
         termination=TerminationConfig(
             maxEpisodeSteps=500 + order * 150,
-            fallBaseHeightThreshold=0.12,
+            fallBaseHeightThreshold=heights_for_target(PLACEHOLDER_BODY_HEIGHT_M).fall_base_height_threshold,
             maxTiltRad=0.55 + order * 0.04,
         ),
         advanceCriteria=CurriculumAdvanceCriteria(

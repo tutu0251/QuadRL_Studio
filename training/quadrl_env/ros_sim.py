@@ -407,7 +407,9 @@ class RosSimBackend:
         log_sampled_spawn_pose(spawn_pose, self._artifacts)
         if ros_live:
             self._apply_spawn_reset(spawn_pose)
-        base_h = float(self._command.get("target_body_height", spawn_pose.get("z", 0.5)))
+        spawn_h = float(spawn_pose.get("z", 0.5))
+        target_h = float(self._command.get("target_body_height", spawn_h))
+        base_h = spawn_h
         fallback = SimState(
             joint_pos=default_targets.astype(np.float32, copy=True),
             joint_vel=np.zeros(len(self._artifacts.joint_names), dtype=np.float32),
