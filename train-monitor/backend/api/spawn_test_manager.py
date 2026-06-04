@@ -1,4 +1,4 @@
-"""Headless Gazebo spawn test session — runs until explicitly stopped."""
+"""Workspace Gazebo spawn test session — runs until explicitly stopped."""
 from __future__ import annotations
 
 import asyncio
@@ -10,8 +10,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from api.spawn_config_manager import get_spawn_config
-from api.spawn_grounding import resolve_test_spawn_create_pose
+from api.spawn_config_manager import get_spawn_config, resolve_spawn_create_pose
 from domain.models import SpawnTestResult, SpawnTestStatus
 from storage import project_storage
 
@@ -68,20 +67,11 @@ class SpawnTestManager:
             errors=list(self._spawn_errors),
         )
 
-    def _resolve_model_file(self, project: str) -> Path:
-        exports = project_storage.exports_dir(project)
-        sdf = exports / f"geo_{project}.sdf"
-        urdf = exports / f"geo_{project}.urdf"
-        if sdf.is_file():
-            return sdf
-        if urdf.is_file():
-            return urdf
-        raise FileNotFoundError(f"Geometry export not found: {sdf} or {urdf}")
+    def _launch_env(self, setup: Path, *, headless: bool) -> dict[str, str]:
+        from quadrl_env.ros_env import load_ros_environ
 
-    def _spawn_env(self, *, headless: bool) -> dict[str, str]:
-        from ev_ros_env import sim_env
-
-        env = sim_env()
+        env = load_ros_environ(workspace_setup=setup)
+        env["QUADRL_GAZEBO_HEADLESS"] = "1" if headless else "0"
         if headless:
             return env
         from quadrl_env.display import resolve_display
@@ -97,14 +87,16 @@ class SpawnTestManager:
         return env
 
     def _cleanup_gazebo(self) -> None:
-        from api.gazebo_shutdown import graceful_stop_gazebo_process
+        from quadrl_env.gazebo_cleanup import cleanup_training_gazebo, terminate_process_group
 
         proc = self._gz_proc
         pid = self._gz_pid
         self._gz_proc = None
         self._gz_pid = None
 
-        graceful_stop_gazebo_process(proc, pid)
+        if proc is not None and proc.poll() is None:
+            terminate_process_group(proc.pid)
+        cleanup_training_gazebo(pid)
 
         if self._gz_log_path and self._gz_log_path.is_file():
             try:
@@ -113,46 +105,78 @@ class SpawnTestManager:
                 pass
             self._gz_log_path = None
 
-    def _run_session(self, project: str, *, headless: bool) -> None:
-        from spawn_runtime import (
-            DEFAULT_WORLD_NAME,
-            DEFAULT_WORLD_SDF,
-            POST_SPAWN_WAIT_S,
-            _analyze_spawn_logs,
-            _wait_for_sim,
-            check_spawn_stack,
+    def _wait_controller_warmup(self, delay_s: float) -> bool:
+        """Wait after spawn before control would apply. Returns False if stop requested."""
+        delay = max(0.0, float(delay_s))
+        if delay <= 0:
+            return True
+        self._emit(
+            "info",
+            f"[spawn-test] Controller warmup {delay:.0f}s (delay after spawn before control applies)",
         )
-        from ev_ros_env import bash_ros_cmd
+        deadline = time.monotonic() + delay
+        while time.monotonic() < deadline:
+            if self._stop_event.is_set():
+                return False
+            time.sleep(min(0.5, deadline - time.monotonic()))
+        if self._stop_event.is_set():
+            return False
+        self._emit("info", "[spawn-test] Controller warmup complete")
+        return True
+
+    def _sleep_interruptible(self, duration_s: float) -> bool:
+        """Sleep up to *duration_s*; return False if stop was requested."""
+        deadline = time.monotonic() + max(0.0, duration_s)
+        while time.monotonic() < deadline:
+            if self._stop_event.is_set():
+                return False
+            time.sleep(min(0.5, deadline - time.monotonic()))
+        return not self._stop_event.is_set()
+
+    def _launch_exited_early(self) -> tuple[bool, str]:
+        proc = self._gz_proc
+        if proc is None or proc.poll() is None:
+            return False, ""
+        tail = ""
+        if self._gz_log_path and self._gz_log_path.is_file():
+            text = self._gz_log_path.read_text(errors="replace")
+            tail = text[-800:].strip()
+        return True, tail or f"sim.launch exited with code {proc.returncode}"
+
+    def _run_session(self, project: str, *, headless: bool) -> None:
+        from api.spawn_pose_apply import apply_workspace_spawn_reset
+        from api.spawn_workspace_session import (
+            LAUNCH_SPAWN_SETTLE_S,
+            build_sim_launch_command,
+            require_workspace_setup,
+            wait_for_controller_active,
+        )
+        from quadrl_env.project_config import load_project_artifacts
 
         self._spawn_valid = False
         self._spawn_errors = []
-        gz_log = ""
-        spawn_log = ""
-        spawn_rc = 1
 
         try:
-            stack = check_spawn_stack()
-            if not stack.get("available"):
-                missing = ", ".join(stack.get("missing") or [])
-                self._spawn_errors.append(f"Spawn stack unavailable: {missing}")
-                return
+            setup = require_workspace_setup(project)
+            project_dir = project_storage.project_dir(project)
+            load_project_artifacts(project_dir)
 
-            model_file = self._resolve_model_file(project)
             cfg = get_spawn_config(project)
-            create_pose = resolve_test_spawn_create_pose(project, cfg)
-            run_env = self._spawn_env(headless=headless)
-            create_pkg = stack.get("createPackage")
-            if not create_pkg:
-                self._spawn_errors.append("ros_gz_sim / ros_ign_gazebo not available")
-                return
+            spawn_pose = resolve_spawn_create_pose(cfg)
+            run_env = self._launch_env(setup, headless=headless)
 
             mode = "headless" if headless else "GUI"
-            self._emit("info", f"[spawn-test] Starting {mode} spawn test for {project}")
-            self._emit("info", f"[spawn-test] Model: {model_file.name} create_z={create_pose['z']:.4f} (grounded)")
+            self._emit("info", f"[spawn-test] Starting {mode} workspace spawn test for {project}")
+            self._emit(
+                "info",
+                "[spawn-test] Target spawn (default + offset): "
+                f"x={spawn_pose['x']:.3f} y={spawn_pose['y']:.3f} z={spawn_pose['z']:.3f} "
+                f"rpy=({spawn_pose['roll']:.3f}, {spawn_pose['pitch']:.3f}, {spawn_pose['yaw']:.3f})",
+            )
             if not headless:
                 self._emit("info", f"[spawn-test] DISPLAY={run_env.get('DISPLAY')}")
 
-            self._emit("info", "[spawn-test] Launching Gazebo...")
+            self._emit("info", "[spawn-test] Launching ros2 launch sim.launch.py (world flat)...")
             gz_log_handle = tempfile.NamedTemporaryFile(
                 mode="w+",
                 prefix="tm_spawn_",
@@ -160,12 +184,9 @@ class SpawnTestManager:
                 delete=False,
             )
             self._gz_log_path = Path(gz_log_handle.name)
-            gz_args = ["ign", "gazebo"]
-            if headless:
-                gz_args.append("-s")
-            gz_args.append(str(DEFAULT_WORLD_SDF))
+            launch_cmd = build_sim_launch_command(project, headless=headless)
             self._gz_proc = subprocess.Popen(
-                gz_args,
+                ["bash", "-lc", launch_cmd],
                 stdout=gz_log_handle,
                 stderr=subprocess.STDOUT,
                 env=run_env,
@@ -175,50 +196,88 @@ class SpawnTestManager:
             gz_log_handle.close()
             self._gz_pid = self._gz_proc.pid
 
-            ready, ready_err = _wait_for_sim(DEFAULT_WORLD_NAME, self._gz_proc, 30.0)
-            if not ready:
-                self._spawn_errors.append(ready_err or "Gazebo not ready")
+            if not self._sleep_interruptible(2.0):
+                return
+            early, early_msg = self._launch_exited_early()
+            if early:
+                self._spawn_errors.append(f"sim.launch exited early: {early_msg}")
+                self._emit("error", f"[spawn-test] {self._spawn_errors[-1]}")
                 return
 
-            spawn_script = (
-                f"ros2 run {create_pkg} create "
-                f"-world {DEFAULT_WORLD_NAME} "
-                f"-file {model_file.resolve()} "
-                f"-name {project} "
-                f"-x {create_pose['x']} -y {create_pose['y']} -z {create_pose['z']} "
-                f"-R {create_pose['roll']} -P {create_pose['pitch']} -Y {create_pose['yaw']} "
-                f"-allow_renaming true"
+            self._emit(
+                "info",
+                f"[spawn-test] Waiting {LAUNCH_SPAWN_SETTLE_S:.0f}s for sim.launch spawn timers...",
             )
-            self._emit("info", "[spawn-test] Spawning model...")
-            spawn_proc = bash_ros_cmd(spawn_script, timeout=30, env=run_env)
-            spawn_log = (spawn_proc.stdout or "") + (spawn_proc.stderr or "")
-            spawn_rc = spawn_proc.returncode if spawn_proc.returncode is not None else 1
-            time.sleep(POST_SPAWN_WAIT_S)
-            if self._gz_log_path.is_file():
-                gz_log = self._gz_log_path.read_text(errors="replace")
+            if not self._sleep_interruptible(LAUNCH_SPAWN_SETTLE_S):
+                return
+            early, early_msg = self._launch_exited_early()
+            if early:
+                self._spawn_errors.append(f"sim.launch exited: {early_msg}")
+                self._emit("error", f"[spawn-test] {self._spawn_errors[-1]}")
+                return
 
-            errors, _warnings = _analyze_spawn_logs(gz_log, spawn_log, spawn_rc)
-            if errors:
-                self._spawn_errors = [e.message for e in errors]
-                self._emit("error", f"[spawn-test] Spawn failed ({len(errors)} error(s))")
-                for msg in self._spawn_errors:
-                    self._emit("error", f"[spawn-test] {msg}")
+            self._emit("info", "[spawn-test] Waiting for robot spawn (joint_state_broadcaster)...")
+            ok, err = wait_for_controller_active(
+                setup,
+                run_env,
+                "joint_state_broadcaster",
+                timeout_s=90.0,
+            )
+            if not ok:
+                self._spawn_errors.append(err or "Robot spawn not ready")
+                self._emit("error", f"[spawn-test] {self._spawn_errors[-1]}")
+                return
+
+            if not self._wait_controller_warmup(cfg.controller_apply_delay_s):
+                return
+
+            self._emit("info", "[spawn-test] Waiting for joint_trajectory_controller...")
+            ok, err = wait_for_controller_active(
+                setup,
+                run_env,
+                "joint_trajectory_controller",
+                timeout_s=60.0,
+            )
+            if not ok:
+                self._spawn_errors.append(err or "joint_trajectory_controller not active")
+                self._emit("error", f"[spawn-test] {self._spawn_errors[-1]}")
+                return
+
+            self._emit("info", "[spawn-test] Applying spawn pose + stand joints via ros2_control...")
+            ok, err = apply_workspace_spawn_reset(
+                project,
+                spawn=spawn_pose,
+                env=run_env,
+            )
+            if not ok:
+                self._spawn_errors.append(err or "spawn reset failed")
+                self._emit("error", f"[spawn-test] Failed to apply spawn reset: {err}")
                 return
 
             self._spawn_valid = True
-            self._emit("info", "[spawn-test] Spawn OK — session active until Stop test spawn")
+            self._emit(
+                "info",
+                "[spawn-test] Spawn OK — pose + joints applied; session active until Stop test spawn",
+            )
             self._state = "running"
             self._stop_event.wait()
+        except FileNotFoundError as exc:
+            self._spawn_errors.append(str(exc))
+            self._emit("error", f"[spawn-test] {exc}")
         except Exception as exc:
             self._spawn_errors.append(str(exc))
             self._emit("error", f"[spawn-test] {exc}")
         finally:
-            self._emit("info", "[spawn-test] Shutting down Gazebo...")
+            self._emit("info", "[spawn-test] Shutting down workspace sim...")
             self._cleanup_gazebo()
 
     async def start(self, project: str, *, headless: bool = True) -> SpawnTestResult:
         if self.is_running():
             raise RuntimeError("Spawn test already running")
+
+        from api.spawn_workspace_session import require_workspace_setup
+
+        require_workspace_setup(project)
 
         self._project = project
         self._headless = headless
@@ -237,7 +296,7 @@ class SpawnTestManager:
         self._thread = threading.Thread(target=_worker, daemon=True, name="spawn-test")
         self._thread.start()
 
-        deadline = time.monotonic() + 120.0
+        deadline = time.monotonic() + 180.0
         while time.monotonic() < deadline:
             if self._state == "running":
                 break
@@ -270,7 +329,7 @@ class SpawnTestManager:
             return self.get_status(project)
 
         self._state = "stopping"
-        self._emit("warn", "[spawn-test] Stop requested — shutting down Gazebo gracefully")
+        self._emit("warn", "[spawn-test] Stop requested — shutting down workspace sim")
         self._stop_event.set()
         self._cleanup_gazebo()
 

@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from api.spawn_config_manager import get_spawn_config, update_spawn_config
+from api.spawn_config_manager import get_spawn_config, resolve_spawn_create_pose, update_spawn_config
 from domain.models import SpawnConfigUpdate, SpawnOffset
 from storage import project_storage
 
@@ -40,3 +40,15 @@ def test_update_spawn_offset(pose_project):
     assert cfg.effective_spawn["z"] == pytest.approx(0.6)
     assert cfg.controller_apply_delay_s == pytest.approx(20)
     assert cfg.pose_confirmed is True
+
+
+def test_resolve_spawn_create_pose_uses_effective_spawn(pose_project):
+    cfg, _ = update_spawn_config(
+        pose_project,
+        SpawnConfigUpdate(spawn_offset=SpawnOffset(dx=0.1, dy=-0.2, dz=0.05, dyaw=0.3)),
+    )
+    pose = resolve_spawn_create_pose(cfg)
+    assert pose["x"] == pytest.approx(0.1)
+    assert pose["y"] == pytest.approx(-0.2)
+    assert pose["z"] == pytest.approx(0.55)
+    assert pose["yaw"] == pytest.approx(0.3)

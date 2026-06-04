@@ -127,7 +127,7 @@ export function TestSpawnBar({
       <p className="panel-hint">
         {running
           ? "Spawn test session is running — Gazebo stays up until you stop it."
-          : "Spawn check using geometry export and effective spawn Z from Spawn Monitor."}
+          : "Uses built workspace sim.launch.py (world flat), effective spawn pose, and default-pose joint angles."}
         {!guiAvailable && " No display — use Headless or set QUADRL_DISPLAY."}
         {guiAvailable && !gazeboHeadless && resolvedDisplay && ` GUI uses DISPLAY=${resolvedDisplay}.`}
       </p>

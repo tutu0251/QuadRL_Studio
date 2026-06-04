@@ -69,7 +69,7 @@ Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUAD
 
 **Gazebo mode:** `gazebo_headless` defaults to `true`. Set `false` for GUI. `GET /api/system/display` reports availability.
 
-**Controller warmup:** Spawn Monitor saves `controller_apply_delay_s` into the default pose export; training sets `QUADRL_SIM_WARMUP_S` when starting.
+**Controller warmup:** Spawn Monitor saves `controller_apply_delay_s` (delay after spawn before control applies). Test spawn waits this long after a successful spawn; training passes it as `QUADRL_SIM_WARMUP_S`.
 
 ## Architecture
 

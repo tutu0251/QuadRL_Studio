@@ -162,7 +162,8 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
           <h2>Controller Warmup</h2>
         </header>
         <p className="panel-hint">
-          Delay after Gazebo launch before control applies (QUADRL_SIM_WARMUP_S during training).
+          Delay after spawn finishes before control applies (saved as controller_apply_delay_s; training uses
+          QUADRL_SIM_WARMUP_S).
         </p>
         <label className="field-row">
           <span>Apply delay (s)</span>

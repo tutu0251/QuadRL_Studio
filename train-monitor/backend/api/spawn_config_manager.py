@@ -135,3 +135,21 @@ def controller_apply_delay_for_project(name: str) -> float:
     doc = monitor_storage.load_pose_doc(name)
     timing = doc.get("timing") or {}
     return float(timing.get("controller_apply_delay_s", monitor_storage.DEFAULT_CONTROLLER_DELAY_S))
+
+
+def resolve_spawn_create_pose(cfg: SpawnConfig) -> dict[str, float]:
+    """Effective 6-DOF spawn pose (default pose + offset), same as training reset."""
+    s = cfg.effective_spawn
+    return {
+        "x": float(s.get("x", 0.0)),
+        "y": float(s.get("y", 0.0)),
+        "z": float(s.get("z", 0.5)),
+        "roll": float(s.get("roll", 0.0)),
+        "pitch": float(s.get("pitch", 0.0)),
+        "yaw": float(s.get("yaw", 0.0)),
+    }
+
+
+def initial_model_create_pose() -> dict[str, float]:
+    """Neutral placement for ros_gz_sim create; pose is applied via SetEntityPose after."""
+    return {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}

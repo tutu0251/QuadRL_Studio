@@ -136,7 +136,10 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
             start_new_session=True,
         )
         _register_gazebo_atexit()
-        time.sleep(float(os.environ.get("QUADRL_SIM_WARMUP_S", "25")))
+        # sim.launch spawns at ~3s; QUADRL_SIM_WARMUP_S is the post-spawn controller apply delay.
+        spawn_settle_s = 4.0
+        control_warmup_s = float(os.environ.get("QUADRL_SIM_WARMUP_S", "25"))
+        time.sleep(spawn_settle_s + control_warmup_s)
     _gazebo_refcount += 1
     return _shared_launch_proc
 

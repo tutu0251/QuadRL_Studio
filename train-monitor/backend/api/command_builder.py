@@ -107,37 +107,35 @@ def build_training_config_patch_command(project: str, body: dict[str, Any]) -> s
 def build_test_spawn_command(
     project: str,
     *,
-    spawn_z: Optional[float] = None,
-    create_pose: Optional[dict[str, float]] = None,
+    spawn_pose: Optional[dict[str, float]] = None,
     headless: bool = True,
 ) -> str:
-    exports = project_storage.exports_dir(project)
-    sdf = exports / f"geo_{project}.sdf"
-    urdf = exports / f"geo_{project}.urdf"
-    model = sdf if sdf.is_file() else urdf
-    if create_pose is None:
-        from api.spawn_config_manager import get_spawn_config
-        from api.spawn_grounding import resolve_test_spawn_create_pose
-
-        cfg = get_spawn_config(project)
-        create_pose = resolve_test_spawn_create_pose(project, cfg)
-    if spawn_z is not None:
-        create_pose = {**create_pose, "z": spawn_z}
-    world = "/usr/share/ignition/ignition-gazebo6/worlds/empty.sdf"
-    create_pkg = "ros_gz_sim"
-    gz_line = (
-        f"ign gazebo -s {shlex.quote(world)} &"
-        if headless
-        else f"DISPLAY=${{DISPLAY:-:0}} ign gazebo {shlex.quote(world)} &"
+    from api.spawn_config_manager import get_spawn_config, resolve_spawn_create_pose
+    from api.spawn_workspace_session import (
+        LAUNCH_SPAWN_SETTLE_S,
+        WORKSPACE_WORLD,
+        build_sim_launch_command,
+        require_workspace_setup,
     )
+
+    setup = require_workspace_setup(project)
+    cfg = get_spawn_config(project)
+    if spawn_pose is None:
+        spawn_pose = resolve_spawn_create_pose(cfg)
+    apply_script = Path(__file__).resolve().parents[1] / "scripts" / "apply_spawn_reset.py"
+    spawn_json = json.dumps({k: spawn_pose[k] for k in ("x", "y", "z", "roll", "pitch", "yaw")})
+    warmup = max(0.0, float(cfg.controller_apply_delay_s))
+    project_dir = _project_dir(project)
+    launch = build_sim_launch_command(project, headless=headless)
     return (
-        f"{gz_line}\n"
-        f"sleep 5 && source {shlex.quote(str(ROS_SETUP))} && "
-        f"ros2 run {create_pkg} create -world empty "
-        f"-file {shlex.quote(str(model))} -name {shlex.quote(project)} "
-        f"-x {create_pose['x']} -y {create_pose['y']} -z {create_pose['z']} "
-        f"-R {create_pose['roll']} -P {create_pose['pitch']} -Y {create_pose['yaw']} "
-        f"-allow_renaming true"
+        f"{launch} &\n"
+        f"sleep {LAUNCH_SPAWN_SETTLE_S:.0f} && "
+        f"source {shlex.quote(str(ROS_SETUP))} && source {shlex.quote(str(setup))} && "
+        f"ros2 control list_controllers --controller-manager /controller_manager && "
+        f"sleep {warmup:.0f} && "
+        f"export QUADRL_SPAWN_POSE_JSON={shlex.quote(spawn_json)} && "
+        f"python3 {shlex.quote(str(apply_script))} "
+        f"{shlex.quote(str(project_dir))} {shlex.quote(WORKSPACE_WORLD)} {shlex.quote(project)}"
     )
 
 
@@ -208,7 +206,7 @@ def preview_command(action: str, project: str, params: Optional[dict[str, Any]] 
         cmd = "kill -TERM <tensorboard_pid>  # or POST /api/projects/{}/tensorboard/stop".format(project)
     elif action == "spawn_config_save":
         cmd = build_spawn_patch_command(project, p.get("body") or {})
-        description = "Update spawn offset and controller apply delay"
+        description = "Update spawn offset and post-spawn controller apply delay"
     elif action == "spawn_config_confirm":
         cmd = build_spawn_patch_command(project, {"pose_confirmed": True})
     elif action == "topic_echo":
@@ -227,7 +225,7 @@ def preview_command(action: str, project: str, params: Optional[dict[str, Any]] 
             project,
             headless=bool(p.get("headless", True)),
         )
-        description = "Gazebo spawn test (geometry export, grounded on z=0)"
+        description = "Workspace spawn test: sim.launch.py, warmup, pose + stand joints via ros2_control"
     else:
         cmd = f"# unknown action: {action}"
 

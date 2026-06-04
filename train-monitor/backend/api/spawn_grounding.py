@@ -4,7 +4,6 @@ from __future__ import annotations
 import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any
 
 
 def _parse_vec3(text: str | None, default: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> tuple[float, float, float]:
@@ -195,34 +194,3 @@ def compute_min_collision_z(urdf_path: Path, joint_positions: dict[str, float] |
 def compute_grounded_spawn_z(urdf_path: Path, joint_positions: dict[str, float] | None = None) -> float:
     """Model-root Z so collision geometry rests on the ground plane (z=0)."""
     return -compute_min_collision_z(urdf_path, joint_positions)
-
-
-def resolve_test_spawn_create_pose(project: str, cfg: Any) -> dict[str, float]:
-    """
-    Pose for ros_gz_sim create.
-
-    Geo exports are authored feet-down in model space. default_pose spawn.z is the
-    training reset height (with stand joints applied later), not the create offset.
-    """
-    from storage import project_storage
-
-    exports = project_storage.exports_dir(project)
-    urdf = exports / f"geo_{project}.urdf"
-
-    grounded_z = 0.0
-    if urdf.is_file():
-        try:
-            # Test spawn does not apply stand joint angles; Gazebo starts joints at 0.
-            grounded_z = compute_grounded_spawn_z(urdf, None)
-        except (ET.ParseError, OSError, ValueError):
-            grounded_z = 0.0
-
-    offset = cfg.spawn_offset
-    return {
-        "x": float(cfg.effective_spawn.get("x", 0.0)),
-        "y": float(cfg.effective_spawn.get("y", 0.0)),
-        "z": grounded_z + float(getattr(offset, "dz", 0.0)),
-        "roll": float(cfg.effective_spawn.get("roll", 0.0)),
-        "pitch": float(cfg.effective_spawn.get("pitch", 0.0)),
-        "yaw": float(cfg.effective_spawn.get("yaw", 0.0)),
-    }
