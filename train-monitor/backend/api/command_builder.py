@@ -214,6 +214,25 @@ def preview_command(action: str, project: str, params: Optional[dict[str, Any]] 
         cmd = build_topic_echo_command(str(p.get("topic", "/topic")), setup_bash=setup)
     elif action == "topics_confirm":
         cmd = build_topics_confirm_command(project, list(p.get("confirmed_topics") or []))
+    elif action == "topics_watch_start":
+        topics = p.get("topics") or []
+        if topics:
+            quoted = " ".join(shlex.quote(t) for t in topics)
+            cmd = (
+                f"curl -sS -X POST http://127.0.0.1:8006/api/projects/{shlex.quote(project)}/topics/watch/start "
+                f"-H 'Content-Type: application/json' -d {shlex.quote(json.dumps({'topics': topics}))}"
+            )
+        else:
+            cmd = (
+                f"curl -sS -X POST http://127.0.0.1:8006/api/projects/{shlex.quote(project)}/topics/watch/start "
+                "-H 'Content-Type: application/json' -d '{}'"
+            )
+        description = "Start polling observation topics with ros2 topic echo"
+    elif action == "topics_watch_stop":
+        cmd = (
+            f"curl -sS -X POST http://127.0.0.1:8006/api/projects/{shlex.quote(project)}/topics/watch/stop"
+        )
+        description = "Stop topic echo polling"
     elif action == "training_config_save":
         cmd = build_training_config_patch_command(project, p.get("body") or {})
         description = "Write action/observation scales to export YAML"

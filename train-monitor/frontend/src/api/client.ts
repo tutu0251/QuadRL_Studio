@@ -11,6 +11,7 @@ import type {
   SpawnTestStatus,
   SystemStatsSample,
   TensorBoardStatus,
+  TopicWatchStatus,
   TopicsBundle,
   TrainStatus,
   TrainingConfig,
@@ -179,6 +180,15 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ confirmed_topics }),
     }),
+  getTopicWatchStatus: (name: string) =>
+    req<TopicWatchStatus>(`/api/projects/${name}/topics/watch/status`),
+  startTopicWatch: (name: string, topics: string[] = []) =>
+    req<TopicWatchStatus>(`/api/projects/${name}/topics/watch/start`, {
+      method: "POST",
+      body: JSON.stringify({ topics }),
+    }),
+  stopTopicWatch: (name: string) =>
+    req<TopicWatchStatus>(`/api/projects/${name}/topics/watch/stop`, { method: "POST" }),
   getTrainingConfig: (name: string) => req<TrainingConfig>(`/api/projects/${name}/training-config`),
   patchTrainingConfig: (
     name: string,

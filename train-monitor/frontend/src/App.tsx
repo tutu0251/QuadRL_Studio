@@ -314,7 +314,7 @@ export default function App() {
 
       <div className="monitor-main-split">
         <div className="monitor-page-body">
-          {activePage !== "metric" && (
+          {activePage !== "metric" && activePage !== "topic" && (
             <TestSpawnBar
               project={project}
               busy={busy}
@@ -341,9 +341,20 @@ export default function App() {
               project={project}
               workspaceStatus={workspaceStatus}
               busy={busy}
+              gazeboHeadless={gazeboHeadless}
+              guiAvailable={guiAvailable}
+              resolvedDisplay={resolvedDisplay}
               onBusy={setBusy}
               onError={setError}
               onWorkspaceDone={setWorkspaceStatus}
+              onGazeboHeadlessChange={(v) => {
+                setGazeboHeadless(v);
+                try {
+                  localStorage.setItem("quadrl.gazeboHeadless", v ? "1" : "0");
+                } catch {
+                  /* ignore */
+                }
+              }}
             />
           )}
           {activePage === "training" && (

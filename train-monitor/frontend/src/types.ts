@@ -168,6 +168,21 @@ export type TopicsBundle = {
   command?: string;
 };
 
+export type TopicEchoSample = {
+  ok: boolean;
+  snippet: string;
+  text: string;
+  updated_at: string;
+};
+
+export type TopicWatchStatus = {
+  project: string;
+  state: "idle" | "running";
+  topics: string[];
+  latest: Record<string, TopicEchoSample>;
+  command?: string;
+};
+
 export type ActionScaleEntry = {
   joint: string;
   action_scale: number;

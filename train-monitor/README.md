@@ -21,7 +21,7 @@ Browser: `http://<host>:5179`
 | Tab | Purpose |
 |-----|---------|
 | **Spawn Monitor** | Confirm default pose from `geo_*_default_pose.yaml`, set spawn offset, configure controller apply delay (`QUADRL_SIM_WARMUP_S`) |
-| **Topic Monitor** | Workspace setup/validate, observation topic list, runtime validation status, per-topic confirmation |
+| **Topic Monitor** | Workspace setup/validate, integrated test spawn (same as Spawn Monitor), live `ros2 topic echo` per observation topic, per-topic confirmation |
 | **Training Monitor** | Edit action scales (`ctrl_*_gains.yaml`) and observation scales (`rl_*_config.yaml`), review termination config, filtered training console |
 | **Metric Monitor** | Start/stop/resume training, checkpoints, runs/stages, in-app metric charts, TensorBoard, host CPU/RAM/GPU |
 
@@ -56,6 +56,9 @@ Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUAD
 | PATCH | `/api/projects/{name}/spawn-config` | Update spawn offset / timing / pose confirmed |
 | GET | `/api/projects/{name}/topics` | Observation topics + validation status |
 | PATCH | `/api/projects/{name}/topics/confirmations` | Persist confirmed topic list |
+| GET | `/api/projects/{name}/topics/watch/status` | Topic echo watch state + latest samples |
+| POST | `/api/projects/{name}/topics/watch/start` | Poll topics with `ros2 topic echo` (auto-starts after test spawn) |
+| POST | `/api/projects/{name}/topics/watch/stop` | Stop topic echo polling |
 | GET | `/api/projects/{name}/training-config` | Action/obs scales and termination summary |
 | PATCH | `/api/projects/{name}/training-config` | Write scales back to export YAML |
 | GET | `/api/projects/{name}/exports` | Scan export bundle |

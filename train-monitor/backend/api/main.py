@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from api.command_builder import preview_command
 from api.spawn_config_manager import get_spawn_config, update_spawn_config
 from api.spawn_test_manager import spawn_test_manager
+from api.topic_echo_manager import topic_echo_manager
 from api.tensorboard_manager import read_scalars, tensorboard_manager
 from api.topics_manager import list_topics, update_confirmations
 from api.train_manager import train_manager
@@ -27,6 +28,7 @@ from domain.models import (
     SpawnConfigUpdate,
     SpawnTestRequest,
     SpawnTestResult,
+    TopicWatchRequest,
     TopicsConfirmUpdate,
     TrainStartRequest,
     TrainStatus,
@@ -55,6 +57,7 @@ async def lifespan(app: FastAPI):
         await train_manager.stop()
     if spawn_test_manager.is_running():
         await spawn_test_manager.stop()
+    topic_echo_manager.stop()
     if workspace_manager.is_running():
         workspace_manager._state = "idle"
     tensorboard_manager.stop()
@@ -175,6 +178,8 @@ async def spawn_test(name: str, body: SpawnTestRequest = SpawnTestRequest()):
     create_pose = resolve_spawn_create_pose(cfg)
     out["command"] = build_test_spawn_command(name, spawn_pose=create_pose, headless=body.headless)
     out["stop_command"] = build_spawn_test_stop_command(name)
+    if result.valid:
+        topic_echo_manager.start(name)
     return out
 
 
@@ -193,6 +198,7 @@ async def spawn_test_stop(name: str):
         raise HTTPException(409, str(exc)) from exc
     out = status.model_dump()
     out["command"] = build_spawn_test_stop_command(name)
+    topic_echo_manager.stop(name)
     return out
 
 
@@ -205,6 +211,33 @@ def topics_list(name: str):
 def topics_confirm(name: str, body: TopicsConfirmUpdate):
     bundle, command = update_confirmations(name, body.confirmed_topics)
     return {**bundle.model_dump(), "command": command}
+
+
+@app.get("/api/projects/{name}/topics/watch/status")
+def topics_watch_status(name: str):
+    return topic_echo_manager.get_status(name)
+
+
+@app.post("/api/projects/{name}/topics/watch/start")
+def topics_watch_start(name: str, body: TopicWatchRequest = TopicWatchRequest()):
+    topics = body.topics or None
+    try:
+        status = topic_echo_manager.start(name, topics=topics)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    from api.command_builder import preview_command
+
+    preview = preview_command("topics_watch_start", name, {"topics": status.get("topics", [])})
+    return {**status, "command": preview["command"]}
+
+
+@app.post("/api/projects/{name}/topics/watch/stop")
+def topics_watch_stop(name: str):
+    status = topic_echo_manager.stop(name)
+    from api.command_builder import preview_command
+
+    preview = preview_command("topics_watch_stop", name)
+    return {**status, "command": preview["command"]}
 
 
 @app.get("/api/projects/{name}/training-config")
@@ -485,10 +518,20 @@ async def tb_view_proxy(name: str, path: str, request: Request):
     )
 
 
+def _queue_topic_echo(queue: asyncio.Queue, topic: str, entry: dict) -> None:
+    try:
+        queue.put_nowait({"type": "topic_echo", "topic": topic, "entry": entry})
+    except asyncio.QueueFull:
+        pass
+
+
 @app.websocket("/ws/train/logs")
 async def ws_train_logs(ws: WebSocket):
     await ws.accept()
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+
+    def on_topic_echo(topic: str, entry: dict) -> None:
+        _queue_topic_echo(queue, topic, entry)
 
     def on_log(level: str, message: str) -> None:
         try:
@@ -508,6 +551,7 @@ async def ws_train_logs(ws: WebSocket):
     train_manager.subscribe_logs(on_log)
     workspace_manager.subscribe_logs(on_log)
     spawn_test_manager.subscribe_logs(on_log)
+    topic_echo_manager.subscribe(on_topic_echo)
     try:
         while True:
             try:
@@ -529,3 +573,4 @@ async def ws_train_logs(ws: WebSocket):
         train_manager.unsubscribe_logs(on_log)
         workspace_manager.unsubscribe_logs(on_log)
         spawn_test_manager.unsubscribe_logs(on_log)
+        topic_echo_manager.unsubscribe(on_topic_echo)

@@ -1070,7 +1070,70 @@ body.console-split-dragging {
 }
 
 .topic-page {
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(260px, 300px) minmax(280px, 1fr);
+  align-items: start;
+}
+
+.topic-spawn-panel .test-spawn-bar {
+  margin: 0;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.topic-table-panel {
+  grid-column: 1 / -1;
+}
+
+.topic-echo-scroll {
+  max-height: min(520px, 55vh);
+}
+
+.topic-echo-table .topic-echo-cell {
+  min-width: 220px;
+  max-width: 420px;
+  vertical-align: top;
+}
+
+.topic-echo-preview {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: #12151c;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.topic-echo-empty {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.topic-echo-time {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.topic-runtime-detail {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+tr.topic-row-ok .topic-echo-preview {
+  border-color: rgba(102, 187, 106, 0.35);
+}
+
+tr.topic-row-fail .topic-echo-preview {
+  border-color: rgba(224, 92, 92, 0.35);
 }
 
 .training-page {

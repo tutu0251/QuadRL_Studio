@@ -191,6 +191,24 @@ class TopicsConfirmUpdate(BaseModel):
     confirmed_topics: list[str] = Field(default_factory=list)
 
 
+class TopicWatchRequest(BaseModel):
+    topics: list[str] = Field(default_factory=list)
+
+
+class TopicEchoSample(BaseModel):
+    ok: bool = False
+    snippet: str = ""
+    text: str = ""
+    updated_at: str = ""
+
+
+class TopicWatchStatus(BaseModel):
+    project: str
+    state: Literal["idle", "running"] = "idle"
+    topics: list[str] = Field(default_factory=list)
+    latest: dict[str, TopicEchoSample] = Field(default_factory=dict)
+
+
 class ActionScaleEntry(BaseModel):
     joint: str
     action_scale: float
