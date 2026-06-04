@@ -505,6 +505,8 @@ def main() -> int:
     reset_on_advance = bool(curriculum.get("reset_policy_on_stage_advance", False))
 
     if curriculum_enabled:
+        os.environ["QUADRL_KEEP_GAZEBO"] = "1"
+        _log("[train] Curriculum enabled — reusing one Gazebo session across stages")
         stages = sorted(curriculum["stages"], key=lambda s: s.get("order", 0))
         _log(f"[train] Curriculum: {curriculum.get('name', '')} ({len(stages)} stages)")
         prev_ckpt: Path | None = None

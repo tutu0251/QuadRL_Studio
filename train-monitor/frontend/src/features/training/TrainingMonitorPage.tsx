@@ -22,7 +22,9 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
   const [obsScales, setObsScales] = useState<ObservationScaleEntry[]>([]);
 
   useEffect(() => {
-    setConsoleFilter("[train]|Stage |progress |rollout|termination|episode");
+    setConsoleFilter(
+      "[train]|[train-spawn]|Stage |progress |rollout|termination|episode|last_term"
+    );
     return () => setConsoleFilter(null);
   }, [setConsoleFilter]);
 

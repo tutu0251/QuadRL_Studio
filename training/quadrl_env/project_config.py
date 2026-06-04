@@ -6,7 +6,98 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import yaml
+
+_SPAWN_KEYS = ("x", "y", "z", "roll", "pitch", "yaw")
+_SAMPLE_EPS = 1e-9
+_DEFAULT_SAMPLE_RANGE: dict[str, float] = {
+    "x": 0.02,
+    "y": 0.02,
+    "z": 0.01,
+    "roll": 0.02,
+    "pitch": 0.02,
+    "yaw": 0.02,
+}
+
+
+@dataclass
+class SpawnOffset:
+    dx: float = 0.0
+    dy: float = 0.0
+    dz: float = 0.0
+    droll: float = 0.0
+    dpitch: float = 0.0
+    dyaw: float = 0.0
+
+
+def _spawn_dict(raw: dict[str, Any] | None) -> dict[str, float]:
+    base = raw or {}
+    return {k: float(base.get(k, 0.0 if k != "z" else 0.5)) for k in _SPAWN_KEYS}
+
+
+def _offset_from_doc(doc: dict[str, Any]) -> SpawnOffset:
+    raw = doc.get("spawn_offset") or {}
+    return SpawnOffset(
+        dx=float(raw.get("dx", 0.0)),
+        dy=float(raw.get("dy", 0.0)),
+        dz=float(raw.get("dz", 0.0)),
+        droll=float(raw.get("droll", 0.0)),
+        dpitch=float(raw.get("dpitch", 0.0)),
+        dyaw=float(raw.get("dyaw", 0.0)),
+    )
+
+
+def _base_spawn_from_doc(doc: dict[str, Any], offset: SpawnOffset) -> dict[str, float]:
+    stored = doc.get("_base_spawn")
+    if isinstance(stored, dict):
+        return _spawn_dict(stored)
+    effective = _spawn_dict(doc.get("spawn"))
+    return {
+        "x": effective["x"] - offset.dx,
+        "y": effective["y"] - offset.dy,
+        "z": effective["z"] - offset.dz,
+        "roll": effective["roll"] - offset.droll,
+        "pitch": effective["pitch"] - offset.dpitch,
+        "yaw": effective["yaw"] - offset.dyaw,
+    }
+
+
+def _effective_spawn(base: dict[str, float], offset: SpawnOffset) -> dict[str, float]:
+    return {
+        "x": base["x"] + offset.dx,
+        "y": base["y"] + offset.dy,
+        "z": base["z"] + offset.dz,
+        "roll": base["roll"] + offset.droll,
+        "pitch": base["pitch"] + offset.dpitch,
+        "yaw": base["yaw"] + offset.dyaw,
+    }
+
+
+def sample_spawn_pose(
+    base_spawn: dict[str, float],
+    offset: SpawnOffset,
+    *,
+    rng: np.random.Generator | None = None,
+) -> dict[str, float]:
+    """Uniform sample per axis in [-|offset|, +|offset|]; epsilon fallback when offset ~0."""
+    gen = rng if rng is not None else np.random.default_rng()
+    axis_offset = {
+        "x": offset.dx,
+        "y": offset.dy,
+        "z": offset.dz,
+        "roll": offset.droll,
+        "pitch": offset.dpitch,
+        "yaw": offset.dyaw,
+    }
+    out: dict[str, float] = {}
+    for axis in _SPAWN_KEYS:
+        mag = abs(float(axis_offset[axis]))
+        if mag < _SAMPLE_EPS:
+            mag = _DEFAULT_SAMPLE_RANGE[axis]
+        delta = float(gen.uniform(-mag, mag))
+        out[axis] = float(base_spawn[axis]) + delta
+    return out
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -59,7 +150,14 @@ class ProjectArtifacts:
     workspace_setup: Path | None = None
     bringup_pkg: str | None = None
     default_pose: dict[str, Any] = field(default_factory=dict)
+    base_spawn: dict[str, float] = field(
+        default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.5, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+    )
+    spawn_offset: SpawnOffset = field(default_factory=SpawnOffset)
     spawn_config: dict[str, float] = field(default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.5, "roll": 0.0, "pitch": 0.0, "yaw": 0.0})
+
+    def sample_spawn(self, *, rng: np.random.Generator | None = None) -> dict[str, float]:
+        return sample_spawn_pose(self.base_spawn, self.spawn_offset, rng=rng)
 
     @property
     def exports_dir(self) -> Path:
@@ -181,15 +279,9 @@ def load_project_artifacts(
     hp = rl_config.get("hyperparameters") or {}
     control_dt = float(hp.get("control_dt", rl_config.get("control_dt", 0.02)))
 
-    spawn_raw = default_pose_doc.get("spawn") or {}
-    spawn_config = {
-        "x": float(spawn_raw.get("x", 0.0)),
-        "y": float(spawn_raw.get("y", 0.0)),
-        "z": float(spawn_raw.get("z", 0.5)),
-        "roll": float(spawn_raw.get("roll", 0.0)),
-        "pitch": float(spawn_raw.get("pitch", 0.0)),
-        "yaw": float(spawn_raw.get("yaw", 0.0)),
-    }
+    offset = _offset_from_doc(default_pose_doc)
+    base_spawn = _base_spawn_from_doc(default_pose_doc, offset)
+    spawn_config = _effective_spawn(base_spawn, offset)
 
     return ProjectArtifacts(
         project_dir=project_dir,
@@ -204,5 +296,7 @@ def load_project_artifacts(
         workspace_setup=workspace_setup,
         bringup_pkg=f"{pkg}_bringup",
         default_pose=default_pose_doc,
+        base_spawn=base_spawn,
+        spawn_offset=offset,
         spawn_config=spawn_config,
     )

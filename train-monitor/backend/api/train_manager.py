@@ -167,6 +167,12 @@ class TrainManager:
         if not project_storage.has_rl_export(project):
             raise FileNotFoundError(f"Missing RL export for project '{project}'")
 
+        from api.spawn_test_manager import spawn_test_manager
+
+        if spawn_test_manager.is_running():
+            self._emit("warn", "[train] Stopping active spawn test before training (avoid duplicate sim.launch)")
+            await spawn_test_manager.stop(project)
+
         from api.spawn_config_manager import controller_apply_delay_for_project
 
         delay_s = controller_apply_delay_for_project(project)

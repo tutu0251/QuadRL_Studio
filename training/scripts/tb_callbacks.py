@@ -162,6 +162,15 @@ class MonitorProgressCallback(BaseCallback):
                     self._last_term = str(reason)
                 if info.get("episode"):
                     self._episode_count += 1
+                    ep = info["episode"]
+                    reason = str(info.get("termination_reason") or self._last_term or "-")
+                    steps = int(ep.get("l", 0))
+                    reward = float(ep.get("r", 0.0))
+                    print(
+                        f"[train] episode={self._episode_count} reason={reason} "
+                        f"steps={steps} reward={reward:.2f}",
+                        flush=True,
+                    )
         return True
 
     def _on_rollout_end(self) -> None:

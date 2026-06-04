@@ -13,6 +13,11 @@ from typing import Any
 import numpy as np
 
 from quadrl_env.disturbances import DisturbanceEngine
+from quadrl_env.gazebo_bootstrap import (
+    build_sim_launch_command,
+    log_sampled_spawn_pose,
+    run_gazebo_bootstrap,
+)
 from quadrl_env.gazebo_cleanup import cleanup_training_gazebo, terminate_process_group
 from quadrl_env.gazebo_reset import apply_ros_wrench, reset_gazebo_robot
 from quadrl_env.project_config import JointGains, ProjectArtifacts
@@ -28,6 +33,12 @@ _ros_spin_thread: threading.Thread | None = None
 _ros_executor_lock = threading.Lock()
 _ros_executor_nodes = 0
 _gazebo_atexit_registered = False
+_bootstrap_done = False
+
+
+def _keep_gazebo_launch() -> bool:
+    raw = os.environ.get("QUADRL_KEEP_GAZEBO", "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
 
 
 def _ensure_rclpy_initialized() -> None:
@@ -99,10 +110,11 @@ def _gazebo_headless_from_env() -> bool:
 
 def shutdown_shared_gazebo() -> None:
     """Stop the shared Gazebo launch and any stray sim processes (safe if already stopped)."""
-    global _gazebo_refcount, _shared_launch_proc
+    global _gazebo_refcount, _shared_launch_proc, _bootstrap_done
     proc = _shared_launch_proc
     _gazebo_refcount = 0
     _shared_launch_proc = None
+    _bootstrap_done = False
     launch_pid = proc.pid if proc is not None and proc.poll() is None else None
     cleanup_training_gazebo(launch_pid)
 
@@ -116,17 +128,12 @@ def _register_gazebo_atexit() -> None:
 
 def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
     """Launch Gazebo once; additional backends attach to the same sim."""
-    global _gazebo_refcount, _shared_launch_proc
+    global _gazebo_refcount, _shared_launch_proc, _bootstrap_done
     if _shared_launch_proc is None or _shared_launch_proc.poll() is not None:
+        _bootstrap_done = False
         env = load_ros_environ(workspace_setup=artifacts.workspace_setup)
-        setup = artifacts.workspace_setup
-        pkg = artifacts.bringup_pkg
         headless = _gazebo_headless_from_env()
-        headless_arg = "true" if headless else "false"
-        launch = (
-            f"source /opt/ros/humble/setup.bash && source {setup} && "
-            f"ros2 launch {pkg} sim.launch.py headless:={headless_arg}"
-        )
+        launch = build_sim_launch_command(artifacts, headless=headless)
         _shared_launch_proc = subprocess.Popen(
             ["bash", "-lc", launch],
             env=env,
@@ -136,10 +143,18 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
             start_new_session=True,
         )
         _register_gazebo_atexit()
-        # sim.launch spawns at ~3s; QUADRL_SIM_WARMUP_S is the post-spawn controller apply delay.
-        spawn_settle_s = 4.0
-        control_warmup_s = float(os.environ.get("QUADRL_SIM_WARMUP_S", "25"))
-        time.sleep(spawn_settle_s + control_warmup_s)
+        ok, err = run_gazebo_bootstrap(artifacts, _shared_launch_proc, env)
+        if not ok:
+            terminate_process_group(_shared_launch_proc.pid)
+            _shared_launch_proc = None
+            raise RuntimeError(f"Gazebo bootstrap failed: {err}")
+        _bootstrap_done = True
+    elif not _bootstrap_done:
+        env = load_ros_environ(workspace_setup=artifacts.workspace_setup)
+        ok, err = run_gazebo_bootstrap(artifacts, _shared_launch_proc, env)
+        if not ok:
+            raise RuntimeError(f"Gazebo bootstrap failed: {err}")
+        _bootstrap_done = True
     _gazebo_refcount += 1
     return _shared_launch_proc
 
@@ -148,6 +163,8 @@ def _release_gazebo() -> None:
     global _gazebo_refcount, _shared_launch_proc
     _gazebo_refcount = max(0, _gazebo_refcount - 1)
     if _gazebo_refcount > 0 or _shared_launch_proc is None:
+        return
+    if _keep_gazebo_launch():
         return
     proc = _shared_launch_proc
     _shared_launch_proc = None
@@ -333,6 +350,7 @@ class RosSimBackend:
         self._launch_proc = _acquire_gazebo(self._artifacts)
 
         _register_ros_node(self._node)
+        self._apply_spawn_reset(self._artifacts.sample_spawn())
         self._started = True
 
     def close(self) -> None:
@@ -345,6 +363,31 @@ class RosSimBackend:
             _release_gazebo()
         self._launch_proc = None
         self._started = False
+
+    def _apply_spawn_reset(self, spawn_pose: dict[str, float]) -> None:
+        if self._node is None:
+            return
+        default_targets = _default_joint_positions(self._artifacts)
+        try:
+            import rclpy
+
+            if not rclpy.ok():
+                return
+        except ImportError:
+            return
+        reset_gazebo_robot(
+            self._node,
+            world_name=self._world_name,
+            entity_name=self._entity_name,
+            spawn=spawn_pose,
+            joint_names=list(self._artifacts.joint_names),
+            joint_positions=default_targets,
+            jtc_pub=self._jtc_pub,
+            joint_trajectory_msg_cls=self._JointTrajectory,
+            joint_trajectory_point_cls=self._JointTrajectoryPoint,
+            control_dt=self._artifacts.control_dt,
+            wait_future=wait_rcl_future,
+        )
 
     def reset(self, *, command: dict[str, Any] | None = None) -> SimState:
         if not self._started:
@@ -360,21 +403,11 @@ class RosSimBackend:
             ros_live = rclpy.ok()
         except ImportError:
             ros_live = False
+        spawn_pose = self._artifacts.sample_spawn()
+        log_sampled_spawn_pose(spawn_pose, self._artifacts)
         if ros_live:
-            reset_gazebo_robot(
-                self._node,
-                world_name=self._world_name,
-                entity_name=self._entity_name,
-                spawn=dict(self._artifacts.spawn_config),
-                joint_names=list(self._artifacts.joint_names),
-                joint_positions=default_targets,
-                jtc_pub=self._jtc_pub,
-                joint_trajectory_msg_cls=self._JointTrajectory,
-                joint_trajectory_point_cls=self._JointTrajectoryPoint,
-                control_dt=self._artifacts.control_dt,
-                wait_future=wait_rcl_future,
-            )
-        base_h = float(self._command.get("target_body_height", self._artifacts.spawn_config.get("z", 0.5)))
+            self._apply_spawn_reset(spawn_pose)
+        base_h = float(self._command.get("target_body_height", spawn_pose.get("z", 0.5)))
         fallback = SimState(
             joint_pos=default_targets.astype(np.float32, copy=True),
             joint_vel=np.zeros(len(self._artifacts.joint_names), dtype=np.float32),

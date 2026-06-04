@@ -16,6 +16,7 @@ def _reset_ros_sim_globals() -> None:
     rs._ros_executor = None
     rs._ros_spin_thread = None
     rs._ros_executor_nodes = 0
+    rs._bootstrap_done = False
     yield
     rs._rclpy_refcount = 0
     rs._gazebo_refcount = 0
@@ -23,6 +24,7 @@ def _reset_ros_sim_globals() -> None:
     rs._ros_executor = None
     rs._ros_spin_thread = None
     rs._ros_executor_nodes = 0
+    rs._bootstrap_done = False
 
 
 def test_ensure_rclpy_initialized_only_inits_once() -> None:

@@ -70,7 +70,10 @@ export function MetricMonitorPage({
   const setConsoleFilter = useMonitorStore((s) => s.setConsoleFilter);
 
   useEffect(() => {
-    setConsoleFilter(null);
+    setConsoleFilter(
+      "[train]|[train-spawn]|Stage |progress |rollout|termination|episode|last_term"
+    );
+    return () => setConsoleFilter(null);
   }, [setConsoleFilter]);
 
   const startPreview = useCommandPreview(project, "train_start", {
@@ -100,6 +103,10 @@ export function MetricMonitorPage({
   return (
     <div className="page-grid metric-page">
       <aside className="metric-side">
+        <p className="panel-hint">
+          Spawn offset ranges are configured in Spawn Monitor (#spawn); training samples random poses
+          within those bounds.
+        </p>
         <TrainingPanel
           project={project}
           status={trainStatus}

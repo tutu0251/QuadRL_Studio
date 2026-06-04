@@ -180,6 +180,24 @@ export function TrainingPanel({
               <dd>{status.progress_message}</dd>
             </>
           )}
+          {status.rollout_count != null && (
+            <>
+              <dt>Rollouts</dt>
+              <dd>{status.rollout_count}</dd>
+            </>
+          )}
+          {status.episode_count != null && (
+            <>
+              <dt>Episodes</dt>
+              <dd>{status.episode_count}</dd>
+            </>
+          )}
+          {status.last_termination_reason && (
+            <>
+              <dt>Last termination</dt>
+              <dd>{status.last_termination_reason}</dd>
+            </>
+          )}
           {status.pid && (
             <>
               <dt>PID</dt>
