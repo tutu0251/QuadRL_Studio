@@ -1,4 +1,4 @@
-"""Reset Gazebo robot pose and joints to exported default pose."""
+"""Reset Gazebo robot pose and joints to the geometry spawn export."""
 from __future__ import annotations
 
 import time
@@ -32,7 +32,7 @@ def reset_gazebo_robot(
     settle_steps: int = 8,
     wait_future: Callable[..., bool] | None = None,
 ) -> None:
-    """Teleport model and command default joint positions."""
+    """Teleport model and command exported spawn joint positions."""
     if not _rclpy_ok():
         return
     _set_entity_pose(

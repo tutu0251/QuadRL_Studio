@@ -63,7 +63,7 @@ def _base_spawn_from_doc(doc: dict[str, Any], offset: SpawnOffset) -> dict[str, 
 
 
 def get_spawn_config(name: str) -> SpawnConfig:
-    path = monitor_storage.default_pose_path(name)
+    path = monitor_storage.geo_spawn_export_path(name)
     doc = monitor_storage.load_pose_doc(name)
     offset = _offset_from_doc(doc)
     base_spawn = _base_spawn_from_doc(doc, offset)
@@ -138,7 +138,7 @@ def controller_apply_delay_for_project(name: str) -> float:
 
 
 def resolve_spawn_create_pose(cfg: SpawnConfig) -> dict[str, float]:
-    """Effective 6-DOF spawn pose (default pose + offset), same as training reset."""
+    """Effective 6-DOF spawn pose (geometry export base + offset), same as training reset."""
     s = cfg.effective_spawn
     return {
         "x": float(s.get("x", 0.0)),

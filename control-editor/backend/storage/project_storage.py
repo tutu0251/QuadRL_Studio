@@ -44,12 +44,12 @@ def export_gains_yaml_path(name: str) -> Path:
     return project_dir(name) / EXPORTS_DIR / f"{CTRL_PREFIX}{name}_gains.yaml"
 
 
-def geo_default_pose_path(name: str) -> Path:
+def geo_spawn_export_path(name: str) -> Path:
     return project_dir(name) / EXPORTS_DIR / f"{GEO_PREFIX}{name}_default_pose.yaml"
 
 
-def load_geo_default_pose_joints(name: str) -> dict[str, float]:
-    path = geo_default_pose_path(name)
+def load_geo_spawn_export_joints(name: str) -> dict[str, float]:
+    path = geo_spawn_export_path(name)
     if not path.is_file():
         return {}
     import yaml

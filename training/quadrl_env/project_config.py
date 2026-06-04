@@ -149,7 +149,6 @@ class ProjectArtifacts:
     control_dt: float = 0.02
     workspace_setup: Path | None = None
     bringup_pkg: str | None = None
-    default_pose: dict[str, Any] = field(default_factory=dict)
     base_spawn: dict[str, float] = field(
         default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.5, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
     )
@@ -178,15 +177,19 @@ class ProjectArtifacts:
         return merged
 
 
-def _load_default_pose(exports: Path, project_name: str) -> dict[str, Any]:
-    path = exports / f"geo_{project_name}_default_pose.yaml"
+def _geo_spawn_export_path(exports: Path, project_name: str) -> Path:
+    return exports / f"geo_{project_name}_default_pose.yaml"
+
+
+def _load_geo_spawn_export(exports: Path, project_name: str) -> dict[str, Any]:
+    path = _geo_spawn_export_path(exports, project_name)
     if not path.is_file():
         return {}
     return load_yaml(path)
 
 
-def _apply_default_pose_to_gains(joint_gains: dict[str, JointGains], pose_doc: dict[str, Any]) -> None:
-    joints = pose_doc.get("joints") or {}
+def _apply_spawn_joints_to_gains(joint_gains: dict[str, JointGains], spawn_doc: dict[str, Any]) -> None:
+    joints = spawn_doc.get("joints") or {}
     for name, val in joints.items():
         if name in joint_gains:
             joint_gains[name].default_position = float(val)
@@ -261,9 +264,9 @@ def load_project_artifacts(
 
     joint_gains = _parse_gains(gains_doc, joint_names)
 
-    default_pose_doc = _load_default_pose(exports, project_name)
-    if default_pose_doc:
-        _apply_default_pose_to_gains(joint_gains, default_pose_doc)
+    spawn_export = _load_geo_spawn_export(exports, project_name)
+    if spawn_export:
+        _apply_spawn_joints_to_gains(joint_gains, spawn_export)
 
     control = observations_doc.get("control") or {}
     ctrl_yaml_name = control.get("controllers_yaml") or f"ctrl_{project_name}_controllers.yaml"
@@ -279,8 +282,8 @@ def load_project_artifacts(
     hp = rl_config.get("hyperparameters") or {}
     control_dt = float(hp.get("control_dt", rl_config.get("control_dt", 0.02)))
 
-    offset = _offset_from_doc(default_pose_doc)
-    base_spawn = _base_spawn_from_doc(default_pose_doc, offset)
+    offset = _offset_from_doc(spawn_export)
+    base_spawn = _base_spawn_from_doc(spawn_export, offset)
     spawn_config = _effective_spawn(base_spawn, offset)
 
     return ProjectArtifacts(
@@ -295,7 +298,6 @@ def load_project_artifacts(
         control_dt=control_dt,
         workspace_setup=workspace_setup,
         bringup_pkg=f"{pkg}_bringup",
-        default_pose=default_pose_doc,
         base_spawn=base_spawn,
         spawn_offset=offset,
         spawn_config=spawn_config,

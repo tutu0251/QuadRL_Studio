@@ -56,6 +56,7 @@ cp geometry-editor/frontend/.env.example geometry-editor/frontend/.env
   snapshots/
   exports/geo_<name>.urdf
   exports/geo_<name>.sdf
+  exports/geo_<name>_default_pose.yaml   # default pose (spawn + joint angles)
 ```
 
 ## UI layout (Unity-style)

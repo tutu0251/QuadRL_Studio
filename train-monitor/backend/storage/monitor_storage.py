@@ -15,7 +15,7 @@ def monitor_yaml_path(name: str) -> Path:
     return project_storage.exports_dir(name) / f"tm_{name}_monitor.yaml"
 
 
-def default_pose_path(name: str) -> Path:
+def geo_spawn_export_path(name: str) -> Path:
     return project_storage.exports_dir(name) / f"geo_{name}_default_pose.yaml"
 
 
@@ -63,9 +63,9 @@ def set_confirmed_topics(name: str, topics: list[str]) -> None:
 
 
 def load_pose_doc(name: str) -> dict[str, Any]:
-    return _load_yaml(default_pose_path(name))
+    return _load_yaml(geo_spawn_export_path(name))
 
 
 def save_pose_doc(name: str, doc: dict[str, Any]) -> None:
-    header = "# Default spawn / reset pose (Train Monitor may add spawn_offset and timing)\n"
-    _dump_yaml(default_pose_path(name), doc, header)
+    header = "# Geometry spawn export (Train Monitor may add spawn_offset and timing)\n"
+    _dump_yaml(geo_spawn_export_path(name), doc, header)

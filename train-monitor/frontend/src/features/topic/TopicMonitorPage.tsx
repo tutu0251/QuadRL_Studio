@@ -303,8 +303,8 @@ export function TopicMonitorPage({
           </span>
         </header>
         <p className="panel-hint">
-          Same workspace test spawn as Spawn Monitor: <code>sim.launch.py</code>, controller warmup, then default pose
-          and stand joints via ros2_control.
+          Same workspace test spawn as Spawn Monitor: <code>sim.launch.py</code>, controller warmup, then exported spawn
+          joints via ros2_control.
         </p>
         {spawnConfig && (
           <p className="panel-hint mono">

@@ -80,7 +80,7 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
     <div className="page-grid spawn-page">
       <section className="panel">
         <header className="panel-header">
-          <h2>Default Pose</h2>
+          <h2>Geometry Spawn Export</h2>
           {cfg && (
             <span className={`badge ${cfg.pose_confirmed ? "badge-completed" : "badge-stopped"}`}>
               {cfg.pose_confirmed ? "confirmed" : "unconfirmed"}
@@ -120,7 +120,7 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
                 commandLoading={confirmPreview.loading}
                 onClick={() => void confirmPose()}
               >
-                Confirm default pose
+                Confirm spawn export
               </ActionButton>
             </div>
           </>

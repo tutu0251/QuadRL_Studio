@@ -20,7 +20,7 @@ Browser: `http://<host>:5179`
 
 | Tab | Purpose |
 |-----|---------|
-| **Spawn Monitor** | Confirm default pose from `geo_*_default_pose.yaml`, set spawn offset, configure controller apply delay (`QUADRL_SIM_WARMUP_S`) |
+| **Spawn Monitor** | Confirm geometry spawn export from Geometry Editor, set spawn offset, configure controller apply delay (`QUADRL_SIM_WARMUP_S`) |
 | **Topic Monitor** | Workspace setup/validate, integrated test spawn (same as Spawn Monitor), live `ros2 topic echo` per observation topic, per-topic confirmation |
 | **Training Monitor** | Edit action scales (`ctrl_*_gains.yaml`) and observation scales (`rl_*_config.yaml`), review termination config, filtered training console |
 | **Metric Monitor** | Start/stop/resume training, checkpoints, runs/stages, in-app metric charts, TensorBoard, host CPU/RAM/GPU |
@@ -52,7 +52,7 @@ Projects live under `~/quadruped_dev_tool/projects/<name>/` (override with `QUAD
 | GET | `/api/projects` | List projects and training readiness |
 | POST | `/api/projects/{name}/load` | Set active project |
 | GET | `/api/projects/{name}/commands/preview` | Bash command preview for an action |
-| GET | `/api/projects/{name}/spawn-config` | Default pose, offset, controller delay |
+| GET | `/api/projects/{name}/spawn-config` | Spawn export, offset, controller delay |
 | PATCH | `/api/projects/{name}/spawn-config` | Update spawn offset / timing / pose confirmed |
 | GET | `/api/projects/{name}/topics` | Observation topics + validation status |
 | PATCH | `/api/projects/{name}/topics/confirmations` | Persist confirmed topic list |

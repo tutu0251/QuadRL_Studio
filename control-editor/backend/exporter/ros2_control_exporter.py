@@ -118,7 +118,7 @@ def export_controllers_yaml(model: ControlModel, output_path: Path) -> Path:
 
 
 def export_gains_yaml(model: ControlModel, output_path: Path, *, project_name: str | None = None) -> Path:
-    pose_joints = project_storage.load_geo_default_pose_joints(project_name or model.robotName)
+    pose_joints = project_storage.load_geo_spawn_export_joints(project_name or model.robotName)
     gains = {
         "profile": model.trainingProfile.value,
         "controller_type": model.controllerType,
