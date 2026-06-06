@@ -25,7 +25,7 @@ _STAGE_DEFS = [
     ("trot", "trot", "Trot", "Diagonal gait at moderate speed.", 600_000, 0.8),
     ("pace", "pace", "Pace / Lateral trot", "Lateral pair gait.", 600_000, 1.0),
     ("bound", "bound", "Bound", "Front/rear pair bounding.", 650_000, 1.2),
-    ("gallop", "gallop", "Gallop", "High speed gallop — final stage.", 700_000, 1.2),
+    ("gallop", "gallop", "Gallop", "High speed gallop — final stage.", 700_000, 1.4),
 ]
 
 
@@ -35,28 +35,6 @@ def _stand_terms() -> list[RewardTerm]:
 
 def _locomotion_terms(lin_x: float, ang_z: float = 0.0) -> list[RewardTerm]:
     return locomotion_reward_terms(lin_x, ang_z)
-
-
-def _disturbance_for_stage(stage_id: str, rough: bool) -> DisturbanceConfig:
-    if not rough:
-        return DisturbanceConfig()
-    scale = {
-        "none": 0.1,
-        "recover": 0.15,
-        "walk": 0.25,
-        "trot": 0.35,
-        "pace": 0.45,
-        "bound": 0.55,
-        "gallop": 0.65,
-    }.get(stage_id, 0.3)
-    return DisturbanceConfig(
-        enabled=True,
-        pushForceN=10 + scale * 25,
-        pushIntervalSteps=max(300, int(800 - scale * 300)),
-        terrainRoughness=scale * 0.8,
-        lateralImpulseN=5 + scale * 12,
-        randomOrientationNoiseRad=0.02 + scale * 0.05,
-    )
 
 
 def _build_stage(
@@ -88,7 +66,7 @@ def _build_stage(
         targetAngVelZ=0.0,
         gaitTypeIds=[gait_type_id],
         command=cmd,
-        disturbance=_disturbance_for_stage(stage_id, rough),
+        disturbance=DisturbanceConfig(),  # placeholder; recommend_stage_params sets the live value
         rewardTerms=rewards,
         termination=TerminationConfig(
             maxEpisodeSteps=800 + order * 200,

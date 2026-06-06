@@ -42,7 +42,7 @@ _VEL_BY_GAIT = {
     "trot": 0.8,
     "pace": 1.0,
     "bound": 1.2,
-    "gallop": 1.2,
+    "gallop": 1.4,
 }
 
 _TIMESTEPS_BY_GAIT = {
@@ -165,13 +165,22 @@ def recommend_stage_params(
 ) -> StageRecommendation:
     gait_id = stage_primary_gait_for_command(stage)
     selected = stage_gait_type_ids(stage)
-    vel = max(_VEL_BY_GAIT.get(g, 0.0) for g in selected) if selected else stage.targetLinVelX
-    if gait_id in _VEL_BY_GAIT:
-        vel = _VEL_BY_GAIT[gait_id]
+    # Honor the stage's authored command velocity / timesteps; fall back to
+    # gait-based defaults only when the stage leaves them unset. Alias gaits
+    # collapse under the catalog (pace -> trot, bound -> gallop), so deriving
+    # speed purely from the resolved gait would discard a stage's intended
+    # velocity and force aliased stages to the same value.
+    vel = stage.targetLinVelX
+    if not vel:
+        vel = max(_VEL_BY_GAIT.get(g, 0.0) for g in selected) if selected else 0.0
+        if gait_id in _VEL_BY_GAIT:
+            vel = _VEL_BY_GAIT[gait_id]
     scale = _machine_scale(machine)
-    base_ts = max(_TIMESTEPS_BY_GAIT.get(g, 0) for g in selected) if selected else stage.timesteps
-    if gait_id in _TIMESTEPS_BY_GAIT:
-        base_ts = _TIMESTEPS_BY_GAIT[gait_id]
+    base_ts = stage.timesteps
+    if not base_ts:
+        base_ts = max(_TIMESTEPS_BY_GAIT.get(g, 0) for g in selected) if selected else 0
+        if gait_id in _TIMESTEPS_BY_GAIT:
+            base_ts = _TIMESTEPS_BY_GAIT[gait_id]
     timesteps = max(50_000, int(base_ts * scale * (1.1 if rough else 1.0)))
 
     # Height policy follows spawn / command target (base_link Z), not gait kinematics bodyHeight.
@@ -188,13 +197,16 @@ def recommend_stage_params(
     disturbance = stage.disturbance.model_copy(deep=True)
     if rough:
         roughness = min(0.85, 0.15 + stage.order * 0.1)
+        # Conservative perturbations tuned for the bent-leg pose (see
+        # PARAMETER_FIXES_SUMMARY.md). This recommender output is the live source:
+        # _build_stage overwrites the template's stage.disturbance with it.
         disturbance = DisturbanceConfig(
             enabled=True,
-            pushForceN=15 + roughness * 30,
-            pushIntervalSteps=max(300, int(800 - roughness * 400)),
-            terrainRoughness=roughness,
-            lateralImpulseN=5 + roughness * 15,
-            randomOrientationNoiseRad=0.02 + roughness * 0.06,
+            pushForceN=10 + roughness * 25,
+            pushIntervalSteps=max(300, int(800 - roughness * 300)),
+            terrainRoughness=roughness * 0.8,
+            lateralImpulseN=5 + roughness * 12,
+            randomOrientationNoiseRad=0.02 + roughness * 0.05,
         )
     else:
         disturbance = DisturbanceConfig()
