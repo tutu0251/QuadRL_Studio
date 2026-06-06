@@ -20,11 +20,14 @@ class SimState:
 
     @property
     def tilt_rad(self) -> float:
+        """Angle (rad) between body +Z and world up; 0 upright, pi upside-down."""
         g = self.projected_gravity
         if g.size < 3:
             return 0.0
         gz = float(np.clip(g[2], -1.0, 1.0))
-        return float(np.arccos(abs(gz)))
+        # Upright: gravity ≈ (0, 0, -1) → dot(body_up, world_up) = 1 → tilt 0.
+        # Flipped: gravity ≈ (0, 0, +1) → dot = -1 → tilt pi (must not use abs(gz)).
+        return float(np.arccos(np.clip(-gz, -1.0, 1.0)))
 
     @property
     def num_contacts(self) -> int:

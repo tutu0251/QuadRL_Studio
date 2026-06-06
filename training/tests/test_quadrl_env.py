@@ -87,6 +87,53 @@ def test_reward_engine_positive_on_tracking():
     assert total > 0.5
 
 
+def test_tilt_rad_zero_when_upright():
+    state = SimState(
+        joint_pos=np.zeros(3),
+        joint_vel=np.zeros(3),
+        base_lin_vel=np.zeros(3),
+        base_ang_vel=np.zeros(3),
+        projected_gravity=np.array([0.0, 0.0, -1.0]),
+        base_height=0.35,
+    )
+    assert state.tilt_rad == pytest.approx(0.0, abs=1e-6)
+
+
+def test_tilt_rad_pi_when_upside_down():
+    state = SimState(
+        joint_pos=np.zeros(3),
+        joint_vel=np.zeros(3),
+        base_lin_vel=np.zeros(3),
+        base_ang_vel=np.zeros(3),
+        projected_gravity=np.array([0.0, 0.0, 1.0]),
+        base_height=0.35,
+    )
+    assert state.tilt_rad == pytest.approx(np.pi, abs=1e-6)
+
+
+def test_termination_max_tilt_on_upside_down():
+    engine = TerminationEngine(
+        {
+            "max_episode_steps": 1000,
+            "fall_base_height_threshold": 0.05,
+            "max_tilt_rad": 1.2,
+        }
+    )
+    state = SimState(
+        joint_pos=np.zeros(12),
+        joint_vel=np.zeros(12),
+        base_lin_vel=np.zeros(3),
+        base_ang_vel=np.zeros(3),
+        projected_gravity=np.array([0.0, 0.0, 1.0]),
+        base_height=0.35,
+        episode_step=10,
+    )
+    terminated, truncated, reason = engine.check(state, step_reward=0.0, cumulative_reward=0.0)
+    assert terminated
+    assert not truncated
+    assert reason == "max_tilt"
+
+
 def test_termination_skips_null_max_joint_torque():
     engine = TerminationEngine(
         {
