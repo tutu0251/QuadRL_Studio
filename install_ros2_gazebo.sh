@@ -61,15 +61,29 @@ $SUDO apt-get update -y
 log "Installing ROS 2 ${ROS_DISTRO} (${ROS_PKG}) + dev tools"
 $SUDO apt-get install -y "ros-${ROS_DISTRO}-${ROS_PKG}" ros-dev-tools
 
-# --- 5. Gazebo Fortress + the ROS<->Gazebo bridge -------------------------
-log "Installing Gazebo Fortress (Ignition) and the ros_gz / ros_ign bridge"
+# --- 5. Gazebo Fortress + ROS<->Gazebo bridge + ros2_control --------------
+# Package set is the one QuadRL Studio documents in
+# workspace-generator/README.md and control-editor/README.md, plus the Gazebo
+# Fortress runtime and the older ros_ign bridge names used by spawn_gazebo_gui.sh.
+log "Installing Gazebo Fortress (Ignition), the ros_gz/ros_ign bridge, and ros2_control"
 $SUDO apt-get install -y \
   ignition-fortress \
   "ros-${ROS_DISTRO}-ros-gz" \
   "ros-${ROS_DISTRO}-ros-gz-sim" \
   "ros-${ROS_DISTRO}-ros-gz-bridge" \
+  "ros-${ROS_DISTRO}-ros-gz-interfaces" \
   "ros-${ROS_DISTRO}-ros-ign-gazebo" \
-  "ros-${ROS_DISTRO}-ros-ign-bridge"
+  "ros-${ROS_DISTRO}-ros-ign-bridge" \
+  "ros-${ROS_DISTRO}-gz-ros2-control" \
+  "ros-${ROS_DISTRO}-controller-manager" \
+  "ros-${ROS_DISTRO}-ros2-control" \
+  "ros-${ROS_DISTRO}-ros2-controllers" \
+  "ros-${ROS_DISTRO}-joint-state-broadcaster" \
+  "ros-${ROS_DISTRO}-joint-trajectory-controller" \
+  "ros-${ROS_DISTRO}-joint-state-publisher" \
+  "ros-${ROS_DISTRO}-robot-state-publisher" \
+  "ros-${ROS_DISTRO}-xacro" \
+  python3-colcon-common-extensions
 
 # --- 6. rosdep ------------------------------------------------------------
 log "Initialising rosdep"
