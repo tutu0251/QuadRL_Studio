@@ -199,18 +199,16 @@ advance = CurriculumAdvanceCriteria(
 
 **File:** `training/quadrl_env/project_config.py` (Lines 128-136)
 
-**Rationale:** Improve stability for bent-leg pose with better damping
+**Rationale:** Raise position-tracking authority and damping for the bent-leg pose.
 
 ```python
-# OLD (underdamped: τ = 0.22)
+# OLD
 kp: float = 20.0        # Proportional gain (stiffness)
 kd: float = 0.5         # Derivative gain (damping)
-damping ratio τ = 2√(kd/kp) = 2√(0.5/20) = 0.22 ❌ Underdamped
 
-# NEW (better damped: τ = 0.37)
+# NEW
 kp: float = 30.0        # ↑ Increased stiffness for bent pose
 kd: float = 0.9         # ↑ Increased damping for stability
-damping ratio τ = 2√(kd/kp) = 2√(0.9/30) = 0.37 ✓ Better stability
 
 # Other control parameters (kept)
 action_scale: float = 0.25   # ✓ Keep (action magnitude)
@@ -218,22 +216,37 @@ effort_limit: float = 80.0   # ✓ Keep (motor torque limit)
 velocity_limit: float = 10.0 # ✓ Keep (joint velocity limit)
 ```
 
+> **Note on damping:** for a PD-controlled joint modeled as `I·q̈ + kd·q̇ + kp·q = 0`,
+> the damping ratio is `ζ = kd / (2·√(kp·I))` and natural frequency `ωₙ = √(kp/I)`,
+> where `I` is the joint's reflected inertia. The under/over-damped regime therefore
+> **cannot** be read off from `kp` and `kd` alone — it depends on `I`, which is robot-
+> specific. (The earlier `ζ = 2√(kd/kp)` formula here was incorrect.) What we can say
+> independent of `I`: both gains increased, `ωₙ` rose (stiffer), and the relative
+> damping factor `kd/√(kp)` rose from `0.112` to `0.164` (≈1.5×), i.e. more damped
+> for the same inertia. Validate the actual response empirically (see Next Steps).
+
 **Impact:** Better tracking of bent-leg target height with less oscillation
 
 ### 5. Observation Normalization - Joint Positions Scale
 
 **File:** `training/quadrl_env/observations.py` (Line 147)
 
-**Rationale:** Fix overly aggressive clipping for [-π, π] joint range
+**Rationale:** Reduce clipping of joint positions across the [-π, π] range.
+
+Normalization in `observations.py` is `out = (value - offset) / scale`, then clipped
+to `[clip_min, clip_max] = [-1, 1]`. The value is **divided** by `scale`, so a larger
+`scale` widens (not narrows) the un-clipped range. The clip boundary in radians is
+`±(scale)`:
 
 ```python
-# OLD (too aggressive)
+# OLD
 joint_positions: scale = 2.0
-# Problem: Values get clipped at ±0.5 rad, losing information
+# Effect: |q| > 2.0 rad clips to ±1.0 — joint angles beyond ±2.0 rad lose information
 
-# NEW (normalized to ±π)
-joint_positions: scale = 3.14  # π radians
-# Benefit: Full [-π, π] range maps to [-1, 1] without clipping
+# NEW
+joint_positions: scale = 3.14  # ≈ π
+# Effect: the full [-π, π] joint range maps onto [-1, 1] with no clipping;
+#         raises the clip boundary from ±2.0 rad to ±π rad
 
 # Other observations (kept - working well)
 joint_velocities: scale = 6.0 ✓
@@ -241,7 +254,7 @@ base_lin_vel: scale = 2.0 ✓
 base_ang_vel: scale = 8.0 ✓
 ```
 
-**Impact:** Better observation representation, full motor range utilized
+**Impact:** Full joint range represented in observations; less information lost to clipping.
 
 ### 6. PPO Hyperparameters - Entropy Bonus
 
@@ -291,9 +304,17 @@ entCoef: float = 0.001  # 0.1% entropy loss penalty
 | PPO | 1 parameter | Better exploration |
 
 ### Total Training Time Impact:
-- **Old:** 3.95M timesteps (flat terrain) → 4.34M rough terrain
-- **New:** 4.50M timesteps (flat terrain) → 4.95M rough terrain
-- **Increase:** +12% longer training, better convergence expected
+
+Summed from the live per-stage timesteps the recommender actually emits
+(400k + 400k + 550k + 600k + 600k + 650k + 700k), with rough terrain applying a
+×1.1 multiplier:
+
+- **New:** 3.90M timesteps (flat terrain) → 4.29M rough terrain
+- Longer than the previous flat total; bound no longer inflated to gallop's
+  budget (see the gait-alias fix in the recommender).
+
+> Earlier drafts of this doc cited 4.50M / 4.95M; those figures did not match the
+> stage definitions and have been corrected to the values above.
 
 ---
 
