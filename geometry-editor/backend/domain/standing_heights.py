@@ -79,4 +79,5 @@ def assert_height_policy_consistent(params: StandingHeightParams) -> None:
 
 
 # Editor / template placeholder until geo spawn export is synced to the robot.
-PLACEHOLDER_BODY_HEIGHT_M = 0.35
+# Kept identical to the training / rl-trainer copies (enforced by the drift guard).
+PLACEHOLDER_BODY_HEIGHT_M = 0.2933

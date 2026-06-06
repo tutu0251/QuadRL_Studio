@@ -29,19 +29,20 @@ def _upright_state(base_height: float) -> SimState:
 
 
 def test_sane_threshold_is_kept():
-    eng = TerminationEngine({"fall_base_height_threshold": -0.1417})
-    info = eng.resolve_fall_threshold(-0.0417)
-    assert info["corrected"] is False
-    assert info["effective"] == -0.1417
-
-
-def test_placeholder_leak_above_spawn_is_corrected():
-    # The real bug: threshold 0.1933 (0.2933 placeholder - margin) sits ABOVE the
-    # robot's -0.0417 spawn height, so it would "fall" before moving.
+    # Corrected my_robot case: fall 0.1933 is below the 0.2933 spawn -> kept as-is.
     eng = TerminationEngine({"fall_base_height_threshold": 0.1933})
-    info = eng.resolve_fall_threshold(-0.0417)
+    info = eng.resolve_fall_threshold(0.2933)
+    assert info["corrected"] is False
+    assert info["effective"] == 0.1933
+
+
+def test_threshold_above_spawn_is_corrected():
+    # A short robot (spawn 0.15) with a leaked 0.2933-placeholder threshold (0.1933):
+    # 0.1933 sits ABOVE the 0.15 spawn, so it would "fall" before moving -> corrected.
+    eng = TerminationEngine({"fall_base_height_threshold": 0.1933})
+    info = eng.resolve_fall_threshold(0.15)
     assert info["corrected"] is True
-    assert info["effective"] == round(-0.0417 - FALL_DROP_MARGIN_M, 4)  # -0.1417
+    assert info["effective"] == round(0.15 - FALL_DROP_MARGIN_M, 4)  # 0.05
 
 
 def test_missing_threshold_derived_from_standing_height():
@@ -52,26 +53,26 @@ def test_missing_threshold_derived_from_standing_height():
 
 
 def test_none_standing_height_keeps_configured():
-    eng = TerminationEngine({"fall_base_height_threshold": -0.1417})
+    eng = TerminationEngine({"fall_base_height_threshold": 0.1933})
     info = eng.resolve_fall_threshold(None)
-    assert info["effective"] == -0.1417
+    assert info["effective"] == 0.1933
     assert info["corrected"] is False
 
 
 def test_robot_at_spawn_does_not_instantly_fall_after_guard():
-    # End-to-end: with the leaked placeholder threshold, the robot at its real
-    # spawn height must NOT be declared fallen on step 1 once the guard is applied.
+    # End-to-end: a short robot (spawn 0.15) with a leaked placeholder threshold
+    # (0.1933) must NOT be declared fallen on step 1 once the guard is applied.
     eng = TerminationEngine({"fall_base_height_threshold": 0.1933, "max_episode_steps": 100})
-    state = _upright_state(-0.0417)
+    state = _upright_state(0.15)
 
     # Before anchoring, the leaked threshold would (wrongly) terminate.
     terminated, _, reason = eng.check(state, step_reward=0.0, cumulative_reward=0.0,
-                                      command={"target_body_height": -0.0417})
+                                      command={"target_body_height": 0.15})
     assert terminated and reason == "fall_height"
 
     # After anchoring to the real spawn height, no instant fall.
-    eng.resolve_fall_threshold(-0.0417)
+    eng.resolve_fall_threshold(0.15)
     terminated, _, reason = eng.check(state, step_reward=0.0, cumulative_reward=0.0,
-                                      command={"target_body_height": -0.0417})
+                                      command={"target_body_height": 0.15})
     assert reason != "fall_height"
     assert not terminated

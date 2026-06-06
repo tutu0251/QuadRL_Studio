@@ -23,11 +23,13 @@ from planner.standing_heights import (
     fall_threshold_for_target,
 )
 
-# A robot whose grounded base_link sits ~4 cm below ground at stance (the my_robot case).
+# A robot whose grounded base_link sits at its trunk centre (positive standing
+# height, as produced by the geometry root-origin bake fix). Deliberately differs
+# from PLACEHOLDER_BODY_HEIGHT_M (0.2933) so the realignment is observable.
 REAL = StandingHeightParams(
-    spawn_z=-0.0417,
-    target_body_height=-0.0417,
-    fall_base_height_threshold=-0.1417,
+    spawn_z=0.40,
+    target_body_height=0.40,
+    fall_base_height_threshold=0.30,
     fall_drop_margin_m=0.10,
 )
 
@@ -42,9 +44,9 @@ def test_apply_curriculum_uses_real_height_when_project_policy_present(monkeypat
     monkeypatch.setattr(migration, "_load_project_heights", lambda name: REAL)
     model = _model_with_applied_curriculum()
     for s in model.curriculum.stages:
-        assert s.command.targetBodyHeight == -0.0417
-        assert s.termination.fallBaseHeightThreshold == -0.1417
-    assert model.termination.fallBaseHeightThreshold == -0.1417
+        assert s.command.targetBodyHeight == 0.40
+        assert s.termination.fallBaseHeightThreshold == 0.30
+    assert model.termination.fallBaseHeightThreshold == 0.30
 
 
 def test_align_rewrites_leaked_placeholder_to_project_height(monkeypatch):
@@ -59,9 +61,9 @@ def test_align_rewrites_leaked_placeholder_to_project_height(monkeypatch):
     monkeypatch.setattr(migration, "_load_project_heights", lambda name: REAL)
     align_model_heights(model)
     for s in model.curriculum.stages:
-        assert s.command.targetBodyHeight == -0.0417
-        assert s.termination.fallBaseHeightThreshold == -0.1417
-    assert model.termination.fallBaseHeightThreshold == -0.1417
+        assert s.command.targetBodyHeight == 0.40
+        assert s.termination.fallBaseHeightThreshold == 0.30
+    assert model.termination.fallBaseHeightThreshold == 0.30
 
 
 def test_align_falls_back_to_placeholder_without_project_policy(monkeypatch):

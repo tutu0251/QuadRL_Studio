@@ -9,9 +9,11 @@ from planner.standing_heights import assert_height_policy_consistent, heights_fo
 
 
 def test_heights_for_target_matches_policy() -> None:
-    h = heights_for_target(-0.0417)
+    # Trunk-centre standing height (base_link sits at the trunk after the geometry
+    # root-origin bake fix): target 0.2933 m -> fall 0.1933 m.
+    h = heights_for_target(0.2933)
     assert_height_policy_consistent(h)
-    assert h.fall_base_height_threshold == pytest.approx(-0.1417, abs=1e-4)
+    assert h.fall_base_height_threshold == pytest.approx(0.1933, abs=1e-4)
 
 
 def test_recommend_stage_params_aligns_fall_with_target() -> None:
