@@ -26,14 +26,30 @@ def compose_pose(pos: Vec3, rot: Quat, child_pos: Vec3, child_rot: Quat) -> tupl
 
 
 def bake_link_frames(model: RobotModel) -> RobotModel:
-    """Return a copy with link.frame baked into shapes and incoming joint origins."""
+    """Return a copy with link.frame baked into shapes and incoming joint origins.
+
+    Root links are a special case. A non-root link's frame offset is an internal
+    placement that must be folded into its geometry (and into outgoing joint
+    origins) so the URDF — where the link is positioned by its parent joint —
+    stays correct. A root link has no parent joint: its frame *position* is the
+    spawn / world reference (the editor authors it at the standing height), not an
+    offset to absorb. Folding that position into the root's own shapes would push
+    base_link's origin off its trunk and down to the model origin, yielding a
+    misleading (often negative) grounded spawn_z. So for root links we drop the
+    frame position — keeping the origin on the link's own geometry (the trunk) —
+    and bake only the rotation. Grounding then reports spawn_z as the trunk-centre
+    standing height.
+    """
     baked = copy.deepcopy(model)
-    link_by_id = {l.id: l for l in baked.links}
+    child_ids = {j.childLinkId for j in baked.joints}
 
     for link in baked.links:
         if _is_identity_frame(link.frame):
             continue
         fp, fr = link.frame.position, link.frame.rotation
+        if link.id not in child_ids:
+            # Root link: frame position is the spawn reference, not a geometry offset.
+            fp = Vec3()
 
         for shape in link.shapes:
             shape.localPosition, shape.localRotation = compose_pose(
