@@ -132,6 +132,50 @@ class PolicyHistogramCallback(BaseCallback):
         return True
 
 
+class RewardComponentsCallback(BaseCallback):
+    """Log per-term reward contributions so you can see which term sinks the total.
+
+    The env attaches the RewardEngine's per-term breakdown to ``info['reward_components']``
+    every step (quadruped_env.step). This callback accumulates each term's contribution
+    across the rollout (summed over all parallel envs and steps) and, at rollout end,
+    records the mean per-step contribution under ``reward_terms/<id>``. Positive series
+    are the shaped rewards; negative series are the penalties dragging the total down.
+    Pure diagnostics — it never alters the reward.
+    """
+
+    def __init__(self, verbose: int = 0) -> None:
+        super().__init__(verbose)
+        self._sums: dict[str, float] = {}
+        self._steps = 0
+
+    def _on_step(self) -> bool:
+        infos = self.locals.get("infos")
+        if not isinstance(infos, list):
+            return True
+        for info in infos:
+            if not isinstance(info, dict):
+                continue
+            comps = info.get("reward_components")
+            if not isinstance(comps, dict):
+                continue
+            self._steps += 1
+            for term_id, contrib in comps.items():
+                self._sums[term_id] = self._sums.get(term_id, 0.0) + float(contrib)
+        return True
+
+    def _on_rollout_end(self) -> None:
+        if self._steps == 0:
+            return
+        total = 0.0
+        for term_id, summed in self._sums.items():
+            mean = summed / self._steps
+            self.logger.record(f"reward_terms/{term_id}", mean)
+            total += mean
+        self.logger.record("reward_terms/_total_per_step", total)
+        self._sums.clear()
+        self._steps = 0
+
+
 class MonitorProgressCallback(BaseCallback):
     """Emit structured progress lines for Train Monitor log parsing."""
 
@@ -204,6 +248,9 @@ def build_tensorboard_callbacks(
     if logging.get("episode_stats", True):
         threshold = float(logging.get("success_reward_threshold", 499.0))
         callbacks.append(EpisodeStatsCallback(success_threshold=threshold))
+
+    if logging.get("reward_components", True):
+        callbacks.append(RewardComponentsCallback())
 
     stage_name = stage.get("name", "training") if stage else "training"
     stage_steps = int(stage.get("timesteps", config.get("total_timesteps", 0) or 0)) if stage else int(

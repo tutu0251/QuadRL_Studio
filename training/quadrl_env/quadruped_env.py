@@ -35,7 +35,14 @@ class QuadrupedEnv(gym.Env):
         )
 
         task = self._config.get("task") or {}
-        self._reward_engine = RewardEngine(task.get("reward_terms") or [])
+        default_joint_pos = np.array(
+            [artifacts.joint_gains[n].default_position for n in artifacts.joint_names],
+            dtype=np.float32,
+        )
+        self._reward_engine = RewardEngine(
+            task.get("reward_terms") or [],
+            default_joint_pos=default_joint_pos,
+        )
         self._termination = TerminationEngine(task.get("termination") or {})
         self._anchor_fall_threshold()
 
