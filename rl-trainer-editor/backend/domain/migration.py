@@ -112,6 +112,41 @@ def _migrate_stage(stage: CurriculumStage, project_heights: StandingHeightParams
     return _align_stage_heights(s, project_heights)
 
 
+def align_model_heights(model: RlTrainerModel) -> RlTrainerModel:
+    """Re-anchor curriculum + termination heights to the project's real grounded
+    height policy (geo default-pose export).
+
+    Curriculum templates and presets seed ``PLACEHOLDER_BODY_HEIGHT_M``; the real
+    per-robot height is only merged inside ``migrate_model`` (load / TrainerCore
+    init). Rebuilding a curriculum from a template afterwards (apply_curriculum)
+    reintroduces the placeholder, which then leaks into the exported training
+    config and makes the robot spawn below its own fall threshold. Call this after
+    any template (re)build and at export time so the placeholder can never reach a
+    training config when the project has a real ``height_policy`` on disk.
+    Idempotent.
+    """
+    project_heights = _load_project_heights(model.projectName)
+    model.curriculum.stages = [
+        _align_stage_heights(s, project_heights) for s in model.curriculum.stages
+    ]
+    for entry in model.curriculumLibrary:
+        entry.stages = [_align_stage_heights(s, project_heights) for s in entry.stages]
+    if project_heights is not None:
+        model.termination.fallBaseHeightThreshold = project_heights.fall_base_height_threshold
+        for term in model.rewardTerms:
+            if term.id == "height":
+                term.params["target_height"] = project_heights.target_body_height
+    else:
+        target = PLACEHOLDER_BODY_HEIGHT_M
+        expected_fall = fall_threshold_for_target(target)
+        if model.termination.fallBaseHeightThreshold != expected_fall:
+            model.termination.fallBaseHeightThreshold = expected_fall
+            for term in model.rewardTerms:
+                if term.id == "height":
+                    term.params["target_height"] = target
+    return model
+
+
 _CATALOG_IDS = frozenset({"none", "walk", "trot", "gallop"})
 
 

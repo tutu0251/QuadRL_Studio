@@ -1,7 +1,7 @@
 """RL trainer session logic."""
 from __future__ import annotations
 
-from domain.migration import migrate_model
+from domain.migration import align_model_heights, migrate_model
 from domain.models import (
     CheckpointInfo,
     CurriculumConfig,
@@ -116,6 +116,9 @@ class TrainerCore:
         if not self._model.gaitTypes:
             self._model.gaitTypes = default_gait_library()
         apply_curriculum_first_stage(self._model, config)
+        # Templates seed PLACEHOLDER_BODY_HEIGHT_M; re-anchor to this project's real
+        # grounded height policy so the placeholder never leaks into the export.
+        align_model_heights(self._model)
         total = curriculum_total_timesteps(config)
         self._model.recommendationNotes.append(
             f"Applied curriculum '{config.name}' ({len(config.stages)} stages, {total:,} steps)."

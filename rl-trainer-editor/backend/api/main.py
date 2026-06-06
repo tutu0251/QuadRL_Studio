@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from api.task_manager import task_manager
 from domain.models import RlTrainerModel, RlTrainerPatch, ValidationResult
 from domain.trainer_core import TrainerCore
+from domain.migration import align_model_heights
 from exporter.rl_yaml_exporter import export_rl_yaml
 from planner.curriculum import list_curricula
 from profiler.machine_profiler import profile_machine
@@ -363,6 +364,10 @@ async def _run_export(name: str, tid: str):
     try:
         core = _get_core(name)
         model = core.get_model()
+        # Final safety net: re-anchor heights to the project's real height_policy so
+        # a placeholder can never reach a training config, regardless of how the
+        # in-memory curriculum was built (template, preset, manual edit).
+        align_model_heights(model)
         result = RlTrainerValidator(model).validate()
         if not result.valid:
             task_manager.log(tid, "error", f"Validation failed: {len(result.errors)} errors")
