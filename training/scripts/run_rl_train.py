@@ -153,30 +153,89 @@ def _checkpoint_basename(config: dict, stage: dict | None) -> str:
     return re.sub(r"[^\w\-]+", "_", name).strip("_") or "ppo_final"
 
 
-def _make_vec_env(project_dir: Path, config: dict, stage: dict | None, num_envs: int):
+_MAX_ROS_DOMAIN_ID = 101  # ROS 2 + ROS_LOCALHOST_ONLY safe upper bound
+
+
+def _base_ros_domain_id(num_envs: int) -> int:
+    """Base DDS domain for parallel sims; envs use base..base+num_envs (eval is +num_envs)."""
+    raw = os.environ.get("ROS_DOMAIN_ID", "").strip()
+    try:
+        base = int(raw)
+    except ValueError:
+        base = 0
+    # Need num_envs train domains plus one for eval; fall back to 0 if it would overflow.
+    if base < 0 or base + num_envs > _MAX_ROS_DOMAIN_ID:
+        base = 0
+    return base
+
+
+def _make_vec_env(
+    project_dir: Path,
+    config: dict,
+    stage: dict | None,
+    num_envs: int,
+    *,
+    base_domain_id: int,
+):
+    from stable_baselines3.common.vec_env import (
+        DummyVecEnv,
+        SubprocVecEnv,
+        VecMonitor,
+    )
+
+    from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
+
+    resolve_sim_backend(project_dir)
+    num_envs = max(1, num_envs)
+
+    if num_envs == 1:
+        _log("[train] Sim backend: ros (num_envs=1, dummy vec env)")
+        fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=0)]
+        return VecMonitor(DummyVecEnv(fns))
+
+    last = base_domain_id + num_envs - 1
+    _log(
+        f"[train] Sim backend: ros (num_envs={num_envs}, subproc vec env, "
+        f"one Gazebo per env on ROS_DOMAIN_ID {base_domain_id}..{last})"
+    )
+    fns = [
+        make_vec_env_fn(
+            project_dir,
+            config,
+            stage=stage,
+            env_id=i,
+            ros_domain_id=base_domain_id + i,
+        )
+        for i in range(num_envs)
+    ]
+    # 'spawn' (not fork): rclpy and its executor thread are not fork-safe.
+    return VecMonitor(SubprocVecEnv(fns, start_method="spawn"))
+
+
+def _make_eval_vec_env(
+    project_dir: Path,
+    config: dict,
+    stage: dict | None,
+    *,
+    env_id: int,
+    ros_domain_id: int | None,
+):
+    """Eval env with distinct env_id (and DDS domain when parallel) so it does not
+    collide with the train envs."""
     from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
     from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
 
     resolve_sim_backend(project_dir)
-    if num_envs > 1:
-        _log("[warn] ROS sim supports one Gazebo instance — forcing num_envs=1")
-        num_envs = 1
-
-    _log(f"[train] Sim backend: ros (num_envs={num_envs})")
-
-    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=0)]
-    return VecMonitor(DummyVecEnv(fns))
-
-
-def _make_eval_vec_env(project_dir: Path, config: dict, stage: dict | None):
-    """Eval env with distinct env_id so ROS nodes do not collide with the train env."""
-    from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
-
-    from quadrl_env.env_factory import make_vec_env_fn, resolve_sim_backend
-
-    resolve_sim_backend(project_dir)
-    fns = [make_vec_env_fn(project_dir, config, stage=stage, env_id=1)]
+    fns = [
+        make_vec_env_fn(
+            project_dir,
+            config,
+            stage=stage,
+            env_id=env_id,
+            ros_domain_id=ros_domain_id,
+        )
+    ]
     return VecMonitor(DummyVecEnv(fns))
 
 
@@ -293,13 +352,31 @@ def _train_stage_sb3(
     _install_shutdown_handlers()
 
     hp = config.get("hyperparameters") or {}
-    num_envs = max(1, int((config.get("parallel") or {}).get("num_envs", 1)))
-    if num_envs > 1:
-        _log("[warn] ROS sim supports one Gazebo instance — forcing num_envs=1")
-        num_envs = 1
+    parallel = config.get("parallel") or {}
+    num_envs = max(1, int(parallel.get("num_envs", 1)))
+    vec_env_type = str(parallel.get("vec_env_type", "subproc")).lower()
+    if num_envs > 1 and vec_env_type == "dummy":
+        _log(
+            "[warn] vec_env_type=dummy cannot isolate per-env ROS graphs in one process — "
+            "using subproc (one Gazebo per env) for num_envs>1"
+        )
 
-    env = _make_vec_env(project_dir, config, stage, num_envs)
-    eval_env = _make_eval_vec_env(project_dir, config, stage)
+    base_domain_id = _base_ros_domain_id(num_envs)
+    if num_envs > 1:
+        # Each env runs its own Gazebo; confine cleanup to each env's own launch group
+        # so one env closing does not pkill the others. Set before subprocs spawn so
+        # they inherit it.
+        os.environ["QUADRL_GAZEBO_SCOPED_CLEANUP"] = "1"
+
+    env = _make_vec_env(project_dir, config, stage, num_envs, base_domain_id=base_domain_id)
+    eval_domain_id = base_domain_id + num_envs if num_envs > 1 else None
+    eval_env = _make_eval_vec_env(
+        project_dir,
+        config,
+        stage,
+        env_id=num_envs,
+        ros_domain_id=eval_domain_id,
+    )
 
     device = str(config.get("device", "auto"))
     if device == "auto":
@@ -577,6 +654,10 @@ if __name__ == "__main__":
         try:
             from quadrl_env.ros_sim import shutdown_shared_gazebo
 
+            # Final cleanup runs in the main process after all env subprocesses have
+            # exited, so a host-wide sweep is safe again — drop the scoped flag to
+            # reap any Gazebo strays parallel workers left behind.
+            os.environ.pop("QUADRL_GAZEBO_SCOPED_CLEANUP", None)
             shutdown_shared_gazebo()
         except Exception:
             pass

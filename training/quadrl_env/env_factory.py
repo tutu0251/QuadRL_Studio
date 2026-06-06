@@ -52,8 +52,15 @@ def make_vec_env_fn(
     *,
     stage: dict[str, Any] | None = None,
     env_id: int = 0,
+    ros_domain_id: int | None = None,
 ) -> Callable[[], QuadrupedEnv]:
     def _init() -> QuadrupedEnv:
+        # When parallel, each env runs in its own process (SubprocVecEnv); isolate
+        # its Gazebo/ROS graph on a distinct DDS domain so topics like /joint_states
+        # and /controller_manager do not collide across instances. Must be set before
+        # rclpy.init / the Gazebo launch, both of which read ROS_DOMAIN_ID at startup.
+        if ros_domain_id is not None:
+            os.environ["ROS_DOMAIN_ID"] = str(ros_domain_id)
         return make_quadruped_env(
             project_dir,
             config,

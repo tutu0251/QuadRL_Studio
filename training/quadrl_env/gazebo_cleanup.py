@@ -46,10 +46,17 @@ def terminate_process_group(root_pid: int, *, grace_sec: float = 12.0) -> None:
             time.sleep(0.15)
 
 
-def cleanup_training_gazebo(launch_pid: int | None = None) -> None:
-    """Best-effort shutdown of training Gazebo (launch tree + stray processes)."""
+def cleanup_training_gazebo(launch_pid: int | None = None, *, scoped: bool = False) -> None:
+    """Best-effort shutdown of training Gazebo (launch tree + stray processes).
+
+    When ``scoped`` is True, only the given launch process group is terminated and the
+    host-wide ``pkill`` sweep is skipped. This is required under parallel training, where
+    several Gazebo instances run at once: a global pkill would kill the other envs' sims.
+    """
     if launch_pid is not None and launch_pid > 0:
         terminate_process_group(launch_pid)
+    if scoped:
+        return
     pkill_gazebo_strays(sig=signal.SIGTERM)
     time.sleep(0.4)
     pkill_gazebo_strays(sig=signal.SIGKILL)

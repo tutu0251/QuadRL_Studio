@@ -44,7 +44,9 @@ Environment variable: `QUADRL_SIM_BACKEND` (same as `--sim-backend`).
 
 ## Simulation
 
-Training uses **ROS 2 + Gazebo** only: launches `sim.launch.py`, subscribes to observation topics, and publishes `joint_trajectory_controller` goals. Only one parallel env is supported (`num_envs` > 1 is clamped to 1).
+Training uses **ROS 2 + Gazebo** only: launches `sim.launch.py`, subscribes to observation topics, and publishes `joint_trajectory_controller` goals.
+
+**Parallel envs.** `parallel.num_envs > 1` runs that many envs concurrently via SB3 `SubprocVecEnv` — one Gazebo instance per env, each isolated on its own `ROS_DOMAIN_ID` (`base..base+num_envs`, with the eval env at `base+num_envs`). `vec_env_type` is forced to `subproc` when `num_envs > 1` (a single-process `dummy` vec env cannot isolate per-env ROS graphs). `num_envs = 1` keeps the original single shared-Gazebo path unchanged. Expect roughly `num_envs ×` the RAM/CPU of one sim, so size `num_envs` to the host (the PPO Planner's parallel guard recommends a ceiling). Under a curriculum, sims are restarted per stage rather than reused.
 
 Train Monitor (`train-monitor/`) calls this script automatically.
 

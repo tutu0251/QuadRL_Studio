@@ -41,6 +41,12 @@ def _keep_gazebo_launch() -> bool:
     return raw in ("1", "true", "yes", "on")
 
 
+def _scoped_gazebo_cleanup() -> bool:
+    """True under parallel training: confine cleanup to this process' own launch group."""
+    raw = os.environ.get("QUADRL_GAZEBO_SCOPED_CLEANUP", "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 def _ensure_rclpy_initialized() -> None:
     """Initialize rclpy once per process (EvalCallback uses a second env)."""
     global _rclpy_refcount
@@ -116,7 +122,7 @@ def shutdown_shared_gazebo() -> None:
     _shared_launch_proc = None
     _bootstrap_done = False
     launch_pid = proc.pid if proc is not None and proc.poll() is None else None
-    cleanup_training_gazebo(launch_pid)
+    cleanup_training_gazebo(launch_pid, scoped=_scoped_gazebo_cleanup())
 
 
 def _register_gazebo_atexit() -> None:
@@ -170,7 +176,7 @@ def _release_gazebo() -> None:
     _shared_launch_proc = None
     if proc.poll() is None:
         terminate_process_group(proc.pid)
-    cleanup_training_gazebo()
+    cleanup_training_gazebo(scoped=_scoped_gazebo_cleanup())
 
 
 def ros_stack_available(*, workspace_setup: Path | str | None = None) -> bool:
