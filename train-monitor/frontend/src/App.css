@@ -829,6 +829,25 @@ body {
   color: var(--text);
 }
 
+/* SB3 metric tables — render the consecutive rows as one aligned monospace
+   block (the original table) instead of one decorated log line per row. */
+.console-table-row {
+  align-items: flex-start;
+}
+
+.console-table {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre;
+  overflow-x: auto;
+  color: #c8d0dc;
+}
+
 .console-message a {
   color: var(--accent-bright);
   text-decoration: underline;

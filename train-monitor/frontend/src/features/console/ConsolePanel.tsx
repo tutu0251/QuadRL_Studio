@@ -26,6 +26,11 @@ function renderMessage(message: string) {
   return parts.length === 1 ? parts[0] : parts;
 }
 
+// SB3's HumanOutputFormat prints aligned metric tables (`| key | value |` rows
+// and `-----` dividers). These must render as a fixed monospace grid — wrapping
+// with word-break destroys the column alignment, so they get white-space: pre.
+const TABLE_LINE_RE = /^\s*(\|.*\|\s*|-{3,})\s*$/;
+
 function matchesFilter(message: string, filter: string | null): boolean {
   if (!filter) return true;
   const lower = message.toLowerCase();
@@ -53,6 +58,47 @@ function LogLine({ entry }: { entry: LogEntry }) {
   );
 }
 
+// A run of consecutive SB3 table rows, rendered as one preformatted block so it
+// reads as the original aligned table instead of one decorated log line per row.
+function TableBlock({ entries }: { entries: LogEntry[] }) {
+  const first = entries[0];
+  const text = entries.map((e) => e.message).join("\n");
+  return (
+    <div className="console-line console-table-row" role="listitem">
+      <span className="console-ts" title={first.timestamp}>
+        {formatLogTimestamp(first.timestamp)}
+      </span>
+      <pre className="console-table">{text}</pre>
+    </div>
+  );
+}
+
+type ConsoleItem =
+  | { kind: "log"; entry: LogEntry }
+  | { kind: "table"; id: string; entries: LogEntry[] };
+
+/** Coalesce consecutive SB3 table rows so they render as a single table block. */
+function groupConsoleItems(entries: LogEntry[]): ConsoleItem[] {
+  const items: ConsoleItem[] = [];
+  let table: LogEntry[] = [];
+  const flush = () => {
+    if (table.length) {
+      items.push({ kind: "table", id: table[0].id, entries: table });
+      table = [];
+    }
+  };
+  for (const entry of entries) {
+    if (TABLE_LINE_RE.test(entry.message)) {
+      table.push(entry);
+    } else {
+      flush();
+      items.push({ kind: "log", entry });
+    }
+  }
+  flush();
+  return items;
+}
+
 export function ConsolePanel() {
   const logs = useMonitorStore((s) => s.logs);
   const consoleFilter = useMonitorStore((s) => s.consoleFilter);
@@ -63,6 +109,8 @@ export function ConsolePanel() {
     () => logs.filter((entry) => matchesFilter(entry.message, consoleFilter)),
     [logs, consoleFilter]
   );
+
+  const items = useMemo(() => groupConsoleItems(visible), [visible]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -88,7 +136,13 @@ export function ConsolePanel() {
             </span>
           </div>
         ) : (
-          visible.map((entry) => <LogLine key={entry.id} entry={entry} />)
+          items.map((item) =>
+            item.kind === "table" ? (
+              <TableBlock key={item.id} entries={item.entries} />
+            ) : (
+              <LogLine key={item.entry.id} entry={item.entry} />
+            )
+          )
         )}
         <div ref={bottomRef} />
       </div>
