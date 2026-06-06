@@ -155,17 +155,125 @@ def _checkpoint_basename(config: dict, stage: dict | None) -> str:
 
 _MAX_ROS_DOMAIN_ID = 101  # ROS 2 + ROS_LOCALHOST_ONLY safe upper bound
 
+# Resolved once per process and reused for every curriculum stage: the parallel envs of a
+# stage reuse the previous stage's still-running Gazebo servers (QUADRL_KEEP_GAZEBO), so the
+# domain block must not drift between stages.
+_resolved_base_domain_id: int | None = None
+
+
+def _occupied_ros_domains() -> set[int]:
+    """ROS_DOMAIN_IDs currently held by other processes we can see (our own user's procs).
+
+    Two training runs on one host used to both default to base 0 and cross-wire their DDS
+    graphs / Gazebo partitions; worse, a hard crash (OOM-kill / ``pkill -9``) can orphan a
+    run's Gazebo servers, which keep holding domains 0..N until reaped. Scanning lets the
+    next run step around both. We can only read ``environ`` for our own processes — other
+    users' sims are invisible and simply skipped (nothing we could deconflict with anyway).
+    """
+    occupied: set[int] = set()
+    my_pid = os.getpid()
+    try:
+        entries = os.listdir("/proc")
+    except OSError:
+        return occupied
+    prefix = b"ROS_DOMAIN_ID="
+    for entry in entries:
+        if not entry.isdigit() or int(entry) == my_pid:
+            continue
+        try:
+            with open(f"/proc/{entry}/environ", "rb") as fh:
+                raw = fh.read()
+        except OSError:
+            continue  # process gone, or not ours (EACCES)
+        domain: int | None = None
+        for field in raw.split(b"\0"):
+            if field.startswith(prefix):
+                try:
+                    domain = int(field[len(prefix) :])
+                except ValueError:
+                    domain = None
+                break
+        if domain is None:
+            continue
+        # The ros2 CLI auto-spawns one long-lived `ros2 daemon` per domain (a shared graph
+        # cache, not an exclusive sim resource); it lingers after a run ends. Ignore it, or
+        # every successive run would climb to ever-higher domains and exhaust the range.
+        try:
+            with open(f"/proc/{entry}/cmdline", "rb") as fh:
+                cmdline = fh.read()
+        except OSError:
+            cmdline = b""
+        if b"ros2cli.daemon" in cmdline:
+            continue
+        occupied.add(domain)
+    return occupied
+
+
+def _free_domain_block(num_envs: int, occupied: set[int], preferred: int | None) -> int | None:
+    """Lowest base whose block [base .. base+num_envs] (train envs + eval) avoids ``occupied``.
+
+    ``preferred`` (an explicitly requested base) is tried first. Returns None if no block
+    fits under the safe ceiling.
+    """
+
+    def fits(base: int) -> bool:
+        if base < 0 or base + num_envs > _MAX_ROS_DOMAIN_ID:
+            return False
+        return all((base + offset) not in occupied for offset in range(num_envs + 1))
+
+    if preferred is not None and fits(preferred):
+        return preferred
+    for base in range(0, _MAX_ROS_DOMAIN_ID - num_envs + 1):
+        if fits(base):
+            return base
+    return None
+
 
 def _base_ros_domain_id(num_envs: int) -> int:
-    """Base DDS domain for parallel sims; envs use base..base+num_envs (eval is +num_envs)."""
+    """Pick this run's base DDS domain, stepping around domains already in use.
+
+    Envs use base..base+num_envs-1; eval uses base+num_envs. The block is chosen to avoid
+    domains held by other visible processes (a second concurrent run, or a crashed run's
+    orphaned Gazebo servers), so runs no longer all collide on domain 0. An explicit
+    ROS_DOMAIN_ID is honoured when its block is free, otherwise it is shifted to a free one.
+    Resolved once and cached for the lifetime of the run.
+    """
+    global _resolved_base_domain_id
+    if _resolved_base_domain_id is not None:
+        return _resolved_base_domain_id
+
     raw = os.environ.get("ROS_DOMAIN_ID", "").strip()
     try:
-        base = int(raw)
+        preferred: int | None = int(raw)
     except ValueError:
-        base = 0
-    # Need num_envs train domains plus one for eval; fall back to 0 if it would overflow.
-    if base < 0 or base + num_envs > _MAX_ROS_DOMAIN_ID:
-        base = 0
+        preferred = None
+    if preferred is not None and preferred < 0:
+        preferred = None
+
+    occupied = _occupied_ros_domains()
+    base = _free_domain_block(num_envs, occupied, preferred)
+
+    if base is None:
+        # Nothing free under the ceiling; keep the old deterministic behaviour but warn.
+        base = preferred if (preferred is not None and preferred + num_envs <= _MAX_ROS_DOMAIN_ID) else 0
+        _log(
+            f"[warn] No free ROS_DOMAIN_ID block of size {num_envs + 1} under "
+            f"{_MAX_ROS_DOMAIN_ID} (in use: {sorted(occupied)}); falling back to base "
+            f"{base}. Concurrent runs may collide — set ROS_DOMAIN_ID to a free value."
+        )
+    elif preferred is not None and base != preferred:
+        clash = sorted(d for d in occupied if preferred <= d <= preferred + num_envs)
+        _log(
+            f"[warn] Requested ROS_DOMAIN_ID base {preferred} overlaps in-use domains "
+            f"{clash}; shifted to free base {base} (domains {base}..{base + num_envs})."
+        )
+    elif occupied:
+        _log(
+            f"[train] ROS_DOMAIN_ID base {base} (domains {base}..{base + num_envs}); "
+            f"stepped around in-use {sorted(occupied)}."
+        )
+
+    _resolved_base_domain_id = base
     return base
 
 

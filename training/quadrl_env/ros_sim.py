@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import atexit
+import ctypes
 import os
 import signal
 import subprocess
@@ -132,6 +133,42 @@ def _register_gazebo_atexit() -> None:
         _gazebo_atexit_registered = True
 
 
+_PR_SET_PDEATHSIG = 1  # <linux/prctl.h>
+
+
+def _gazebo_preexec() -> None:
+    """Child-side setup for the Gazebo launch (runs after fork, before exec).
+
+    1. ``setsid()`` — put the launch in its own session/group so scoped cleanup can signal
+       the whole tree without touching sibling envs (replaces ``start_new_session=True``).
+    2. ``PR_SET_PDEATHSIG`` — ask the kernel to send SIGTERM the instant our parent (this
+       env's worker process) dies, *even on SIGKILL*. A graceful exit cleans up via the
+       refcount path; this covers the hard-crash case (OOM-kill / ``pkill -9`` of the
+       worker tree) that would otherwise orphan the Gazebo server holding its DDS domain.
+    """
+    os.setsid()
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        libc.prctl(_PR_SET_PDEATHSIG, signal.SIGTERM, 0, 0, 0)
+    except Exception:
+        pass  # best-effort; refcount/atexit cleanup still applies
+
+
+def _reaping_launch_command(launch: str) -> str:
+    """Wrap the launch so the bash leader reaps its whole process group on death.
+
+    PR_SET_PDEATHSIG only signals the immediate bash child; the real sim tree (ros2 launch
+    → gz server, bridges) are its descendants. On TERM/INT/HUP, bash kills its own group
+    (it is the session leader from ``setsid``), escalating TERM→KILL so nothing survives.
+    """
+    return (
+        "__qrl_reap() { trap - TERM INT HUP; kill -TERM 0 2>/dev/null; "
+        "sleep 5; kill -KILL 0 2>/dev/null; }; "
+        "trap __qrl_reap TERM INT HUP; "
+        f"( {launch} ) & __qrl_pid=$!; wait \"$__qrl_pid\""
+    )
+
+
 def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
     """Launch Gazebo once; additional backends attach to the same sim."""
     global _gazebo_refcount, _shared_launch_proc, _bootstrap_done
@@ -141,12 +178,12 @@ def _acquire_gazebo(artifacts: ProjectArtifacts) -> subprocess.Popen[str]:
         headless = _gazebo_headless_from_env()
         launch = build_sim_launch_command(artifacts, headless=headless)
         _shared_launch_proc = subprocess.Popen(
-            ["bash", "-lc", launch],
+            ["bash", "-lc", _reaping_launch_command(launch)],
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
-            start_new_session=True,
+            preexec_fn=_gazebo_preexec,
         )
         _register_gazebo_atexit()
         ok, err = run_gazebo_bootstrap(artifacts, _shared_launch_proc, env)
