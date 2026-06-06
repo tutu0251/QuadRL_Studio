@@ -101,6 +101,7 @@ class TrainStatus(BaseModel):
     rollout_count: Optional[int] = None
     episode_count: Optional[int] = None
     last_termination_reason: Optional[str] = None
+    termination_counts: dict[str, int] = Field(default_factory=dict)
     resume_checkpoint: Optional[str] = None
     dry_run: bool = False
     gazebo_headless: bool = True

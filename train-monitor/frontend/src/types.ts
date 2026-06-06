@@ -84,6 +84,7 @@ export type TrainStatus = {
   rollout_count?: number | null;
   episode_count?: number | null;
   last_termination_reason?: string | null;
+  termination_counts?: Record<string, number> | null;
   resume_checkpoint?: string | null;
   dry_run: boolean;
   gazebo_headless?: boolean;

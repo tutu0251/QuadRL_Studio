@@ -88,7 +88,27 @@ class TrainManager:
                 self._state.pid = None
             self._process = None
 
-    def _update_progress(self, line: str) -> None:
+    def _update_progress(self, line: str) -> bool:
+        """Update the live training status from a stdout line.
+
+        Returns True when the line is high-frequency progress/episode telemetry
+        (the per-episode and per-rollout ``[train]`` lines). The caller suppresses
+        those from the console — their data is surfaced in the status bar instead.
+        """
+        episode_match = re.search(
+            r"\[train\] episode=(?P<episode>\d+) reason=(?P<reason>\S+)"
+            r" steps=(?P<steps>\d+) reward=(?P<reward>\S+)",
+            line,
+        )
+        if episode_match:
+            self._state.episode_count = int(episode_match.group("episode"))
+            reason = episode_match.group("reason")
+            if reason and reason != "-":
+                self._state.last_termination_reason = reason
+                counts = dict(self._state.termination_counts)
+                counts[reason] = counts.get(reason, 0) + 1
+                self._state.termination_counts = counts
+            return True
         stage_match = re.search(r"Stage (\d+/\d+): (.+)", line)
         if stage_match:
             self._state.current_stage = stage_match.group(2).strip()
@@ -112,11 +132,13 @@ class TrainManager:
             term = summary_match.group("term")
             if term and term != "-":
                 self._state.last_termination_reason = term
+            return True
         run_match = re.search(r"TensorBoard run root: (.+)", line)
         if run_match:
             run_path = Path(run_match.group(1).strip())
             self._run_id = run_path.name
             self._state.run_id = self._run_id
+        return False
 
     def get_status(self, project: Optional[str] = None) -> TrainStatus:
         self._sync_process_state()
@@ -252,8 +274,12 @@ class TrainManager:
                     break
                 text = line.rstrip()
                 if text:
-                    self._update_progress(text)
-                    self._emit("info", text)
+                    is_telemetry = self._update_progress(text)
+                    # Progress/episode telemetry is surfaced in the status bar, and
+                    # per-step spawn chatter is noise — keep the console readable for
+                    # everything else.
+                    if not is_telemetry and not text.startswith("[train-spawn]"):
+                        self._emit("info", text)
                     if self._run_id and self._project:
                         run_registry.write_monitor_state(
                             self._project,

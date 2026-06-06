@@ -950,6 +950,22 @@ body {
   color: var(--tb-orange);
 }
 
+.status-train-stat {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.status-term-counts {
+  display: flex;
+  gap: 10px;
+  font-family: var(--font-mono);
+}
+
+.status-term-count {
+  color: var(--tb-orange);
+  white-space: nowrap;
+}
+
 .status-ports {
   margin-left: auto;
   font-family: var(--font-mono);

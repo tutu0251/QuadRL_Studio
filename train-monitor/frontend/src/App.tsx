@@ -405,7 +405,12 @@ export default function App() {
         </ConsoleSplitter>
       </div>
 
-      <StatusBar connected={connected} project={project} trainingActive={trainingActive} />
+      <StatusBar
+        connected={connected}
+        project={project}
+        trainingActive={trainingActive}
+        trainStatus={trainStatus}
+      />
     </div>
   );
 }
