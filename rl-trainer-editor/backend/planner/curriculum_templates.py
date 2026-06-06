@@ -93,7 +93,9 @@ def _build_stage(
         termination=TerminationConfig(
             maxEpisodeSteps=800 + order * 200,
             fallBaseHeightThreshold=heights_for_target(PLACEHOLDER_BODY_HEIGHT_M).fall_base_height_threshold,
-            maxTiltRad=0.75 + order * 0.05,
+            # Kept in sync with recommend_stage_params (recommender.py), which
+            # overwrites this block via _build_stage; same formula avoids drift.
+            maxTiltRad=min(1.2, 0.75 + order * 0.06),
         ),
         advanceCriteria=CurriculumAdvanceCriteria(
             minMeanEpisodeReward=max(0.25, 0.65 - order * 0.06),

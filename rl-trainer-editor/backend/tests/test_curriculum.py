@@ -15,7 +15,7 @@ from validator.validator import RlTrainerValidator
 def test_stand_sprint_has_seven_stages():
     cur = build_stand_sprint_curriculum()
     assert len(cur.stages) == 7
-    assert cur.stages[0].id == "none"
+    assert cur.stages[0].id == "stand"
     assert cur.stages[0].name == "Stand"
     assert cur.stages[0].gaitTypeIds == ["none"]
     assert cur.stages[1].id == "recover"

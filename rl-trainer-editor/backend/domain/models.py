@@ -7,6 +7,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from planner.standing_heights import PLACEHOLDER_BODY_HEIGHT_M
+
 
 def new_id() -> str:
     return str(uuid4())
@@ -110,7 +112,7 @@ class StageCommand(BaseModel):
     targetLinVelX: float = 0.0
     targetLinVelY: float = 0.0
     targetAngVelZ: float = 0.0
-    targetBodyHeight: float = 0.35
+    targetBodyHeight: float = PLACEHOLDER_BODY_HEIGHT_M
     gaitSpeedScale: float = 1.0
 
 
