@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -82,18 +83,30 @@ def test_make_vec_env_fn_sets_domain_id_before_env_construction() -> None:
 
     def _fake_make_env(project_dir, config, *, stage=None, env_id=0):
         seen["domain"] = os.environ.get("ROS_DOMAIN_ID")
+        seen["ign_partition"] = os.environ.get("IGN_PARTITION")
+        seen["gz_partition"] = os.environ.get("GZ_PARTITION")
+        seen["ign_log_path"] = os.environ.get("IGN_LOG_PATH")
         seen["env_id"] = env_id
         return MagicMock()
 
-    fn = ef.make_vec_env_fn(Path("/tmp/p"), {}, env_id=3, ros_domain_id=7)
-    with patch.object(ef, "make_quadruped_env", _fake_make_env), patch.dict(
-        os.environ, {}, clear=False
-    ):
-        os.environ.pop("ROS_DOMAIN_ID", None)
-        fn()
+    with tempfile.TemporaryDirectory() as tmp:
+        proj = Path(tmp)
+        fn = ef.make_vec_env_fn(proj, {}, env_id=3, ros_domain_id=7)
+        with patch.object(ef, "make_quadruped_env", _fake_make_env), patch.dict(
+            os.environ, {}, clear=False
+        ):
+            os.environ.pop("ROS_DOMAIN_ID", None)
+            fn()
 
-    assert seen["domain"] == "7"
-    assert seen["env_id"] == 3
+        assert seen["domain"] == "7"
+        # gz-transport has its own graph; ROS_DOMAIN_ID does not isolate it.
+        assert seen["ign_partition"] == "quadrl_7"
+        assert seen["gz_partition"] == "quadrl_7"
+        # Per-env log dir, created on the project so concurrent servers don't share it.
+        expected_log = proj / "gazebo_logs" / "quadrl_7"
+        assert seen["ign_log_path"] == str(expected_log)
+        assert expected_log.is_dir()
+        assert seen["env_id"] == 3
 
 
 def test_make_vec_env_fn_leaves_domain_unset_when_not_parallel() -> None:
@@ -101,6 +114,8 @@ def test_make_vec_env_fn_leaves_domain_unset_when_not_parallel() -> None:
 
     def _fake_make_env(project_dir, config, *, stage=None, env_id=0):
         seen["domain"] = os.environ.get("ROS_DOMAIN_ID", "__unset__")
+        seen["ign_partition"] = os.environ.get("IGN_PARTITION", "__unset__")
+        seen["ign_log_path"] = os.environ.get("IGN_LOG_PATH", "__unset__")
         return MagicMock()
 
     fn = ef.make_vec_env_fn(Path("/tmp/p"), {}, env_id=0, ros_domain_id=None)
@@ -108,9 +123,13 @@ def test_make_vec_env_fn_leaves_domain_unset_when_not_parallel() -> None:
         os.environ, {}, clear=False
     ):
         os.environ.pop("ROS_DOMAIN_ID", None)
+        os.environ.pop("IGN_PARTITION", None)
+        os.environ.pop("IGN_LOG_PATH", None)
         fn()
 
     assert seen["domain"] == "__unset__"
+    assert seen["ign_partition"] == "__unset__"
+    assert seen["ign_log_path"] == "__unset__"
 
 
 # --- scoped Gazebo cleanup (parallel envs must not pkill each other) -------------

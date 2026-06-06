@@ -55,12 +55,28 @@ def make_vec_env_fn(
     ros_domain_id: int | None = None,
 ) -> Callable[[], QuadrupedEnv]:
     def _init() -> QuadrupedEnv:
-        # When parallel, each env runs in its own process (SubprocVecEnv); isolate
-        # its Gazebo/ROS graph on a distinct DDS domain so topics like /joint_states
-        # and /controller_manager do not collide across instances. Must be set before
-        # rclpy.init / the Gazebo launch, both of which read ROS_DOMAIN_ID at startup.
+        # When parallel, each env runs in its own process (SubprocVecEnv); isolate it on
+        # two independent transport layers. Both must be set before rclpy.init and the
+        # Gazebo launch (which inherit this process' env):
+        #   1. ROS_DOMAIN_ID — isolates the ROS 2 / DDS graph (/joint_states,
+        #      /controller_manager, the ros_gz service names).
+        #   2. IGN_PARTITION / GZ_PARTITION — isolates Gazebo's own ign-transport graph.
+        #      ROS_DOMAIN_ID does NOT reach it, and every env uses the same world name,
+        #      so without a partition the ros_gz bridges would cross-wire one server's
+        #      gz topics (e.g. /world/flat/pose/info) into another env's ROS state.
         if ros_domain_id is not None:
             os.environ["ROS_DOMAIN_ID"] = str(ros_domain_id)
+            partition = f"quadrl_{ros_domain_id}"
+            os.environ["IGN_PARTITION"] = partition  # Fortress / ign-transport
+            os.environ["GZ_PARTITION"] = partition  # newer gz-transport alias
+            # Give each env its own ign-common log dir (default is the shared
+            # ~/.ignition); concurrent servers otherwise write auto_default.log into
+            # the same directory. IGN_LOG_PATH is read by ignition-common (Fortress);
+            # GZ_LOG_PATH is the newer alias.
+            log_dir = project_dir / "gazebo_logs" / partition
+            log_dir.mkdir(parents=True, exist_ok=True)
+            os.environ["IGN_LOG_PATH"] = str(log_dir)
+            os.environ["GZ_LOG_PATH"] = str(log_dir)
         return make_quadruped_env(
             project_dir,
             config,
