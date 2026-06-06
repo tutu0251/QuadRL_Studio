@@ -20,12 +20,12 @@ from planner.reward_catalog import locomotion_reward_terms, stand_reward_terms
 # (stage_id, gait_type_id, name, description, timesteps, target_lin_vel_x)
 _STAGE_DEFS = [
     ("stand", "none", "Stand", "Learn stable balance before any commanded motion.", 400_000, 0.0),
-    ("recover", "none", "Recover", "Recover posture after perturbations.", 350_000, 0.0),
-    ("walk", "walk", "Walk", "Comfortable walking with velocity tracking.", 500_000, 0.4),
-    ("trot", "trot", "Trot", "Diagonal gait at moderate speed.", 550_000, 0.8),
-    ("pace", "pace", "Pace / Lateral trot", "Lateral pair gait.", 500_000, 1.0),
-    ("bound", "bound", "Bound", "Front/rear pair bounding.", 550_000, 1.2),
-    ("gallop", "gallop", "Gallop", "Maximum speed gallop — final stage.", 650_000, 1.5),
+    ("recover", "none", "Recover", "Recover posture after perturbations.", 400_000, 0.0),
+    ("walk", "walk", "Walk", "Comfortable walking with velocity tracking.", 550_000, 0.5),
+    ("trot", "trot", "Trot", "Diagonal gait at moderate speed.", 600_000, 0.8),
+    ("pace", "pace", "Pace / Lateral trot", "Lateral pair gait.", 600_000, 1.0),
+    ("bound", "bound", "Bound", "Front/rear pair bounding.", 650_000, 1.2),
+    ("gallop", "gallop", "Gallop", "High speed gallop — final stage.", 700_000, 1.2),
 ]
 
 
@@ -41,21 +41,21 @@ def _disturbance_for_stage(stage_id: str, rough: bool) -> DisturbanceConfig:
     if not rough:
         return DisturbanceConfig()
     scale = {
-        "none": 0.15,
-        "recover": 0.25,
-        "walk": 0.35,
-        "trot": 0.45,
-        "pace": 0.55,
-        "bound": 0.65,
-        "gallop": 0.75,
+        "none": 0.1,
+        "recover": 0.15,
+        "walk": 0.25,
+        "trot": 0.35,
+        "pace": 0.45,
+        "bound": 0.55,
+        "gallop": 0.65,
     }.get(stage_id, 0.3)
     return DisturbanceConfig(
         enabled=True,
-        pushForceN=15 + scale * 30,
-        pushIntervalSteps=max(300, int(800 - scale * 400)),
-        terrainRoughness=scale,
-        lateralImpulseN=5 + scale * 15,
-        randomOrientationNoiseRad=0.02 + scale * 0.06,
+        pushForceN=10 + scale * 25,
+        pushIntervalSteps=max(300, int(800 - scale * 300)),
+        terrainRoughness=scale * 0.8,
+        lateralImpulseN=5 + scale * 12,
+        randomOrientationNoiseRad=0.02 + scale * 0.05,
     )
 
 
@@ -76,7 +76,7 @@ def _build_stage(
         targetLinVelY=0.0,
         targetAngVelZ=0.0,
         targetBodyHeight=PLACEHOLDER_BODY_HEIGHT_M,
-        gaitSpeedScale=1.0 + order * 0.05,
+        gaitSpeedScale=1.0 + order * 0.08,
     )
     stage = CurriculumStage(
         id=stage_id,
@@ -91,14 +91,14 @@ def _build_stage(
         disturbance=_disturbance_for_stage(stage_id, rough),
         rewardTerms=rewards,
         termination=TerminationConfig(
-            maxEpisodeSteps=500 + order * 150,
+            maxEpisodeSteps=800 + order * 200,
             fallBaseHeightThreshold=heights_for_target(PLACEHOLDER_BODY_HEIGHT_M).fall_base_height_threshold,
-            maxTiltRad=0.55 + order * 0.04,
+            maxTiltRad=0.75 + order * 0.05,
         ),
         advanceCriteria=CurriculumAdvanceCriteria(
-            minMeanEpisodeReward=max(0.2, 0.55 - order * 0.05),
-            minEpisodeLengthFrac=max(0.55, 0.85 - order * 0.04),
-            maxFallRate=min(0.35, 0.15 + order * 0.03),
+            minMeanEpisodeReward=max(0.25, 0.65 - order * 0.06),
+            minEpisodeLengthFrac=max(0.65, 0.90 - order * 0.04),
+            maxFallRate=min(0.20, 0.08 + order * 0.02),
         ),
     )
     recommended = recommend_stage_params(stage, rough)

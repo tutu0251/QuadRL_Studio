@@ -128,8 +128,8 @@ def merge_ppo_into_rl(config: dict, project_dir: Path) -> dict:
 @dataclass
 class JointGains:
     name: str
-    kp: float = 20.0
-    kd: float = 0.5
+    kp: float = 30.0
+    kd: float = 0.9
     default_position: float = 0.0
     action_scale: float = 0.25
     effort_limit: float = 80.0

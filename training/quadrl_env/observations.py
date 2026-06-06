@@ -144,7 +144,7 @@ class ObservationBuilder:
 
 def _default_terms() -> list[dict[str, Any]]:
     return [
-        {"id": "joint_positions", "enabled": True, "available": True, "scale": 2.0, "offset": 0.0, "clip_min": -1.0, "clip_max": 1.0},
+        {"id": "joint_positions", "enabled": True, "available": True, "scale": 3.14, "offset": 0.0, "clip_min": -1.0, "clip_max": 1.0},
         {"id": "joint_velocities", "enabled": True, "available": True, "scale": 6.0, "offset": 0.0, "clip_min": -1.0, "clip_max": 1.0},
         {"id": "base_lin_vel", "enabled": True, "available": True, "scale": 2.0, "offset": 0.0, "clip_min": -1.0, "clip_max": 1.0},
         {"id": "base_ang_vel", "enabled": True, "available": True, "scale": 8.0, "offset": 0.0, "clip_min": -1.0, "clip_max": 1.0},

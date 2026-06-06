@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 HEIGHT_REFERENCE = "base_link_origin_z"
 FALL_DROP_MARGIN_M = 0.10
-PLACEHOLDER_BODY_HEIGHT_M = 0.35
+PLACEHOLDER_BODY_HEIGHT_M = 0.2933
 
 
 @dataclass(frozen=True)

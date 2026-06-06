@@ -48,7 +48,7 @@ class PpoHyperparams(BaseModel):
     gamma: float = 0.99
     gaeLambda: float = 0.95
     clipRange: float = 0.2
-    entCoef: float = 0.0
+    entCoef: float = 0.001
     vfCoef: float = 0.5
     maxGradNorm: float = 0.5
     totalTimesteps: int = 1_000_000

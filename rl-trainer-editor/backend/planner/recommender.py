@@ -38,16 +38,20 @@ class StageRecommendation:
 
 _VEL_BY_GAIT = {
     "none": 0.0,
-    "walk": 0.4,
+    "walk": 0.5,
     "trot": 0.8,
-    "gallop": 1.5,
+    "pace": 1.0,
+    "bound": 1.2,
+    "gallop": 1.2,
 }
 
 _TIMESTEPS_BY_GAIT = {
     "none": 400_000,
-    "walk": 500_000,
-    "trot": 550_000,
-    "gallop": 650_000,
+    "walk": 550_000,
+    "trot": 600_000,
+    "pace": 600_000,
+    "bound": 650_000,
+    "gallop": 700_000,
 }
 
 
@@ -197,9 +201,9 @@ def recommend_stage_params(
 
     is_stand = stage_is_stand_only(stage)
     termination = merge_termination_config(stage.termination)
-    termination.maxEpisodeSteps = 500 + stage.order * 150
+    termination.maxEpisodeSteps = 800 + stage.order * 200
     termination.fallBaseHeightThreshold = heights.fall_base_height_threshold
-    termination.maxTiltRad = min(0.85, 0.55 + stage.order * 0.04)
+    termination.maxTiltRad = min(1.2, 0.75 + stage.order * 0.06)
     termination.terminationTerms = recommend_termination_terms_for_stage(
         termination.terminationTerms,
         cmd,
@@ -208,9 +212,9 @@ def recommend_stage_params(
         rough=rough,
     )
     advance = CurriculumAdvanceCriteria(
-        minMeanEpisodeReward=max(0.2, 0.55 - stage.order * 0.05),
-        minEpisodeLengthFrac=max(0.55, 0.85 - stage.order * 0.04),
-        maxFallRate=min(0.35, 0.15 + stage.order * 0.03),
+        minMeanEpisodeReward=max(0.25, 0.65 - stage.order * 0.06),
+        minEpisodeLengthFrac=max(0.65, 0.90 - stage.order * 0.04),
+        maxFallRate=min(0.20, 0.08 + stage.order * 0.02),
     )
     reward_terms = _recommend_reward_terms(stage)
     param_enabled = recommend_param_enabled(
