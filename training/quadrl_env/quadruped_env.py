@@ -37,6 +37,7 @@ class QuadrupedEnv(gym.Env):
         task = self._config.get("task") or {}
         self._reward_engine = RewardEngine(task.get("reward_terms") or [])
         self._termination = TerminationEngine(task.get("termination") or {})
+        self._anchor_fall_threshold()
 
         self._obs_builder = ObservationBuilder(
             self._config,
@@ -62,6 +63,25 @@ class QuadrupedEnv(gym.Env):
         self._episode_returns: list[float] = []
         self._fall_count = 0
         self._episode_count = 0
+
+    def _anchor_fall_threshold(self) -> None:
+        """Tie the fall-height threshold to this robot's real grounded spawn height.
+
+        Prevents a leaked placeholder standing height from putting the threshold
+        above where the robot spawns (which would terminate every episode on step 1).
+        """
+        base = getattr(self._artifacts, "base_spawn", None)
+        standing_h = float(base["z"]) if isinstance(base, dict) and base.get("z") is not None else None
+        info = self._termination.resolve_fall_threshold(standing_h)
+        if info.get("corrected") and self._env_id == 0:
+            print(
+                "[train] WARNING: configured fall_base_height_threshold="
+                f"{info['configured']} is not below the spawn height {standing_h}; "
+                f"using {info['effective']} (spawn height - drop margin) instead. "
+                "This usually means the curriculum was exported with the placeholder "
+                "standing height rather than this robot's real height_policy.",
+                flush=True,
+            )
 
     def close(self) -> None:
         if isinstance(self._sim, RosSimBackend):

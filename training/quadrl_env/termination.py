@@ -6,7 +6,11 @@ from typing import Any
 import numpy as np
 
 from quadrl_env.sim_state import SimState
-from quadrl_env.standing_heights import PLACEHOLDER_BODY_HEIGHT_M, fall_threshold_for_target
+from quadrl_env.standing_heights import (
+    FALL_DROP_MARGIN_M,
+    PLACEHOLDER_BODY_HEIGHT_M,
+    fall_threshold_for_target,
+)
 
 
 def _optional_positive_float(d: dict[str, Any], key: str, *, default: float) -> float | None:
@@ -24,10 +28,40 @@ class TerminationEngine:
     def __init__(self, termination: dict[str, Any]) -> None:
         self._termination = termination or {}
         self._terms = [t for t in (self._termination.get("termination_terms") or []) if t.get("enabled", True)]
+        self._fall_h_override: float | None = None
 
     @property
     def max_episode_steps(self) -> int:
         return int(self._termination.get("max_episode_steps", 1000))
+
+    def resolve_fall_threshold(self, standing_height: float | None) -> dict[str, Any]:
+        """Anchor the fall-height threshold to the robot's actual standing height.
+
+        A curriculum exported with the generic ``PLACEHOLDER_BODY_HEIGHT_M`` instead
+        of this robot's real grounded height can carry a fall threshold *above* where
+        the robot spawns, which terminates every episode on step 1
+        (``reason=fall_height``) and makes learning impossible. Guard against that:
+        when the configured threshold is not strictly below the standing height,
+        derive it from the standing height and the standard drop margin instead.
+        Sane configs (threshold already below the standing height) are kept as-is.
+
+        Returns a dict describing the resolution so the caller can warn on a
+        correction. Idempotent; call once per env after construction.
+        """
+        raw = self._termination.get("fall_base_height_threshold")
+        configured = float(raw) if raw is not None else None
+        if standing_height is None:
+            self._fall_h_override = (
+                configured if configured is not None
+                else fall_threshold_for_target(PLACEHOLDER_BODY_HEIGHT_M)
+            )
+            return {"effective": self._fall_h_override, "configured": configured, "corrected": False}
+        canonical = round(float(standing_height) - FALL_DROP_MARGIN_M, 4)
+        if configured is None or configured >= float(standing_height):
+            self._fall_h_override = canonical
+            return {"effective": canonical, "configured": configured, "corrected": configured is not None}
+        self._fall_h_override = configured
+        return {"effective": configured, "configured": configured, "corrected": False}
 
     def check(
         self,
@@ -43,12 +77,14 @@ class TerminationEngine:
                 return False, True, "timeout"
             return True, False, "timeout"
 
-        fall_h = float(
-            self._termination.get(
-                "fall_base_height_threshold",
-                fall_threshold_for_target(PLACEHOLDER_BODY_HEIGHT_M),
+        fall_h = self._fall_h_override
+        if fall_h is None:
+            fall_h = float(
+                self._termination.get(
+                    "fall_base_height_threshold",
+                    fall_threshold_for_target(PLACEHOLDER_BODY_HEIGHT_M),
+                )
             )
-        )
         if state.base_height < fall_h:
             return True, False, "fall_height"
 
