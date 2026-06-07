@@ -2,6 +2,8 @@
 
 export type ComputeDevice = "auto" | "cpu" | "cuda";
 export type VecEnvType = "dummy" | "subproc";
+/** Policy/value MLP size preset; resolved to an SB3 net_arch list on export. */
+export type NetArchPreset = "small" | "medium" | "large";
 export type CheckpointFrequency = "end_only" | "steps" | "rollout";
 export type BestModelMetric =
   | "mean_episode_reward"
@@ -35,7 +37,22 @@ export interface PpoHyperparams {
   maxGradNorm: number;
   totalTimesteps: number;
   device: ComputeDevice;
+  netArch: NetArchPreset;
+  logStdInit: number;
 }
+
+/** Preset → SB3 net_arch (shared pi/vf hidden layer sizes). */
+export const NET_ARCH_PRESETS: Record<NetArchPreset, number[]> = {
+  small: [64, 64],
+  medium: [256, 256],
+  large: [512, 256],
+};
+
+export const NET_ARCH_LABELS: Record<NetArchPreset, string> = {
+  small: "Small — 64 × 64",
+  medium: "Medium — 256 × 256",
+  large: "Large — 512 × 256",
+};
 
 export interface ParallelConfig {
   numEnvs: number;
@@ -140,6 +157,7 @@ export const PPO_PARAM_GROUPS: { id: string; label: string; keys: (keyof PpoHype
   { id: "rollout", label: "Rollout & batch", keys: ["nSteps", "batchSize", "nEpochs"] },
   { id: "optimizer", label: "Optimizer", keys: ["learningRate", "maxGradNorm"] },
   { id: "rl", label: "RL objective", keys: ["gamma", "gaeLambda", "clipRange", "entCoef", "vfCoef"] },
+  { id: "policy", label: "Policy architecture", keys: ["netArch", "logStdInit"] },
   { id: "training", label: "Training run", keys: ["totalTimesteps", "device"] },
 ];
 
@@ -156,6 +174,8 @@ export const PPO_PARAM_HINTS: Partial<Record<keyof PpoHyperparams, string>> = {
   maxGradNorm: "Gradient clipping max norm",
   totalTimesteps: "Total environment steps for training",
   device: "auto prefers CUDA when available",
+  netArch: "Policy/value MLP hidden layers (shared pi/vf)",
+  logStdInit: "Initial action log-std; lower = less exploration noise (exp(−1)=0.37)",
 };
 
 export const PARALLEL_HINTS: Record<keyof ParallelConfig, string> = {

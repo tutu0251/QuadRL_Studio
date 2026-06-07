@@ -34,6 +34,18 @@ class TerminationEngine:
     def max_episode_steps(self) -> int:
         return int(self._termination.get("max_episode_steps", 1000))
 
+    @property
+    def grace_steps(self) -> int:
+        """Steps after reset during which fall/tilt/safety checks are suppressed.
+
+        The robot is teleported on reset and needs a few control steps for the
+        pose to settle and for IMU/odom to publish valid frames. Checking
+        fall_height/max_tilt on step 1 against transient sensor values terminates
+        otherwise-healthy episodes immediately. Timeout still applies (it is
+        checked before the grace short-circuit). Default 0 = unchanged behavior.
+        """
+        return int(self._termination.get("termination_grace_steps", 0))
+
     def resolve_fall_threshold(self, standing_height: float | None) -> dict[str, Any]:
         """Anchor the fall-height threshold to the robot's actual standing height.
 
@@ -76,6 +88,9 @@ class TerminationEngine:
             if self._termination.get("timeout_truncation", True):
                 return False, True, "timeout"
             return True, False, "timeout"
+
+        if state.episode_step <= self.grace_steps:
+            return False, False, ""
 
         fall_h = self._fall_h_override
         if fall_h is None:

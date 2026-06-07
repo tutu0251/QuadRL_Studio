@@ -63,6 +63,7 @@ export interface TerminationConfig {
   maxTiltRad: number;
   maxJointTorque: number | null;
   timeoutTruncation: boolean;
+  terminationGraceSteps: number;
   terminationTerms: TerminationTerm[];
 }
 
@@ -338,6 +339,8 @@ export const STAGE_PARAM_HINTS: Record<string, string> = {
   "termination.max_tilt_rad": "Maximum body tilt from upright (rad) before failure.",
   "termination.max_joint_torque": "Optional torque limit (N·m); 0 disables this check.",
   "termination.timeout_truncation": "Treat max-step timeout as truncation (not failure) for the learner.",
+  "termination.termination_grace_steps":
+    "Steps after reset during which fall/tilt checks are disabled, so the teleported robot can settle and sensors publish valid frames. 0 disables.",
   "advance.min_mean_episode_reward": "Rolling mean reward required to auto-advance to the next stage.",
   "advance.min_episode_length_frac": "Mean episode length as a fraction of max_episode_steps.",
   "advance.max_fall_rate": "Maximum allowed fraction of episodes ending in a fall.",

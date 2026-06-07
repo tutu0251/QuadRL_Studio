@@ -79,6 +79,10 @@ class TerminationConfig(BaseModel):
     maxTiltRad: float = 0.8
     maxJointTorque: Optional[float] = None
     timeoutTruncation: bool = True
+    # Steps after each reset during which fall/tilt/safety checks are suppressed,
+    # so the teleported robot can settle and the IMU/odom can publish valid frames
+    # before termination is evaluated. 0 disables the grace window.
+    terminationGraceSteps: int = 5
     terminationTerms: list[TerminationTerm] = Field(default_factory=list)
 
 

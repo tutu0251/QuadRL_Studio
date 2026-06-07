@@ -44,10 +44,20 @@ def sensor_term_dim(kind: str, fields: list[str]) -> int:
 
 
 def normalized_gravity(linear_accel: np.ndarray) -> np.ndarray:
+    """Body-frame gravity *direction* from an accelerometer.
+
+    An IMU at rest measures specific force (proper acceleration), which points
+    *opposite* to gravity: a level robot reads ~(0, 0, +9.81) along body-up.
+    Negate so the returned unit vector points the way gravity does — (0, 0, -1)
+    when upright — matching the reset convention and ``SimState.tilt_rad``.
+    Without this, a stationary upright robot reads (0, 0, +1), which tilt_rad
+    interprets as fully upside-down (π rad) and terminates every episode on
+    step 1 (reason=max_tilt).
+    """
     g = np.asarray(linear_accel, dtype=np.float32).reshape(3)
     norm = float(np.linalg.norm(g))
     if norm > 1e-3:
-        return (g / norm).astype(np.float32)
+        return (-g / norm).astype(np.float32)
     return np.array([0.0, 0.0, -1.0], dtype=np.float32)
 
 

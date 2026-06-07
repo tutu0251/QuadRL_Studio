@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from domain.models import ExportConfigFormat, PpoPlannerModel
+from domain.models import NET_ARCH_PRESETS, ExportConfigFormat, PpoPlannerModel
 from exporter.format_registry import FORMAT_EXTENSIONS, JSON_LIKE, config_filename
 from exporter.toml_util import dump_toml
 from storage import project_storage
@@ -66,6 +66,8 @@ def build_ppo_config_body(model: PpoPlannerModel, project_name: str) -> dict:
             "ent_coef": p.entCoef,
             "vf_coef": p.vfCoef,
             "max_grad_norm": p.maxGradNorm,
+            "net_arch": list(NET_ARCH_PRESETS[p.netArch]),
+            "log_std_init": p.logStdInit,
             "total_timesteps": p.totalTimesteps,
         },
         "parallel": {

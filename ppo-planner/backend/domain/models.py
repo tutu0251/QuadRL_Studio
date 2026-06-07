@@ -28,6 +28,21 @@ class VecEnvType(str, Enum):
     SUBPROC = "subproc"
 
 
+class NetArchPreset(str, Enum):
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+
+
+# Preset -> SB3 net_arch (shared pi/vf hidden layer sizes). Keep in sync with
+# NET_ARCH_PRESETS in packages/ppo-model/index.ts.
+NET_ARCH_PRESETS: dict[NetArchPreset, list[int]] = {
+    NetArchPreset.SMALL: [64, 64],
+    NetArchPreset.MEDIUM: [256, 256],
+    NetArchPreset.LARGE: [512, 256],
+}
+
+
 class MachineProfile(BaseModel):
     hostname: str = ""
     platform: str = ""
@@ -53,6 +68,8 @@ class PpoHyperparams(BaseModel):
     maxGradNorm: float = 0.5
     totalTimesteps: int = 1_000_000
     device: ComputeDevice = ComputeDevice.AUTO
+    netArch: NetArchPreset = NetArchPreset.MEDIUM
+    logStdInit: float = -1.0
 
 
 class ParallelConfig(BaseModel):
@@ -224,6 +241,8 @@ class PpoParamsUpdate(BaseModel):
     maxGradNorm: Optional[float] = None
     totalTimesteps: Optional[int] = None
     device: Optional[ComputeDevice] = None
+    netArch: Optional[NetArchPreset] = None
+    logStdInit: Optional[float] = None
     useRecommended: Optional[bool] = None
 
 

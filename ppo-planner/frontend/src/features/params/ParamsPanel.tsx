@@ -1,5 +1,5 @@
-import type { PpoHyperparams } from "@ppo-model";
-import { PPO_PARAM_GROUPS, PPO_PARAM_HINTS } from "@ppo-model";
+import type { NetArchPreset, PpoHyperparams } from "@ppo-model";
+import { NET_ARCH_LABELS, NET_ARCH_PRESETS, PPO_PARAM_GROUPS, PPO_PARAM_HINTS } from "@ppo-model";
 import { CollapsibleSection } from "../../components/CollapsibleSection";
 import { NumberField } from "../../components/NumberField";
 import { Toggle } from "../../components/Toggle";
@@ -20,6 +20,8 @@ const LABELS: Record<keyof PpoHyperparams, string> = {
   maxGradNorm: "max_grad_norm",
   totalTimesteps: "total_timesteps",
   device: "device",
+  netArch: "net_arch",
+  logStdInit: "log_std_init",
 };
 
 function stepFor(key: keyof PpoHyperparams): number {
@@ -86,6 +88,34 @@ export function ParamsPanel({ embedded = false }: { embedded?: boolean }) {
             <option value="auto">auto</option>
             <option value="cpu">cpu</option>
             <option value="cuda">cuda</option>
+          </select>
+        </div>
+      );
+    }
+    if (key === "netArch") {
+      return (
+        <div className="param-field" key={key}>
+          <span className="param-label-row">
+            <span className="param-label" title={PPO_PARAM_HINTS.netArch}>
+              {LABELS.netArch}
+            </span>
+            {PPO_PARAM_HINTS.netArch ? (
+              <span className="param-hint-icon" title={PPO_PARAM_HINTS.netArch} aria-label={PPO_PARAM_HINTS.netArch}>
+                ⓘ
+              </span>
+            ) : null}
+          </span>
+          <select
+            className="param-input param-select"
+            value={model.params.netArch}
+            title={PPO_PARAM_HINTS.netArch}
+            onChange={(e) => void patch({ netArch: e.target.value as NetArchPreset })}
+          >
+            {(Object.keys(NET_ARCH_PRESETS) as NetArchPreset[]).map((preset) => (
+              <option key={preset} value={preset}>
+                {NET_ARCH_LABELS[preset]}
+              </option>
+            ))}
           </select>
         </div>
       );

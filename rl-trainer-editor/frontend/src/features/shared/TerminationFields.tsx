@@ -72,6 +72,16 @@ export function TerminationFields({
           onParamFlag("termination.timeout_truncation", v);
         }}
       />
+      <ParamNumberField
+        paramKey={stageParamKey("termination", "termination_grace_steps")}
+        label="termination_grace_steps"
+        hint={hint("termination_grace_steps")}
+        enabled={paramEnabled(stage, "termination.termination_grace_steps")}
+        onEnabledChange={(v) => onParamFlag("termination.termination_grace_steps", v)}
+        value={termination.terminationGraceSteps}
+        step={1}
+        onChange={(v) => onChange({ terminationGraceSteps: Math.max(0, Math.round(v)) })}
+      />
 
       <h4 className="inspector-subsection-title">Termination conditions</h4>
       <TerminationTermList

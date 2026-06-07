@@ -68,6 +68,13 @@ export function TerminationPanel() {
         checked={t.timeoutTruncation}
         onChange={(v) => void patch({ timeoutTruncation: v })}
       />
+      <NumberField
+        label="termination_grace_steps"
+        hint={hint("termination_grace_steps")}
+        value={t.terminationGraceSteps}
+        step={1}
+        onChange={(v) => void patch({ terminationGraceSteps: Math.max(0, Math.round(v)) })}
+      />
 
       <h4 className="inspector-subsection-title">Termination conditions</h4>
       <TerminationTermList

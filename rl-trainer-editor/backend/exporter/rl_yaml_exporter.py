@@ -27,6 +27,7 @@ def _termination_export(t) -> dict:
         "max_tilt_rad": t.maxTiltRad,
         "max_joint_torque": t.maxJointTorque,
         "timeout_truncation": t.timeoutTruncation,
+        "termination_grace_steps": t.terminationGraceSteps,
         "termination_terms": [_termination_term_export(term) for term in t.terminationTerms],
     }
 

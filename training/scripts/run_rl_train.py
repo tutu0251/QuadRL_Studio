@@ -510,6 +510,16 @@ def _train_stage_sb3(
             _log(f"[warn] Resume checkpoint not found: {requested} — training from scratch")
         else:
             _log("[train] Training from scratch")
+        # Build policy_kwargs from hyperparameters: net_arch and the initial
+        # policy log-std. log_std_init controls how noisy stochastic rollouts are
+        # — the SB3 default of 0.0 (std=1.0) makes early rollouts topple a balanced
+        # robot in a few steps even when the deterministic policy stands fine.
+        policy_kwargs = {}
+        net_arch = hp.get("net_arch")
+        if net_arch:
+            policy_kwargs["net_arch"] = [int(x) for x in net_arch]
+        if hp.get("log_std_init") is not None:
+            policy_kwargs["log_std_init"] = float(hp["log_std_init"])
         model = PPO(
             "MlpPolicy",
             env,
@@ -518,6 +528,12 @@ def _train_stage_sb3(
             batch_size=int(hp.get("batch_size", 64)),
             n_epochs=int(hp.get("n_epochs", 10)),
             gamma=float(hp.get("gamma", 0.99)),
+            gae_lambda=float(hp.get("gae_lambda", 0.95)),
+            clip_range=float(hp.get("clip_range", 0.2)),
+            ent_coef=float(hp.get("ent_coef", 0.0)),
+            vf_coef=float(hp.get("vf_coef", 0.5)),
+            max_grad_norm=float(hp.get("max_grad_norm", 0.5)),
+            policy_kwargs=policy_kwargs or None,
             verbose=1,
             device=device,
             tensorboard_log=str(tb_dir),
