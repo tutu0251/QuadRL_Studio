@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { ActionButton } from "../../components/ActionButton";
+import { ResizableColumns } from "../../components/ResizableColumns";
 import { useCommandPreview } from "../../hooks/useCommandPreview";
 import { useMonitorStore } from "../../stores/monitorStore";
 import type { ActionScaleEntry, ObservationScaleEntry, TrainStatus } from "../../types";
@@ -70,20 +71,40 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
     <div className="page-grid training-page">
       <section className="panel train-summary-panel">
         <header className="panel-header">
-          <h2>Training Progress</h2>
+          <div>
+            <h2>Training Progress</h2>
+            <p className="panel-subtitle">
+              Live status from the training process — start/stop in Metric Monitor; filtered logs in the console.
+            </p>
+          </div>
         </header>
-        <div className="summary-chips">
-          {trainStatus?.current_stage && <span className="chip">Stage: {trainStatus.current_stage}</span>}
-          {trainStatus?.progress_message && <span className="chip">Steps: {trainStatus.progress_message}</span>}
-          {trainStatus?.rollout_count != null && <span className="chip">Rollouts: {trainStatus.rollout_count}</span>}
-          {trainStatus?.episode_count != null && <span className="chip">Episodes: {trainStatus.episode_count}</span>}
+        <div className="stat-row">
+          <div className="stat-card accent">
+            <span className="stat-card-label">Stage</span>
+            <span className="stat-card-value">{trainStatus?.current_stage ?? "—"}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card-label">Steps</span>
+            <span className="stat-card-value">{trainStatus?.progress_message ?? "—"}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card-label">Rollouts</span>
+            <span className="stat-card-value">{trainStatus?.rollout_count ?? "—"}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card-label">Episodes</span>
+            <span className="stat-card-value">{trainStatus?.episode_count ?? "—"}</span>
+          </div>
           {trainStatus?.last_termination_reason && (
-            <span className="chip warn">Last term: {trainStatus.last_termination_reason}</span>
+            <div className="stat-card warn">
+              <span className="stat-card-label">Last termination</span>
+              <span className="stat-card-value">{trainStatus.last_termination_reason}</span>
+            </div>
           )}
         </div>
-        <p className="panel-hint">Start/stop training from Metric Monitor. Logs filtered below in console.</p>
       </section>
 
+      <ResizableColumns storageKey="quadrl.trainMonitor.trainingCols">
       <section className="panel">
         <header className="panel-header">
           <h2>Action Scale</h2>
@@ -123,13 +144,13 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel obs-scales-panel">
         <header className="panel-header">
           <h2>Observation Scales</h2>
           <span className="panel-hint mono">{cfg?.rl_config_path}</span>
         </header>
         {obsScales.length > 0 && (
-          <div className="table-scroll">
+          <div className="table-wrap">
             <table className="data-table compact">
               <thead>
                 <tr>
@@ -232,6 +253,7 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
           </div>
         ))}
       </section>
+      </ResizableColumns>
     </div>
   );
 }

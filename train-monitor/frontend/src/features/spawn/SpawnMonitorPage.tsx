@@ -80,7 +80,10 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
     <div className="page-grid spawn-page">
       <section className="panel">
         <header className="panel-header">
-          <h2>Geometry Spawn Export</h2>
+          <div>
+            <h2>Geometry Spawn Export</h2>
+            <p className="panel-subtitle">Exported spawn pose and joint angles used to place the robot.</p>
+          </div>
           {cfg && (
             <span className={`badge ${cfg.pose_confirmed ? "badge-completed" : "badge-stopped"}`}>
               {cfg.pose_confirmed ? "confirmed" : "unconfirmed"}
@@ -129,9 +132,11 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
 
       <section className="panel">
         <header className="panel-header">
-          <h2>Spawn Offset</h2>
+          <div>
+            <h2>Spawn Offset</h2>
+            <p className="panel-subtitle">Applied on top of base spawn; saved to effective spawn in export YAML.</p>
+          </div>
         </header>
-        <p className="panel-hint">Applied on top of base spawn; saved to effective spawn in export YAML.</p>
         <div className="form-grid">
           {(["dx", "dy", "dz", "droll", "dpitch", "dyaw"] as const).map((key) => (
             <label key={key} className="field-row">
@@ -159,12 +164,13 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
 
       <section className="panel">
         <header className="panel-header">
-          <h2>Controller Warmup</h2>
+          <div>
+            <h2>Controller Warmup</h2>
+            <p className="panel-subtitle">
+              Delay after spawn before control applies (controller_apply_delay_s; training uses QUADRL_SIM_WARMUP_S).
+            </p>
+          </div>
         </header>
-        <p className="panel-hint">
-          Delay after spawn finishes before control applies (saved as controller_apply_delay_s; training uses
-          QUADRL_SIM_WARMUP_S).
-        </p>
         <label className="field-row">
           <span>Apply delay (s)</span>
           <input

@@ -559,7 +559,7 @@ async def ws_train_logs(ws: WebSocket):
                 await ws.send_json(msg)
             except asyncio.TimeoutError:
                 status = train_manager.get_status()
-                ws_status = workspace_manager.get_status()
+                ws_status = workspace_manager.get_status(_active_project)
                 await ws.send_json(
                     {
                         "type": "status",

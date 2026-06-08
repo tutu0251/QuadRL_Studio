@@ -1,7 +1,6 @@
-import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
-import { api, getApiBaseUrl, tbOpenUrl } from "../../api/client";
-import { ActionButton } from "../../components/ActionButton";
-import type { RunStageInfo, ScalarSeries, TensorBoardStatus } from "../../types";
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { api } from "../../api/client";
+import type { RunStageInfo, ScalarSeries } from "../../types";
 
 type Props = {
   project: string | null;
@@ -9,15 +8,8 @@ type Props = {
   scalars: ScalarSeries[];
   stages: RunStageInfo[];
   curriculumEnabled: boolean;
-  tbStatus: TensorBoardStatus | null;
   trainingActive: boolean;
-  onOpenTb: () => void;
-  onStopTb: () => void;
-  busy: boolean;
-  tbStartCommand?: string | null;
-  tbStopCommand?: string | null;
-  tbStartLoading?: boolean;
-  tbStopLoading?: boolean;
+  headerExtra?: ReactNode;
 };
 
 const TB_COLORS = ["#5b8def", "#34c6c6", "#46c98b", "#e0a942", "#ef6f6f", "#b48ef0"];
@@ -137,21 +129,9 @@ export function MetricsPanel({
   scalars,
   stages,
   curriculumEnabled,
-  tbStatus,
   trainingActive,
-  onOpenTb,
-  onStopTb,
-  busy,
-  tbStartCommand,
-  tbStopCommand,
-  tbStartLoading,
-  tbStopLoading,
+  headerExtra,
 }: Props) {
-  const tbLink =
-    project && tbStatus?.running
-      ? `${getApiBaseUrl()}${tbStatus.open_url ?? tbOpenUrl(project)}`
-      : null;
-
   // Stage sub-tabs: only the curriculum stages that actually have event files.
   const stageTabs = useMemo(
     () => (curriculumEnabled ? stages.filter((s) => s.has_events) : []),
@@ -248,39 +228,8 @@ export function MetricsPanel({
             {trainingActive && <span className="metrics-live"> · updating live</span>}
           </p>
         </div>
-        <div className="btn-row inline metrics-tb-actions">
-          {!tbStatus?.running ? (
-            <ActionButton
-              className="btn small accent"
-              disabled={busy || !project}
-              command={tbStartCommand}
-              commandLoading={tbStartLoading}
-              onClick={onOpenTb}
-            >
-              TensorBoard
-            </ActionButton>
-          ) : (
-            <>
-              {tbLink && (
-                <a className="btn small link accent" href={tbLink} target="_blank" rel="noreferrer">
-                  Open TensorBoard
-                </a>
-              )}
-              <ActionButton
-                className="btn small ghost"
-                disabled={busy}
-                command={tbStopCommand}
-                commandLoading={tbStopLoading}
-                onClick={onStopTb}
-              >
-                Stop TB
-              </ActionButton>
-            </>
-          )}
-        </div>
+        {headerExtra}
       </header>
-
-      {tbStatus?.error && <p className="panel-warn">{tbStatus.error}</p>}
 
       {stageTabs.length > 0 && (
         <div className="metric-stage-tabs qr-segmented" role="tablist" aria-label="Curriculum stage">

@@ -81,30 +81,31 @@ export function TestSpawnBar({
   return (
     <div className="test-spawn-bar">
       <div className="test-spawn-actions">
-        <fieldset className="gazebo-mode-fieldset" disabled={sessionBusy}>
-          <legend className="gazebo-mode-legend">Gazebo</legend>
-          <label className="radio-row">
+        <div className="gazebo-mode" role="radiogroup" aria-label="Gazebo mode">
+          <span className="gazebo-mode-label">Gazebo</span>
+          <label className="radio-pill">
             <input
               type="radio"
               name="test-spawn-gazebo-mode"
               checked={gazeboHeadless}
+              disabled={sessionBusy}
               onChange={() => onGazeboHeadlessChange(true)}
             />
             Headless
           </label>
-          <label className="radio-row" title={guiAvailable ? undefined : "No X11 display on training host"}>
+          <label className="radio-pill" title={guiAvailable ? undefined : "No X11 display on training host"}>
             <input
               type="radio"
               name="test-spawn-gazebo-mode"
               checked={!gazeboHeadless}
-              disabled={!guiAvailable}
+              disabled={sessionBusy || !guiAvailable}
               onChange={() => onGazeboHeadlessChange(false)}
             />
-            GUI (watch spawn)
+            GUI
           </label>
-        </fieldset>
+        </div>
         <ActionButton
-          className="btn"
+          className="btn primary"
           disabled={!project || sessionBusy}
           command={preview.preview?.command}
           commandLoading={preview.loading}
@@ -124,7 +125,7 @@ export function TestSpawnBar({
           </ActionButton>
         )}
       </div>
-      <p className="panel-hint">
+      <p className="panel-hint test-spawn-hint">
         {running
           ? "Spawn test session is running — Gazebo stays up until you stop it."
           : "Uses built workspace sim.launch.py (world flat), effective spawn pose, and exported joint angles."}

@@ -81,7 +81,7 @@ function ResourceGauge({
   );
 }
 
-export function SystemResourcesPanel() {
+export function SystemResourcesPanel({ compact = false }: { compact?: boolean } = {}) {
   const gridId = useId().replace(/:/g, "");
   const [sample, setSample] = useState<SystemStatsSample | null>(null);
   const [cpuHist, setCpuHist] = useState<number[]>(() => Array(HISTORY_LEN).fill(0));
@@ -127,6 +127,42 @@ export function SystemResourcesPanel() {
   const cpuAvg = windowAverage(cpuHist, sampleCount);
   const ramAvg = windowAverage(ramHist, sampleCount);
   const gpuAvg = windowAverage(gpuHist, sampleCount);
+
+  if (compact) {
+    const items = [
+      { key: "CPU", pct: sample?.cpuPercent ?? 0, accent: "#5c9fd4", avail: true, history: cpuHist, title: `${sample?.cpuCountLogical ?? "—"} logical cores` },
+      { key: "GPU", pct: sample?.gpuAvailable ? gpuPct : 0, accent: "#e8a54a", avail: !!sample?.gpuAvailable, history: gpuHist, title: gpuSub },
+      { key: "RAM", pct: sample?.ramUsedPercent ?? 0, accent: "#9b7ed9", avail: true, history: ramHist, title: sample ? `${sample.ramUsedMb.toLocaleString()} / ${sample.ramTotalMb.toLocaleString()} MB` : "—" },
+    ];
+    return (
+      <div className="system-strip" aria-label="Host resources">
+        <span className={`live-dot ${live ? "on" : ""}`} title={live ? "Live" : "Offline"} />
+        {items.map((it) => {
+          const pct = Math.min(100, Math.max(0, it.pct));
+          return (
+            <span
+              key={it.key}
+              className="system-strip-item"
+              title={`${it.key} · ${it.title} · last ${HISTORY_WINDOW_MIN} min`}
+              style={{ "--gauge-accent": it.accent } as CSSProperties}
+            >
+              <span className="system-strip-label">{it.key}</span>
+              <svg className="system-strip-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden>
+                <path
+                  d={sparklinePath(it.history, 100, 24, 1)}
+                  fill="none"
+                  stroke={it.accent}
+                  strokeWidth="1.5"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+              <span className="system-strip-pct">{it.avail ? `${pct.toFixed(0)}%` : "—"}</span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <section className="panel system-panel" aria-label="Host resources">

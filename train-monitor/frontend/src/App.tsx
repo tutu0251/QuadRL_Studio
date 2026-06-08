@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, wsTrainLogsUrl } from "./api/client";
-import { ConsolePanel } from "./features/console/ConsolePanel";
-import { ConsoleSplitter } from "./components/ConsoleSplitter";
+import { ConsoleDock } from "./features/console/ConsoleDock";
 import { TestSpawnBar } from "./components/TestSpawnBar";
 import { MetricMonitorPage } from "./features/metric/MetricMonitorPage";
 import { MenuBar } from "./features/menu/MenuBar";
@@ -42,7 +41,6 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [dryRun, setDryRun] = useState(false);
   const [gazeboHeadless, setGazeboHeadless] = useState(() => {
     try {
       return localStorage.getItem("quadrl.gazeboHeadless") !== "0";
@@ -226,7 +224,7 @@ export default function App() {
     setError(null);
     try {
       setScalars([]);
-      const status = await api.trainStart(project, { dry_run: dryRun, gazebo_headless: gazeboHeadless });
+      const status = await api.trainStart(project, { gazebo_headless: gazeboHeadless });
       setTrainStatus(status);
       log("Training started");
       await refreshProjectData(project);
@@ -256,7 +254,7 @@ export default function App() {
     setBusy(true);
     try {
       setTrainStatus(
-        await api.trainResume(project, selectedCheckpoint, { dry_run: dryRun, gazebo_headless: gazeboHeadless })
+        await api.trainResume(project, selectedCheckpoint, { gazebo_headless: gazeboHeadless })
       );
       log(`Resuming from ${selectedCheckpoint}`);
       await refreshProjectData(project);
@@ -295,8 +293,14 @@ export default function App() {
   return (
     <div className="app monitor-app">
       <header className="top-bar">
-        <MenuBar projects={projects} projectDetails={projectDetails} active={project} onLoad={loadProject} />
-        <PageNav active={activePage} onChange={setActivePage} />
+        <div className="menu-row">
+          <MenuBar projects={projects} projectDetails={projectDetails} active={project} onLoad={loadProject} />
+          <StatusBar connected={connected} trainingActive={trainingActive} trainStatus={trainStatus} />
+        </div>
+        <div className="nav-row">
+          <PageNav active={activePage} onChange={setActivePage} />
+          <ConsoleDock />
+        </div>
       </header>
 
       {error && (
@@ -310,7 +314,7 @@ export default function App() {
 
       <div className="monitor-main-split">
         <div className="monitor-page-body">
-          {activePage !== "metric" && activePage !== "topic" && (
+          {activePage === "spawn" && (
             <TestSpawnBar
               project={project}
               busy={busy}
@@ -361,20 +365,17 @@ export default function App() {
               project={project}
               exports={exports}
               trainStatus={trainStatus}
-              workspaceStatus={workspaceStatus}
               checkpoints={checkpoints}
               runs={runs}
               scalars={scalars}
               selectedRunId={selectedRunId}
               selectedCheckpoint={selectedCheckpoint}
               tbStatus={tbStatus}
-              dryRun={dryRun}
               gazeboHeadless={gazeboHeadless}
               guiAvailable={guiAvailable}
               resolvedDisplay={resolvedDisplay}
               busy={busy}
               trainingActive={trainingActive}
-              onDryRunChange={setDryRun}
               onGazeboHeadlessChange={(v) => {
                 setGazeboHeadless(v);
                 try {
@@ -393,18 +394,7 @@ export default function App() {
             />
           )}
         </div>
-
-        <ConsoleSplitter>
-          <ConsolePanel />
-        </ConsoleSplitter>
       </div>
-
-      <StatusBar
-        connected={connected}
-        project={project}
-        trainingActive={trainingActive}
-        trainStatus={trainStatus}
-      />
     </div>
   );
 }

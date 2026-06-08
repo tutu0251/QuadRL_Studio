@@ -8,12 +8,9 @@ type Props = {
   status: TrainStatus | null;
   ready: boolean;
   selectedCheckpoint: string | null;
-  dryRun: boolean;
   gazeboHeadless: boolean;
-  recommendedSim: string;
   guiAvailable: boolean;
   resolvedDisplay: string | null;
-  onDryRunChange: (v: boolean) => void;
   onGazeboHeadlessChange: (v: boolean) => void;
   onStart: () => void;
   onStop: () => void;
@@ -32,12 +29,9 @@ export function TrainingPanel({
   status,
   ready,
   selectedCheckpoint,
-  dryRun,
   gazeboHeadless,
-  recommendedSim,
   guiAvailable,
   resolvedDisplay,
-  onDryRunChange,
   onGazeboHeadlessChange,
   onStart,
   onStop,
@@ -63,10 +57,16 @@ export function TrainingPanel({
   const elapsed =
     running && status?.started_at ? formatElapsedSince(status.started_at, now) : null;
 
+  const hasActivity = Boolean(status?.current_stage || status?.progress_message);
+  const hasCounters = status?.rollout_count != null || status?.episode_count != null;
+
   return (
     <section className="panel training-panel">
       <header className="panel-header">
-        <h2>Training</h2>
+        <h2>
+          <span className={`live-dot${running ? " on" : ""}`} aria-hidden="true" />
+          Training
+        </h2>
         <span className={`badge badge-${stateLabel}`}>{stateLabel}</span>
       </header>
 
@@ -88,10 +88,29 @@ export function TrainingPanel({
         </div>
       )}
 
-      <p className="panel-hint">
-        Simulation: ROS/Gazebo ({recommendedSim} when workspace and exports are ready). Metrics via
-        TensorBoard below.
-      </p>
+      {hasActivity && (
+        <div className="train-activity" aria-live="polite">
+          {status?.current_stage && (
+            <span className="train-activity-stage">{status.current_stage}</span>
+          )}
+          {status?.progress_message && (
+            <span className="train-activity-progress mono">{status.progress_message}</span>
+          )}
+        </div>
+      )}
+
+      {hasCounters && (
+        <div className="train-metrics">
+          <div className="train-metric">
+            <span className="train-metric-value mono">{status?.rollout_count ?? "—"}</span>
+            <span className="train-metric-label">Rollouts</span>
+          </div>
+          <div className="train-metric">
+            <span className="train-metric-value mono">{status?.episode_count ?? "—"}</span>
+            <span className="train-metric-label">Episodes</span>
+          </div>
+        </div>
+      )}
 
       <div className="train-controls">
         <fieldset className="gazebo-mode-fieldset" disabled={running}>
@@ -124,11 +143,7 @@ export function TrainingPanel({
         {guiAvailable && resolvedDisplay && (
           <p className="panel-hint">GUI will use DISPLAY={resolvedDisplay}</p>
         )}
-        <label className="checkbox-row">
-          <input type="checkbox" checked={dryRun} onChange={(e) => onDryRunChange(e.target.checked)} />
-          Dry run (no SB3)
-        </label>
-        <div className="btn-row train-action-row">
+        <div className="train-action-grid">
           <ActionButton
             className="btn primary"
             disabled={!project || !ready || running || busy}
@@ -148,14 +163,14 @@ export function TrainingPanel({
             Stop
           </ActionButton>
           <ActionButton
-            className="btn"
+            className="btn ghost train-action-resume"
             disabled={!project || !ready || !selectedCheckpoint || running || busy}
             command={resumeCommand}
             commandLoading={resumeCommandLoading}
             onClick={onResume}
             title={selectedCheckpoint ? `Resume from ${selectedCheckpoint}` : "Select a checkpoint"}
           >
-            Resume
+            {selectedCheckpoint ? "Resume from checkpoint" : "Resume (select checkpoint)"}
           </ActionButton>
         </div>
       </div>
@@ -166,30 +181,6 @@ export function TrainingPanel({
             <>
               <dt>Run</dt>
               <dd className="mono">{status.run_id}</dd>
-            </>
-          )}
-          {status.current_stage && (
-            <>
-              <dt>Stage</dt>
-              <dd>{status.current_stage}</dd>
-            </>
-          )}
-          {status.progress_message && (
-            <>
-              <dt>Progress</dt>
-              <dd>{status.progress_message}</dd>
-            </>
-          )}
-          {status.rollout_count != null && (
-            <>
-              <dt>Rollouts</dt>
-              <dd>{status.rollout_count}</dd>
-            </>
-          )}
-          {status.episode_count != null && (
-            <>
-              <dt>Episodes</dt>
-              <dd>{status.episode_count}</dd>
             </>
           )}
           {status.last_termination_reason && (

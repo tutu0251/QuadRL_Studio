@@ -4,28 +4,26 @@ import { CheckpointsPanel } from "../checkpoints/CheckpointsPanel";
 import { RunsPanel } from "../runs/RunsPanel";
 import { SystemResourcesPanel } from "../system/SystemResourcesPanel";
 import { MetricsPanel } from "../tensorboard/MetricsPanel";
+import { TensorBoardPanel } from "../tensorboard/TensorBoardPanel";
 import { TrainingPanel } from "../training/TrainingPanel";
 import { useMonitorStore } from "../../stores/monitorStore";
-import type { ExportBundle, TensorBoardStatus, TrainStatus, WorkspaceStatus } from "../../types";
+import type { ExportBundle, TensorBoardStatus, TrainStatus } from "../../types";
 
 type Props = {
   project: string | null;
   exports: ExportBundle | null;
   trainStatus: TrainStatus | null;
-  workspaceStatus: WorkspaceStatus | null;
   checkpoints: ReturnType<typeof useMonitorStore.getState>["checkpoints"];
   runs: ReturnType<typeof useMonitorStore.getState>["runs"];
   scalars: ReturnType<typeof useMonitorStore.getState>["scalars"];
   selectedRunId: string | null;
   selectedCheckpoint: string | null;
   tbStatus: TensorBoardStatus | null;
-  dryRun: boolean;
   gazeboHeadless: boolean;
   guiAvailable: boolean;
   resolvedDisplay: string | null;
   busy: boolean;
   trainingActive: boolean;
-  onDryRunChange: (v: boolean) => void;
   onGazeboHeadlessChange: (v: boolean) => void;
   onStart: () => void;
   onStop: () => void;
@@ -40,20 +38,17 @@ export function MetricMonitorPage({
   project,
   exports,
   trainStatus,
-  workspaceStatus,
   checkpoints,
   runs,
   scalars,
   selectedRunId,
   selectedCheckpoint,
   tbStatus,
-  dryRun,
   gazeboHeadless,
   guiAvailable,
   resolvedDisplay,
   busy,
   trainingActive,
-  onDryRunChange,
   onGazeboHeadlessChange,
   onStart,
   onStop,
@@ -73,12 +68,10 @@ export function MetricMonitorPage({
   }, [setConsoleFilter]);
 
   const startPreview = useCommandPreview(project, "train_start", {
-    dry_run: dryRun,
     gazebo_headless: gazeboHeadless,
   });
   const stopPreview = useCommandPreview(project, "train_stop");
   const resumePreview = useCommandPreview(project, "train_resume", {
-    dry_run: dryRun,
     gazebo_headless: gazeboHeadless,
     resume_checkpoint: selectedCheckpoint ?? "",
   });
@@ -90,23 +83,14 @@ export function MetricMonitorPage({
   return (
     <div className="page-grid metric-page">
       <aside className="metric-side">
-        <p className="panel-hint">
-          Spawn offset ranges are configured in Spawn Monitor (#spawn); training samples random poses
-          within those bounds.
-        </p>
         <TrainingPanel
           project={project}
           status={trainStatus}
           ready={exports?.ready_for_training ?? false}
           selectedCheckpoint={selectedCheckpoint}
-          dryRun={dryRun}
           gazeboHeadless={gazeboHeadless}
-          recommendedSim={
-            workspaceStatus?.recommended_sim_backend ?? exports?.recommended_sim_backend ?? "unavailable"
-          }
           guiAvailable={guiAvailable}
           resolvedDisplay={resolvedDisplay}
-          onDryRunChange={onDryRunChange}
           onGazeboHeadlessChange={onGazeboHeadlessChange}
           onStart={onStart}
           onStop={onStop}
@@ -121,7 +105,17 @@ export function MetricMonitorPage({
         />
         <CheckpointsPanel checkpoints={checkpoints} selected={selectedCheckpoint} onSelect={onSelectCheckpoint} />
         <RunsPanel runs={runs} selectedRunId={selectedRunId} onSelect={onSelectRun} />
-        <SystemResourcesPanel />
+        <TensorBoardPanel
+          project={project}
+          tbStatus={tbStatus}
+          busy={busy}
+          onOpenTb={onOpenTb}
+          onStopTb={onStopTb}
+          tbStartCommand={tbStartPreview.preview?.command}
+          tbStopCommand={tbStopPreview.preview?.command}
+          tbStartLoading={tbStartPreview.loading}
+          tbStopLoading={tbStopPreview.loading}
+        />
       </aside>
       <main className="metric-main">
         <MetricsPanel
@@ -130,15 +124,8 @@ export function MetricMonitorPage({
           scalars={scalars}
           stages={selectedRun?.stages ?? []}
           curriculumEnabled={selectedRun?.curriculum_enabled ?? false}
-          tbStatus={tbStatus}
           trainingActive={trainingActive}
-          onOpenTb={onOpenTb}
-          onStopTb={onStopTb}
-          busy={busy}
-          tbStartCommand={tbStartPreview.preview?.command}
-          tbStopCommand={tbStopPreview.preview?.command}
-          tbStartLoading={tbStartPreview.loading}
-          tbStopLoading={tbStopPreview.loading}
+          headerExtra={<SystemResourcesPanel compact />}
         />
       </main>
     </div>
