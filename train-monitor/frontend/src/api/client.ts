@@ -127,7 +127,7 @@ export const api = {
   trainResume: (
     name: string,
     resume_checkpoint: string,
-    options: { dry_run?: boolean; gazebo_headless?: boolean } = {}
+    options: { dry_run?: boolean; gazebo_headless?: boolean; resume_start_stage?: number } = {}
   ) =>
     req<TrainStatus>(`/api/projects/${name}/train/resume`, {
       method: "POST",

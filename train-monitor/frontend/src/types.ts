@@ -209,6 +209,12 @@ export type TerminationSummary = {
   enabled_term_ids: string[];
 };
 
+export type StageInfo = {
+  id: string;
+  name: string;
+  order: number;
+};
+
 export type TrainingConfig = {
   project: string;
   gains_path: string;
@@ -216,6 +222,7 @@ export type TrainingConfig = {
   action_scales: ActionScaleEntry[];
   observation_scales: ObservationScaleEntry[];
   terminations: TerminationSummary[];
+  stages: StageInfo[];
   curriculum_enabled: boolean;
   command?: string;
 };

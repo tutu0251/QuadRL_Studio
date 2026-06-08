@@ -588,6 +588,37 @@
   grid-column: 1 / -1;
 }
 
+.train-stage-resume {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+.train-stage-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.train-stage-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.train-stage-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.train-stage-row .action-button-wrap > .btn {
+  white-space: nowrap;
+  justify-content: center;
+}
+
 /* System resources */
 .resource-gauges {
   display: flex;

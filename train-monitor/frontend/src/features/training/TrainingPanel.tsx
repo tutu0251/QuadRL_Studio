@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { formatElapsedSince, formatTimestamp } from "../../utils/format";
 import { ActionButton } from "../../components/ActionButton";
-import type { TrainStatus } from "../../types";
+import { useCommandPreview } from "../../hooks/useCommandPreview";
+import type { StageInfo, TrainStatus } from "../../types";
 
 type Props = {
   project: string | null;
   status: TrainStatus | null;
   ready: boolean;
   selectedCheckpoint: string | null;
+  stages: StageInfo[];
   gazeboHeadless: boolean;
   guiAvailable: boolean;
   resolvedDisplay: string | null;
@@ -15,6 +17,7 @@ type Props = {
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
+  onStartFromStage: (stageIndex: number) => void;
   busy: boolean;
   startCommand?: string | null;
   stopCommand?: string | null;
@@ -29,6 +32,7 @@ export function TrainingPanel({
   status,
   ready,
   selectedCheckpoint,
+  stages,
   gazeboHeadless,
   guiAvailable,
   resolvedDisplay,
@@ -36,6 +40,7 @@ export function TrainingPanel({
   onStart,
   onStop,
   onResume,
+  onStartFromStage,
   busy,
   startCommand,
   stopCommand,
@@ -47,6 +52,25 @@ export function TrainingPanel({
   const running = status?.state === "running" || status?.state === "starting";
   const stateLabel = status?.state ?? "idle";
   const [now, setNow] = useState(() => Date.now());
+  const hasStages = stages.length > 0;
+  const [stageIndex, setStageIndex] = useState(0);
+
+  // Keep the selected stage in range as the curriculum (project) changes.
+  useEffect(() => {
+    setStageIndex((i) => (i < stages.length ? i : 0));
+  }, [stages.length]);
+
+  const canStartFromStage = Boolean(project && ready && selectedCheckpoint && hasStages);
+  const startStagePreview = useCommandPreview(
+    project,
+    "train_resume",
+    {
+      gazebo_headless: gazeboHeadless,
+      resume_checkpoint: selectedCheckpoint ?? "",
+      start_stage: stageIndex,
+    },
+    canStartFromStage
+  );
 
   useEffect(() => {
     if (!running || !status?.started_at) return;
@@ -168,11 +192,48 @@ export function TrainingPanel({
             command={resumeCommand}
             commandLoading={resumeCommandLoading}
             onClick={onResume}
-            title={selectedCheckpoint ? `Resume from ${selectedCheckpoint}` : "Select a checkpoint"}
+            title={selectedCheckpoint ? `Continue from ${selectedCheckpoint}` : "Select a checkpoint"}
           >
-            {selectedCheckpoint ? "Resume from checkpoint" : "Resume (select checkpoint)"}
+            {selectedCheckpoint ? "Continue from checkpoint" : "Continue (select checkpoint)"}
           </ActionButton>
         </div>
+
+        {hasStages && (
+          <div className="train-stage-resume">
+            <label className="train-stage-label" htmlFor="train-start-stage">
+              Start from stage
+            </label>
+            <div className="train-stage-row">
+              <select
+                id="train-start-stage"
+                className="train-stage-select"
+                value={stageIndex}
+                disabled={running || busy}
+                onChange={(e) => setStageIndex(Number(e.target.value))}
+              >
+                {stages.map((stage, i) => (
+                  <option key={stage.id} value={i}>
+                    {`Stage ${i + 1}: ${stage.name}`}
+                  </option>
+                ))}
+              </select>
+              <ActionButton
+                className="btn ghost"
+                disabled={!canStartFromStage || running || busy}
+                command={startStagePreview.preview?.command}
+                commandLoading={startStagePreview.loading}
+                onClick={() => onStartFromStage(stageIndex)}
+                title={
+                  selectedCheckpoint
+                    ? `Restart ${stages[stageIndex]?.name ?? `stage ${stageIndex + 1}`} seeded with ${selectedCheckpoint}`
+                    : "Select a checkpoint to seed the stage"
+                }
+              >
+                Start from stage
+              </ActionButton>
+            </div>
+          </div>
+        )}
       </div>
 
       {status && (

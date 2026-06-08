@@ -108,3 +108,39 @@ def test_foreign_checkpoint_seeds_first_stage(tmp_path):
     ckpt = _make_ckpt(tmp_path, "pretrained.zip", 500_000)
     start_i, seed, cont = _decide(ckpt)
     assert (start_i, seed, cont) == (0, ckpt, False)
+
+
+# --- explicit --start-stage override --------------------------------------------
+
+
+def test_start_stage_override_forces_chosen_stage_fresh(tmp_path):
+    # A completed stage-0 checkpoint would normally advance to stage 1, but an
+    # explicit --start-stage 2 must restart stage 2 seeded with it, fresh budget.
+    ckpt = _make_ckpt(tmp_path, "ppo_walk.zip", 1_000_000)
+    start_i, seed, cont = rt._resolve_start_stage_override(True, STAGES, ckpt, 2)
+    assert (start_i, seed, cont) == (2, ckpt, False)
+
+
+def test_start_stage_override_ignores_checkpoint_filename(tmp_path):
+    # The checkpoint need not match any stage — its weights just seed the stage.
+    ckpt = _make_ckpt(tmp_path, "pretrained.zip", 500_000)
+    start_i, seed, cont = rt._resolve_start_stage_override(True, STAGES, ckpt, 0)
+    assert (start_i, seed, cont) == (0, ckpt, False)
+
+
+def test_start_stage_override_requires_curriculum(tmp_path):
+    ckpt = _make_ckpt(tmp_path, "ppo_walk.zip", 1_000_000)
+    with pytest.raises(ValueError):
+        rt._resolve_start_stage_override(False, [], ckpt, 0)
+
+
+def test_start_stage_override_requires_checkpoint():
+    with pytest.raises(ValueError):
+        rt._resolve_start_stage_override(True, STAGES, None, 1)
+
+
+@pytest.mark.parametrize("bad", [-1, 3, 99])
+def test_start_stage_override_rejects_out_of_range(tmp_path, bad):
+    ckpt = _make_ckpt(tmp_path, "ppo_walk.zip", 1_000_000)
+    with pytest.raises(ValueError):
+        rt._resolve_start_stage_override(True, STAGES, ckpt, bad)

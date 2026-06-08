@@ -22,6 +22,7 @@ export default function App() {
   const trainStatus = useMonitorStore((s) => s.trainStatus);
   const scalars = useMonitorStore((s) => s.scalars);
   const selectedRunId = useMonitorStore((s) => s.selectedRunId);
+  const trainingConfig = useMonitorStore((s) => s.trainingConfig);
   const log = useMonitorStore((s) => s.log);
   const appendLog = useMonitorStore((s) => s.appendLog);
   const setProject = useMonitorStore((s) => s.setProject);
@@ -265,6 +266,26 @@ export default function App() {
     }
   };
 
+  const startFromStage = async (stageIndex: number) => {
+    if (!project || !selectedCheckpoint) return;
+    setBusy(true);
+    try {
+      setTrainStatus(
+        await api.trainResume(project, selectedCheckpoint, {
+          gazebo_headless: gazeboHeadless,
+          resume_start_stage: stageIndex,
+        })
+      );
+      const stageName = trainingConfig?.stages[stageIndex]?.name ?? `stage ${stageIndex + 1}`;
+      log(`Starting from ${stageName} seeded with ${selectedCheckpoint}`);
+      await refreshProjectData(project);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const startTb = async () => {
     if (!project) return;
     setBusy(true);
@@ -370,6 +391,7 @@ export default function App() {
               scalars={scalars}
               selectedRunId={selectedRunId}
               selectedCheckpoint={selectedCheckpoint}
+              stages={trainingConfig?.stages ?? []}
               tbStatus={tbStatus}
               gazeboHeadless={gazeboHeadless}
               guiAvailable={guiAvailable}
@@ -387,6 +409,7 @@ export default function App() {
               onStart={startTraining}
               onStop={stopTraining}
               onResume={resumeTraining}
+              onStartFromStage={startFromStage}
               onSelectCheckpoint={setSelectedCheckpoint}
               onSelectRun={selectRun}
               onOpenTb={startTb}

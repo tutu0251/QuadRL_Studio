@@ -429,6 +429,7 @@ async def train_resume(name: str, body: TrainStartRequest):
             dry_run=body.dry_run,
             gazebo_headless=body.gazebo_headless,
             resume_checkpoint=body.resume_checkpoint,
+            start_stage=body.resume_start_stage,
             config_path=body.config_path,
         )
     except FileNotFoundError as exc:
@@ -445,6 +446,7 @@ async def train_resume(name: str, body: TrainStartRequest):
             "dry_run": body.dry_run,
             "gazebo_headless": body.gazebo_headless,
             "resume_checkpoint": body.resume_checkpoint,
+            "start_stage": body.resume_start_stage,
             "controller_apply_delay_s": controller_apply_delay_for_project(name),
         },
     )["command"]

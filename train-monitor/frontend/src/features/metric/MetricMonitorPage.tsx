@@ -6,7 +6,7 @@ import { MetricsPanel } from "../tensorboard/MetricsPanel";
 import { TensorBoardPanel } from "../tensorboard/TensorBoardPanel";
 import { TrainingPanel } from "../training/TrainingPanel";
 import { useMonitorStore } from "../../stores/monitorStore";
-import type { ExportBundle, TensorBoardStatus, TrainStatus } from "../../types";
+import type { ExportBundle, StageInfo, TensorBoardStatus, TrainStatus } from "../../types";
 
 type Props = {
   project: string | null;
@@ -17,6 +17,7 @@ type Props = {
   scalars: ReturnType<typeof useMonitorStore.getState>["scalars"];
   selectedRunId: string | null;
   selectedCheckpoint: string | null;
+  stages: StageInfo[];
   tbStatus: TensorBoardStatus | null;
   gazeboHeadless: boolean;
   guiAvailable: boolean;
@@ -27,6 +28,7 @@ type Props = {
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
+  onStartFromStage: (stageIndex: number) => void;
   onSelectCheckpoint: (path: string | null) => void;
   onSelectRun: (runId: string) => void;
   onOpenTb: () => void;
@@ -42,6 +44,7 @@ export function MetricMonitorPage({
   scalars,
   selectedRunId,
   selectedCheckpoint,
+  stages,
   tbStatus,
   gazeboHeadless,
   guiAvailable,
@@ -52,6 +55,7 @@ export function MetricMonitorPage({
   onStart,
   onStop,
   onResume,
+  onStartFromStage,
   onSelectCheckpoint,
   onSelectRun,
   onOpenTb,
@@ -78,6 +82,7 @@ export function MetricMonitorPage({
           status={trainStatus}
           ready={exports?.ready_for_training ?? false}
           selectedCheckpoint={selectedCheckpoint}
+          stages={stages}
           gazeboHeadless={gazeboHeadless}
           guiAvailable={guiAvailable}
           resolvedDisplay={resolvedDisplay}
@@ -85,6 +90,7 @@ export function MetricMonitorPage({
           onStart={onStart}
           onStop={onStop}
           onResume={onResume}
+          onStartFromStage={onStartFromStage}
           busy={busy}
           startCommand={startPreview.preview?.command ?? trainStatus?.command}
           stopCommand={stopPreview.preview?.command}
