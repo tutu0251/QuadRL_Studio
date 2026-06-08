@@ -12,7 +12,7 @@ body {
   margin: 0;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 12px;
-  background: #1a1c22;
+  background: var(--qr-bg-1);
   color: #d4d4d4;
   overflow: hidden;
 }
@@ -26,7 +26,7 @@ body {
 .top-bar {
   display: flex;
   flex-direction: column;
-  background: #2b2b2b;
+  background: var(--qr-bg-2);
   border-bottom: 1px solid #121212;
   flex-shrink: 0;
 }
@@ -36,8 +36,8 @@ body {
   align-items: center;
   padding: 0 8px;
   height: 28px;
-  background: #323232;
-  border-bottom: 1px solid #1a1a1a;
+  background: var(--qr-bg-3);
+  border-bottom: 1px solid var(--qr-bg-0);
 }
 
 .menu-brand {
@@ -71,7 +71,7 @@ body {
 }
 
 .menu-btn:hover {
-  background: #3e3e3e;
+  background: var(--qr-bg-4);
 }
 
 .menu-dropdown {
@@ -80,8 +80,8 @@ body {
   left: 0;
   z-index: 100;
   min-width: 220px;
-  background: #383838;
-  border: 1px solid #1a1a1a;
+  background: var(--qr-bg-3);
+  border: 1px solid var(--qr-bg-0);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   padding: 8px;
   display: flex;
@@ -102,7 +102,7 @@ body {
 }
 
 .menu-entry:hover:not(:disabled) {
-  background: #4a4a4a;
+  background: var(--qr-border-strong);
 }
 
 .menu-entry:disabled {
@@ -122,7 +122,7 @@ body {
 
 .menu-select,
 .toolbar-select {
-  background: #2a2a2a;
+  background: var(--qr-bg-2);
   border: 1px solid #555;
   color: #ddd;
   padding: 4px 6px;
@@ -135,7 +135,7 @@ body {
 
 .menu-dropdown hr {
   border: none;
-  border-top: 1px solid #4a4a4a;
+  border-top: 1px solid var(--qr-border-strong);
   margin: 4px 0;
 }
 
@@ -154,12 +154,12 @@ body {
 }
 
 .chip.ok {
-  background: #2d4a3e;
+  background: var(--qr-ok-soft);
   color: #8fd4a8;
 }
 
 .chip.warn {
-  background: #4a3d2d;
+  background: var(--qr-warn-soft);
   color: #d4b88f;
 }
 
@@ -181,7 +181,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
-  background: #383838;
+  background: var(--qr-bg-3);
   flex-wrap: wrap;
 }
 
@@ -198,7 +198,7 @@ body {
 }
 
 .toolbar-btn {
-  background: #4a4a4a;
+  background: var(--qr-border-strong);
   border: 1px solid #555;
   color: #ddd;
   padding: 4px 10px;
@@ -233,7 +233,7 @@ body {
 }
 
 .error-bar {
-  background: #5c2a2a;
+  background: var(--qr-error-soft);
   color: #ffc8c8;
   padding: 6px 12px;
   display: flex;
@@ -274,12 +274,12 @@ body {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  background: #1e2128;
+  background: var(--qr-bg-1);
 }
 
 .resize-handle {
   flex-shrink: 0;
-  background: #2a2a2a;
+  background: var(--qr-bg-2);
 }
 
 .resize-handle-horizontal {
@@ -296,17 +296,17 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--phy-panel, #282c34);
+  background: var(--phy-panel, var(--qr-bg-3));
 }
 
 .control-app .unity-panel {
-  background: #282c34;
+  background: var(--qr-bg-3);
 }
 
 .panel-header {
   padding: 8px 10px;
   font-weight: 600;
-  border-bottom: 1px solid #1a1a1a;
+  border-bottom: 1px solid var(--qr-bg-0);
   display: flex;
   justify-content: space-between;
 }
@@ -347,7 +347,7 @@ body {
 
 .hierarchy-search input {
   width: 100%;
-  background: #1e1e1e;
+  background: var(--qr-bg-1);
   border: 1px solid #444;
   color: #ddd;
   padding: 4px 8px;
@@ -396,7 +396,7 @@ body {
 }
 
 .inspector-panel {
-  background: #323842;
+  background: var(--qr-bg-3);
 }
 
 .inspector-section {
@@ -458,7 +458,7 @@ body {
 
 .inspector-row input {
   flex: 1;
-  background: #1e1e1e;
+  background: var(--qr-bg-1);
   border: 1px solid #444;
   color: #ddd;
   padding: 4px 6px;
@@ -503,7 +503,7 @@ body {
 .summary-warn {
   color: #c9a227;
   padding: 8px 12px;
-  background: #3a3520;
+  background: var(--qr-warn-soft);
   border-radius: 4px;
 }
 
@@ -551,8 +551,8 @@ body {
 
 .bottom-dock {
   flex-shrink: 0;
-  background: #2b2b2b;
-  border-top: 1px solid #1a1a1a;
+  background: var(--qr-bg-2);
+  border-top: 1px solid var(--qr-bg-0);
 }
 
 .bottom-dock.collapsed .console-content {
@@ -613,8 +613,8 @@ body {
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
-  background: #252525;
-  border-top: 1px solid #1a1a1a;
+  background: var(--qr-bg-2);
+  border-top: 1px solid var(--qr-bg-0);
   font-size: 11px;
   flex-shrink: 0;
 }
@@ -627,11 +627,11 @@ body {
 }
 
 .status-dot.online {
-  background: #4caf50;
+  background: var(--qr-ok);
 }
 
 .status-dot.offline {
-  background: #c62828;
+  background: var(--qr-error);
 }
 
 .status-sep {
@@ -645,3 +645,7 @@ body {
 .status-item.muted {
   color: #666;
 }
+
+/* ===== QuadRL Studio unified palette (propagated from train-monitor) ===== */
+:root{--ctrl-accent:var(--qr-accent);--ctrl-accent-dim:var(--qr-accent-strong);--text-muted:var(--qr-text-muted);}
+body{background:var(--qr-bg-1);color:var(--qr-text);font-family:var(--qr-font);}

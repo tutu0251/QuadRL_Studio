@@ -1451,3 +1451,11 @@ button.small-btn:disabled {
   border-color: var(--phy-accent);
 }
 
+
+/* ===== QuadRL Studio unified palette (propagated from train-monitor) ===== */
+:root{
+  --phy-accent:var(--qr-accent); --phy-accent-dim:var(--qr-accent-strong);
+  --phy-accent-glow:var(--qr-accent-soft); --phy-selection:var(--qr-accent-strong);
+  --phy-panel:var(--qr-bg-2); --phy-inspector:var(--qr-bg-3); --text-muted:var(--qr-text-muted);
+}
+body{background:var(--qr-bg-1);color:var(--qr-text);font-family:var(--qr-font);}
