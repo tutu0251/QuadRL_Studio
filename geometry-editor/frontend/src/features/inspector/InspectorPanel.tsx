@@ -4,6 +4,7 @@ import { useEditorStore } from "../../stores/editorStore";
 import { api } from "../../api/client";
 import { FieldLabel } from "../../components/FieldLabel";
 import { Foldout } from "../../components/Foldout";
+import { NumberField } from "../../components/NumberField";
 import { TransformSection } from "../../components/TransformSection";
 
 const H = ROBOT_PARAM_HINTS;
@@ -291,34 +292,31 @@ function JointInspector({
         </div>
         <div className="inspector-row">
           <FieldLabel label="Default" hint={H.defaultValue} />
-          <input
-            type="number"
-            step="0.01"
+          <NumberField
+            step={0.01}
             value={joint.defaultValue}
             title={H.defaultValue}
-            onChange={(e) => update({ defaultValue: +e.target.value })}
+            onCommit={(v) => update({ defaultValue: v })}
           />
         </div>
         {joint.type === "revolute" && (
           <>
             <div className="inspector-row">
               <FieldLabel label="Lower" hint={H.lowerLimit} />
-              <input
-                type="number"
-                step="0.01"
+              <NumberField
+                step={0.01}
                 value={joint.lowerLimit}
                 title={H.lowerLimit}
-                onChange={(e) => update({ lowerLimit: +e.target.value })}
+                onCommit={(v) => update({ lowerLimit: v })}
               />
             </div>
             <div className="inspector-row">
               <FieldLabel label="Upper" hint={H.upperLimit} />
-              <input
-                type="number"
-                step="0.01"
+              <NumberField
+                step={0.01}
                 value={joint.upperLimit}
                 title={H.upperLimit}
-                onChange={(e) => update({ upperLimit: +e.target.value })}
+                onCommit={(v) => update({ upperLimit: v })}
               />
             </div>
           </>
@@ -352,11 +350,10 @@ function Vector3FieldInline({
         {(["x", "y", "z"] as const).map((axis) => (
           <label key={axis} className={`axis-${axis}`}>
             {axis.toUpperCase()}
-            <input
-              type="number"
+            <NumberField
               step={0.1}
               value={values[axis]}
-              onChange={(e) => onChange({ ...values, [axis]: +e.target.value })}
+              onCommit={(v) => onChange({ ...values, [axis]: v })}
             />
           </label>
         ))}
