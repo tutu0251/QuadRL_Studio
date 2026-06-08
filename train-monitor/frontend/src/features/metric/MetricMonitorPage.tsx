@@ -18,7 +18,6 @@ type Props = {
   scalars: ReturnType<typeof useMonitorStore.getState>["scalars"];
   selectedRunId: string | null;
   selectedCheckpoint: string | null;
-  selectedStageLogdir: string | null;
   tbStatus: TensorBoardStatus | null;
   dryRun: boolean;
   gazeboHeadless: boolean;
@@ -33,7 +32,6 @@ type Props = {
   onResume: () => void;
   onSelectCheckpoint: (path: string | null) => void;
   onSelectRun: (runId: string) => void;
-  onSelectStage: (logdir: string | null) => void;
   onOpenTb: () => void;
   onStopTb: () => void;
 };
@@ -48,7 +46,6 @@ export function MetricMonitorPage({
   scalars,
   selectedRunId,
   selectedCheckpoint,
-  selectedStageLogdir,
   tbStatus,
   dryRun,
   gazeboHeadless,
@@ -63,7 +60,6 @@ export function MetricMonitorPage({
   onResume,
   onSelectCheckpoint,
   onSelectRun,
-  onSelectStage,
   onOpenTb,
   onStopTb,
 }: Props) {
@@ -90,15 +86,6 @@ export function MetricMonitorPage({
   const tbStopPreview = useCommandPreview(project, "tensorboard_stop");
 
   const selectedRun = runs.find((r) => r.run_id === selectedRunId) ?? null;
-  const filteredScalars =
-    selectedStageLogdir && selectedRun?.curriculum_enabled
-      ? scalars.filter((s) => {
-          const stage = selectedRun.stages.find((st) => st.logdir === selectedStageLogdir);
-          if (!stage) return true;
-          const slug = stage.logdir.split("/").pop() ?? "";
-          return s.tag.includes(slug) || true;
-        })
-      : scalars;
 
   return (
     <div className="page-grid metric-page">
@@ -133,19 +120,16 @@ export function MetricMonitorPage({
           resumeCommandLoading={resumePreview.loading}
         />
         <CheckpointsPanel checkpoints={checkpoints} selected={selectedCheckpoint} onSelect={onSelectCheckpoint} />
-        <RunsPanel
-          runs={runs}
-          selectedRunId={selectedRunId}
-          selectedStageLogdir={selectedStageLogdir}
-          onSelect={onSelectRun}
-          onSelectStage={onSelectStage}
-        />
+        <RunsPanel runs={runs} selectedRunId={selectedRunId} onSelect={onSelectRun} />
         <SystemResourcesPanel />
       </aside>
       <main className="metric-main">
         <MetricsPanel
           project={project}
-          scalars={filteredScalars}
+          runId={selectedRunId}
+          scalars={scalars}
+          stages={selectedRun?.stages ?? []}
+          curriculumEnabled={selectedRun?.curriculum_enabled ?? false}
           tbStatus={tbStatus}
           trainingActive={trainingActive}
           onOpenTb={onOpenTb}

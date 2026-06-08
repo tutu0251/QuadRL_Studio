@@ -23,7 +23,6 @@ export default function App() {
   const trainStatus = useMonitorStore((s) => s.trainStatus);
   const scalars = useMonitorStore((s) => s.scalars);
   const selectedRunId = useMonitorStore((s) => s.selectedRunId);
-  const selectedStageLogdir = useMonitorStore((s) => s.selectedStageLogdir);
   const log = useMonitorStore((s) => s.log);
   const appendLog = useMonitorStore((s) => s.appendLog);
   const setProject = useMonitorStore((s) => s.setProject);
@@ -34,7 +33,6 @@ export default function App() {
   const setTrainStatus = useMonitorStore((s) => s.setTrainStatus);
   const setScalars = useMonitorStore((s) => s.setScalars);
   const setSelectedRunId = useMonitorStore((s) => s.setSelectedRunId);
-  const setSelectedStageLogdir = useMonitorStore((s) => s.setSelectedStageLogdir);
   const setSpawnConfig = useMonitorStore((s) => s.setSpawnConfig);
   const setTopicsBundle = useMonitorStore((s) => s.setTopicsBundle);
   const setTrainingConfig = useMonitorStore((s) => s.setTrainingConfig);
@@ -201,7 +199,6 @@ export default function App() {
       await api.loadProject(name);
       setProject(name);
       setSelectedCheckpoint(null);
-      setSelectedStageLogdir(null);
       await refreshProjectData(name);
       log(`Loaded project ${name}`);
       await refreshProjects();
@@ -215,7 +212,6 @@ export default function App() {
   const selectRun = async (runId: string) => {
     if (!project) return;
     setSelectedRunId(runId);
-    setSelectedStageLogdir(null);
     setError(null);
     try {
       await refreshScalars(project, runId);
@@ -371,7 +367,6 @@ export default function App() {
               scalars={scalars}
               selectedRunId={selectedRunId}
               selectedCheckpoint={selectedCheckpoint}
-              selectedStageLogdir={selectedStageLogdir}
               tbStatus={tbStatus}
               dryRun={dryRun}
               gazeboHeadless={gazeboHeadless}
@@ -393,7 +388,6 @@ export default function App() {
               onResume={resumeTraining}
               onSelectCheckpoint={setSelectedCheckpoint}
               onSelectRun={selectRun}
-              onSelectStage={setSelectedStageLogdir}
               onOpenTb={startTb}
               onStopTb={stopTb}
             />

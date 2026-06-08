@@ -1,34 +1,23 @@
+/* Legacy token names aliased onto the unified QuadRL Studio palette
+   (defined in quadrl-design.css, imported first in main.tsx). */
 :root {
-  --bg-deep: #12141a;
-  --bg-panel: #1a1e28;
-  --bg-elevated: #222836;
-  --border: #2a3142;
-  --border-soft: #1e2430;
-  --text: #e8eaef;
-  --text-muted: #8b93a8;
-  --accent: #5c9fd4;
-  --accent-bright: #7eb8e8;
-  --accent-dim: #3d6a94;
-  --tb-orange: #e8a54a;
-  --danger: #e05c5c;
-  --ok: #66bb6a;
-  --gpu: #e8a54a;
-  --ram: #9b7ed9;
-  --radius: 6px;
-  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", monospace;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  background: var(--bg-deep);
-  color: var(--text);
-  line-height: 1.45;
+  --bg-deep: var(--qr-bg-0);
+  --bg-panel: var(--qr-bg-2);
+  --bg-elevated: var(--qr-bg-3);
+  --border: var(--qr-border-strong);
+  --border-soft: var(--qr-border);
+  --text: var(--qr-text);
+  --text-muted: var(--qr-text-muted);
+  --accent: var(--qr-accent);
+  --accent-bright: var(--qr-accent-text);
+  --accent-dim: var(--qr-accent-strong);
+  --tb-orange: var(--qr-warn);
+  --danger: var(--qr-error);
+  --ok: var(--qr-ok);
+  --gpu: var(--qr-warn);
+  --ram: var(--qr-accent-2);
+  --radius: var(--qr-radius);
+  --font-mono: var(--qr-font-mono);
 }
 
 .mono {
@@ -39,11 +28,12 @@ body {
 .monitor-app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .top-bar {
-  background: linear-gradient(180deg, #1e222c 0%, #181c24 100%);
+  background: linear-gradient(180deg, var(--qr-bg-3) 0%, var(--qr-bg-2) 100%);
   border-bottom: 1px solid var(--border-soft);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -71,7 +61,8 @@ body {
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--tb-orange) 100%);
+  background: linear-gradient(135deg, var(--qr-accent) 0%, var(--qr-accent-2) 100%);
+  box-shadow: 0 0 8px var(--qr-accent-soft);
 }
 
 .menu-item {
@@ -272,7 +263,7 @@ body {
 }
 
 .badge-completed {
-  background: rgba(92, 159, 212, 0.2);
+  background: var(--qr-accent-soft);
   color: var(--accent-bright);
 }
 
@@ -642,7 +633,7 @@ body {
 /* Metrics — TensorBoard-style charts */
 .metrics-panel {
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -656,11 +647,125 @@ body {
   padding: 24px;
 }
 
+/* Curriculum stage sub-tabs above the metric charts */
+.metric-stage-tabs {
+  margin: 2px 0 10px;
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* metric list rail + chart grid share the remaining panel height */
+.metrics-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+
+.metric-tag-list {
+  order: 2; /* place the metric list to the right of the chart grid */
+  flex: 0 0 210px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+}
+
+.metric-tag-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.metric-tag-count {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0;
+}
+
+.metric-tag-list-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.metric-tag-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+}
+
+.metric-tag-group {
+  margin-bottom: 8px;
+}
+
+.metric-tag-group-label {
+  padding: 4px 6px 2px;
+}
+
+.metric-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: var(--qr-radius-sm);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.metric-tag-row:hover {
+  background: var(--bg-elevated);
+}
+
+.metric-tag-row input {
+  accent-color: var(--qr-accent);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.metric-tag-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: var(--chart-color, var(--qr-accent));
+}
+
+.metric-tag-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-tag-val {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.metric-tag-empty {
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 8px;
+}
+
 .tb-chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 12px;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
   align-content: start;
 }
@@ -951,10 +1056,11 @@ body {
   display: flex;
   gap: 20px;
   padding: 6px 14px;
-  background: #181c24;
+  background: var(--qr-bg-2);
   border-top: 1px solid var(--border-soft);
   color: var(--text-muted);
   font-size: 11px;
+  flex: 0 0 auto;
 }
 
 .status-ok {
@@ -992,9 +1098,12 @@ body {
 
 .monitor-page-body {
   flex: 1;
-  overflow: auto;
-  padding: 12px 14px;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  overflow: hidden; /* screen-fit: the page frame never scrolls; inner regions do */
 }
 
 .monitor-main-split {
@@ -1009,7 +1118,7 @@ body {
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 12px;
+  flex: 0 0 auto;
   padding: 10px 12px;
   background: var(--bg-panel);
   border: 1px solid var(--border-soft);
@@ -1068,36 +1177,50 @@ body.console-split-dragging {
 }
 
 .page-nav {
-  display: flex;
-  gap: 4px;
-  padding: 0 14px 8px;
-  border-bottom: 1px solid var(--border-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 14px 10px;
+  padding: 3px;
+  background: var(--qr-bg-0);
+  border: 1px solid var(--qr-border);
+  border-radius: var(--qr-radius);
 }
 
 .page-nav-btn {
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   color: var(--text-muted);
-  padding: 6px 12px;
-  border-radius: var(--radius);
+  padding: 5px 14px;
+  border-radius: var(--qr-radius-sm);
   cursor: pointer;
   font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.page-nav-btn:hover {
+.page-nav-btn:hover:not(.active) {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
 }
 
 .page-nav-btn.active {
-  color: var(--accent-bright);
-  border-color: var(--accent-dim);
-  background: rgba(92, 159, 212, 0.12);
+  color: #fff;
+  background: var(--qr-accent-strong);
+  box-shadow: var(--qr-shadow-1);
 }
 
 .page-grid {
   display: grid;
   gap: 12px;
+  /* screen-fit: the grid fills remaining height and scrolls internally
+     rather than pushing the page (and console/status bar) off-screen. */
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
 }
 
 .spawn-page {
@@ -1179,17 +1302,27 @@ tr.topic-row-fail .topic-echo-preview {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
+  /* override .page-grid scroll: each column scrolls independently so charts
+     stay in view while the control column scrolls. */
+  overflow: hidden;
 }
 
 .metric-side {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .metric-main {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .action-button-wrap {

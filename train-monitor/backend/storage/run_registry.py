@@ -102,12 +102,19 @@ def latest_run_id(name: str) -> Optional[str]:
     return runs[0].run_id if runs else None
 
 
-def find_event_files(name: str, run_id: Optional[str] = None) -> list[Path]:
+def find_event_files(
+    name: str, run_id: Optional[str] = None, stage: Optional[str] = None
+) -> list[Path]:
     runs_root = project_storage.runs_dir(name)
     if not runs_root.is_dir():
         return []
     targets: list[Path] = []
-    if run_id:
+    if run_id and stage:
+        # Restrict to a single curriculum stage subdir (stage == subdir name).
+        stage_dir = (runs_root / run_id / stage).resolve()
+        if stage_dir.is_dir() and stage_dir.is_relative_to((runs_root / run_id).resolve()):
+            targets = [stage_dir]
+    elif run_id:
         targets = [runs_root / run_id]
     else:
         targets = [p for p in runs_root.iterdir() if p.is_dir()]

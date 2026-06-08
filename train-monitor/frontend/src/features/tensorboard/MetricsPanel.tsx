@@ -1,11 +1,14 @@
-import { useId, useMemo, type CSSProperties } from "react";
-import { getApiBaseUrl, tbOpenUrl } from "../../api/client";
+import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
+import { api, getApiBaseUrl, tbOpenUrl } from "../../api/client";
 import { ActionButton } from "../../components/ActionButton";
-import type { ScalarSeries, TensorBoardStatus } from "../../types";
+import type { RunStageInfo, ScalarSeries, TensorBoardStatus } from "../../types";
 
 type Props = {
   project: string | null;
+  runId: string | null;
   scalars: ScalarSeries[];
+  stages: RunStageInfo[];
+  curriculumEnabled: boolean;
   tbStatus: TensorBoardStatus | null;
   trainingActive: boolean;
   onOpenTb: () => void;
@@ -17,14 +20,33 @@ type Props = {
   tbStopLoading?: boolean;
 };
 
-const TB_COLORS = ["#e8a54a", "#5c9fd4", "#66bb6a", "#ce93d8", "#ef5350", "#80cbc4"];
+const TB_COLORS = ["#5b8def", "#34c6c6", "#46c98b", "#e0a942", "#ef6f6f", "#b48ef0"];
 
 /** Show core RL metrics first (matches training/scripts/tb_callbacks.py). */
 const FUNDAMENTAL_PREFIXES = ["rollout/", "eval/", "train/", "time/"];
 
+const GROUP_LABELS: Record<string, string> = {
+  "rollout/": "Rollout",
+  "eval/": "Eval",
+  "train/": "Train",
+  "time/": "Time",
+};
+
 function scalarSortKey(tag: string): [number, string] {
   const idx = FUNDAMENTAL_PREFIXES.findIndex((p) => tag.startsWith(p));
   return [idx === -1 ? FUNDAMENTAL_PREFIXES.length : idx, tag];
+}
+
+/** Group tag → display label and the leaf name shown in the metric list. */
+function tagGroup(tag: string): string {
+  const slash = tag.indexOf("/");
+  if (slash === -1) return "Other";
+  return GROUP_LABELS[tag.slice(0, slash + 1)] ?? tag.slice(0, slash);
+}
+
+function tagLeaf(tag: string): string {
+  const slash = tag.indexOf("/");
+  return slash === -1 ? tag : tag.slice(slash + 1);
 }
 
 function smoothValues(values: number[], weight = 0.6): number[] {
@@ -111,7 +133,10 @@ function TensorBoardChart({ series, colorIndex }: { series: ScalarSeries; colorI
 
 export function MetricsPanel({
   project,
+  runId,
   scalars,
+  stages,
+  curriculumEnabled,
   tbStatus,
   trainingActive,
   onOpenTb,
@@ -127,14 +152,91 @@ export function MetricsPanel({
       ? `${getApiBaseUrl()}${tbStatus.open_url ?? tbOpenUrl(project)}`
       : null;
 
-  const sortedScalars = useMemo(
-    () => [...scalars].sort((a, b) => {
-      const [pa, ta] = scalarSortKey(a.tag);
-      const [pb, tb] = scalarSortKey(b.tag);
-      return pa !== pb ? pa - pb : ta.localeCompare(tb);
-    }),
-    [scalars],
+  // Stage sub-tabs: only the curriculum stages that actually have event files.
+  const stageTabs = useMemo(
+    () => (curriculumEnabled ? stages.filter((s) => s.has_events) : []),
+    [curriculumEnabled, stages],
   );
+
+  // activeStage === null → "Combined" (all stages merged, the `scalars` prop).
+  const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [stageScalars, setStageScalars] = useState<ScalarSeries[]>([]);
+  const [stageLoading, setStageLoading] = useState(false);
+
+  // Reset to the combined view when the run changes or stages disappear.
+  useEffect(() => {
+    setActiveStage(null);
+  }, [runId]);
+
+  useEffect(() => {
+    if (activeStage && !stageTabs.some((s) => s.name === activeStage)) {
+      setActiveStage(null);
+    }
+  }, [activeStage, stageTabs]);
+
+  // Fetch the selected stage's scalars. Re-fetches when the parent refreshes
+  // `scalars` (its polling proxy) so a selected stage also updates live.
+  useEffect(() => {
+    if (!project || !runId || !activeStage) {
+      setStageScalars([]);
+      return;
+    }
+    let cancelled = false;
+    setStageLoading(true);
+    api
+      .getScalars(project, runId, activeStage)
+      .then((r) => {
+        if (!cancelled) setStageScalars(r.series);
+      })
+      .catch(() => {
+        if (!cancelled) setStageScalars([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project, runId, activeStage, scalars]);
+
+  const activeScalars = activeStage ? stageScalars : scalars;
+
+  const sortedScalars = useMemo(
+    () =>
+      [...activeScalars].sort((a, b) => {
+        const [pa, ta] = scalarSortKey(a.tag);
+        const [pb, tb] = scalarSortKey(b.tag);
+        return pa !== pb ? pa - pb : ta.localeCompare(tb);
+      }),
+    [activeScalars],
+  );
+
+  // Metric list selection: track HIDDEN tags so new tags appear by default.
+  const [hiddenTags, setHiddenTags] = useState<Set<string>>(new Set());
+  const toggleTag = (tag: string) =>
+    setHiddenTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  const showAll = () => setHiddenTags(new Set());
+  const hideAll = () => setHiddenTags(new Set(sortedScalars.map((s) => s.tag)));
+
+  const visibleScalars = sortedScalars.filter((s) => !hiddenTags.has(s.tag));
+
+  // Group the available tags for the metric list.
+  const groups = useMemo(() => {
+    const map = new Map<string, ScalarSeries[]>();
+    for (const s of sortedScalars) {
+      const g = tagGroup(s.tag);
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(s);
+    }
+    return [...map.entries()];
+  }, [sortedScalars]);
+
+  const hasData = sortedScalars.length > 0;
 
   return (
     <section className="panel metrics-panel">
@@ -180,16 +282,104 @@ export function MetricsPanel({
 
       {tbStatus?.error && <p className="panel-warn">{tbStatus.error}</p>}
 
-      <div className="tb-chart-grid">
-        {scalars.length === 0 ? (
-          <p className="panel-hint metrics-empty">
-            {trainingActive
-              ? "Waiting for metrics — PPO logs one point per rollout (~2k env steps). With the ROS sim this is often 1–2 minutes before the first chart appears."
-              : "No scalar metrics yet — start training or select a run with TensorBoard event files."}
-          </p>
-        ) : (
-          sortedScalars.map((s, i) => <TensorBoardChart key={s.tag} series={s} colorIndex={i} />)
-        )}
+      {stageTabs.length > 0 && (
+        <div className="metric-stage-tabs qr-segmented" role="tablist" aria-label="Curriculum stage">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeStage === null}
+            className={`qr-segmented-btn ${activeStage === null ? "active" : ""}`}
+            onClick={() => setActiveStage(null)}
+          >
+            Combined
+          </button>
+          {stageTabs.map((s) => (
+            <button
+              key={s.name}
+              type="button"
+              role="tab"
+              aria-selected={activeStage === s.name}
+              className={`qr-segmented-btn ${activeStage === s.name ? "active" : ""}`}
+              onClick={() => setActiveStage(s.name)}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="metrics-body">
+        <aside className="metric-tag-list" aria-label="Metric selection">
+          <div className="metric-tag-list-head">
+            <span className="qr-eyebrow">
+              Metrics
+              <span className="metric-tag-count">
+                {visibleScalars.length}/{sortedScalars.length}
+              </span>
+            </span>
+            <div className="metric-tag-list-actions">
+              <button type="button" className="btn tiny ghost" onClick={showAll} disabled={!hasData}>
+                All
+              </button>
+              <button type="button" className="btn tiny ghost" onClick={hideAll} disabled={!hasData}>
+                None
+              </button>
+            </div>
+          </div>
+          <div className="metric-tag-list-scroll">
+            {!hasData ? (
+              <p className="metric-tag-empty">No metrics</p>
+            ) : (
+              groups.map(([label, items]) => (
+                <div key={label} className="metric-tag-group">
+                  <div className="qr-eyebrow metric-tag-group-label">{label}</div>
+                  {items.map((s) => {
+                    const colorIndex = sortedScalars.indexOf(s);
+                    return (
+                      <label
+                        key={s.tag}
+                        className="metric-tag-row"
+                        title={s.tag}
+                        style={{ "--chart-color": TB_COLORS[colorIndex % TB_COLORS.length] } as CSSProperties}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!hiddenTags.has(s.tag)}
+                          onChange={() => toggleTag(s.tag)}
+                        />
+                        <span className="metric-tag-swatch" />
+                        <span className="metric-tag-name">{tagLeaf(s.tag) || s.tag}</span>
+                        <span className="metric-tag-val">
+                          {s.values.length ? s.values[s.values.length - 1].toPrecision(3) : "—"}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ))
+            )}
+          </div>
+        </aside>
+
+        <div className="tb-chart-grid">
+          {stageLoading && activeStage && !hasData ? (
+            <p className="panel-hint metrics-empty">Loading {activeStage} metrics…</p>
+          ) : !hasData ? (
+            <p className="panel-hint metrics-empty">
+              {trainingActive
+                ? "Waiting for metrics — PPO logs one point per rollout (~2k env steps). With the ROS sim this is often 1–2 minutes before the first chart appears."
+                : "No scalar metrics yet — start training or select a run with TensorBoard event files."}
+            </p>
+          ) : visibleScalars.length === 0 ? (
+            <p className="panel-hint metrics-empty">
+              All metrics hidden — enable some in the Metrics list on the left.
+            </p>
+          ) : (
+            visibleScalars.map((s) => (
+              <TensorBoardChart key={s.tag} series={s} colorIndex={sortedScalars.indexOf(s)} />
+            ))
+          )}
+        </div>
       </div>
     </section>
   );

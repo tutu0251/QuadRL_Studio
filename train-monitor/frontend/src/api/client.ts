@@ -84,9 +84,11 @@ export const api = {
   listCheckpoints: (name: string) =>
     req<{ checkpoints: CheckpointInfo[] }>(`/api/projects/${name}/checkpoints`),
   listRuns: (name: string) => req<{ runs: RunInfo[] }>(`/api/projects/${name}/runs`),
-  getScalars: (name: string, runId?: string) =>
+  getScalars: (name: string, runId?: string, stage?: string) =>
     runId
-      ? req<{ series: ScalarSeries[] }>(`/api/projects/${name}/runs/${runId}/scalars`)
+      ? req<{ series: ScalarSeries[] }>(
+          `/api/projects/${name}/runs/${runId}/scalars${stage ? `?stage=${encodeURIComponent(stage)}` : ""}`
+        )
       : req<{ run_id: string | null; series: ScalarSeries[] }>(`/api/projects/${name}/scalars`),
   trainStatus: (name: string) => req<TrainStatus>(`/api/projects/${name}/train/status`),
   workspaceStatus: (name: string) => req<WorkspaceStatus>(`/api/projects/${name}/workspace/status`),

@@ -284,8 +284,8 @@ def get_run(name: str, run_id: str):
 
 
 @app.get("/api/projects/{name}/runs/{run_id}/scalars")
-def get_run_scalars(name: str, run_id: str):
-    return {"series": [s.model_dump() for s in read_scalars(name, run_id)]}
+def get_run_scalars(name: str, run_id: str, stage: str | None = None):
+    return {"series": [s.model_dump() for s in read_scalars(name, run_id, stage=stage)]}
 
 
 @app.get("/api/projects/{name}/scalars")
