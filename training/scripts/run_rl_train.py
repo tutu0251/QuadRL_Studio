@@ -119,6 +119,8 @@ def _write_run_manifest(
     curriculum: dict,
     *,
     sim_backend: str,
+    resume_checkpoint: str | None = None,
+    resume_start_stage: int | None = None,
 ) -> None:
     manifest = {
         "run_id": run_root.name,
@@ -129,6 +131,10 @@ def _write_run_manifest(
         "curriculum_enabled": bool(curriculum.get("enabled") and curriculum.get("stages")),
         "sim_backend": sim_backend,
     }
+    if resume_checkpoint:
+        manifest["resume_checkpoint"] = resume_checkpoint
+    if resume_start_stage is not None:
+        manifest["resume_start_stage"] = resume_start_stage
     (run_root / "run_info.yaml").write_text(
         yaml.dump(manifest, default_flow_style=False, sort_keys=False),
         encoding="utf-8",
@@ -443,6 +449,48 @@ def _resolve_resume_checkpoint(
     return load_path if load_path.is_file() else None
 
 
+def _stage_index_for_checkpoint(stages: list, config: dict, ckpt_path: Path) -> int | None:
+    """Map a checkpoint file back to the curriculum stage that produced it.
+
+    Stage checkpoints are named ``<basename>.zip`` (final, saved at stage end) or
+    ``<basename>_<steps>_steps.zip`` (periodic CheckpointCallback saves), where
+    ``<basename>`` comes from :func:`_checkpoint_basename`. Returns the matching
+    stage's index in ``stages`` (longest-basename match to avoid prefix
+    collisions like ``walk`` vs ``walk_fast``), or ``None`` if nothing matches
+    (e.g. a foreign/pretrained checkpoint or the ``best_model`` copy).
+    """
+    stem = ckpt_path.stem
+    best_i: int | None = None
+    best_len = -1
+    for i, stage in enumerate(stages):
+        base = _checkpoint_basename(config, stage)
+        if re.fullmatch(re.escape(base) + r"(?:_\d+_steps)?", stem) and len(base) > best_len:
+            best_len = len(base)
+            best_i = i
+    return best_i
+
+
+def _checkpoint_num_timesteps(path: Path) -> int | None:
+    """Best-effort read of an SB3 checkpoint's cumulative timestep count.
+
+    Reads the ``num_timesteps`` field from the zip's ``data`` member without
+    loading the model (no env needed). Returns ``None`` if it can't be read,
+    in which case callers should fall back to letting SB3 figure out the
+    remaining steps at ``learn()`` time.
+    """
+    import json
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(path) as zf:
+            with zf.open("data") as handle:
+                data = json.load(handle)
+        value = data.get("num_timesteps")
+        return int(value) if value is not None else None
+    except Exception:
+        return None
+
+
 def _train_stage_sb3(
     config: dict,
     stage: dict | None,
@@ -454,6 +502,7 @@ def _train_stage_sb3(
     curriculum: bool,
     resume_override: str | None = None,
     reset_policy: bool = False,
+    continue_timesteps: bool = False,
 ) -> None:
     from stable_baselines3 import PPO
 
@@ -504,6 +553,13 @@ def _train_stage_sb3(
     if load_path:
         _log(f"[train] Resuming from checkpoint: {load_path}")
         model = PPO.load(str(load_path), env=env, device=device, tensorboard_log=str(tb_dir))
+        if continue_timesteps:
+            done = int(getattr(model, "num_timesteps", 0))
+            remaining = max(0, timesteps - done)
+            _log(
+                f"[train] Continuing stage from step {done:,} toward target {timesteps:,} "
+                f"({remaining:,} remaining)"
+            )
     else:
         requested = resume_override or (config.get("training") or {}).get("resume_checkpoint")
         if requested and not reset_policy:
@@ -559,6 +615,7 @@ def _train_stage_sb3(
             total_timesteps=timesteps,
             progress_bar=progress_bar,
             callback=callbacks,
+            reset_num_timesteps=not continue_timesteps,
         )
     except Exception as exc:
         if not (_shutdown_requested or _is_ros_shutdown_error(exc)):
@@ -673,11 +730,55 @@ def main() -> int:
 
     curriculum = config.get("curriculum") or {}
     curriculum_enabled = bool(curriculum.get("enabled") and curriculum.get("stages"))
+    curriculum_stages = (
+        sorted(curriculum["stages"], key=lambda s: s.get("order", 0)) if curriculum_enabled else []
+    )
 
     from quadrl_env.env_factory import resolve_sim_backend
 
     sim_backend = resolve_sim_backend(project_dir)
-    _write_run_manifest(run_root, project_name, config_path, curriculum, sim_backend=sim_backend)
+
+    # Resolve the resume checkpoint and, for curriculum runs, figure out which
+    # stage to continue from so we pick up mid-curriculum instead of replaying
+    # every stage. The stage and step position are derived from the checkpoint
+    # itself: its filename identifies the stage, its embedded num_timesteps gives
+    # the position within that stage's budget.
+    resume_ckpt_path = _resolve_resume_checkpoint(config, project_dir, args.resume)
+    resume_start_i = 0          # index of the first stage to actually run
+    resume_seed_path: Path | None = None   # checkpoint to load into that stage
+    resume_seed_continue = False           # True => continue that stage's step counter
+    if resume_ckpt_path and curriculum_enabled:
+        matched = _stage_index_for_checkpoint(curriculum_stages, config, resume_ckpt_path)
+        if matched is None:
+            _log(
+                f"[warn] Resume checkpoint '{resume_ckpt_path.name}' does not match any "
+                "curriculum stage — seeding stage 1 with it (fresh budget)"
+            )
+            resume_seed_path = resume_ckpt_path
+        else:
+            budget = int(curriculum_stages[matched].get("timesteps", 100_000))
+            done = _checkpoint_num_timesteps(resume_ckpt_path)
+            if done is not None and done >= budget:
+                # That stage is already finished — continue from the next stage,
+                # seeding it from this checkpoint the same way load_previous does.
+                resume_start_i = matched + 1
+                resume_seed_path = resume_ckpt_path
+                resume_seed_continue = False
+            else:
+                # Mid-stage: continue this stage's step counter toward its budget.
+                resume_start_i = matched
+                resume_seed_path = resume_ckpt_path
+                resume_seed_continue = True
+
+    _write_run_manifest(
+        run_root,
+        project_name,
+        config_path,
+        curriculum,
+        sim_backend=sim_backend,
+        resume_checkpoint=str(resume_ckpt_path) if resume_ckpt_path else None,
+        resume_start_stage=(resume_start_i + 1) if (resume_ckpt_path and curriculum_enabled) else None,
+    )
 
     _log(f"[train] Project: {project_name}")
     _log(f"[train] Config: {config_path}")
@@ -708,21 +809,48 @@ def main() -> int:
     if curriculum_enabled:
         os.environ["QUADRL_KEEP_GAZEBO"] = "1"
         _log("[train] Curriculum enabled — reusing one Gazebo session across stages")
-        stages = sorted(curriculum["stages"], key=lambda s: s.get("order", 0))
+        stages = curriculum_stages
         _log(f"[train] Curriculum: {curriculum.get('name', '')} ({len(stages)} stages)")
+        if resume_seed_path is not None and resume_start_i >= len(stages):
+            _log(
+                f"[train] Resume checkpoint {resume_seed_path.name} completes the final stage "
+                "— nothing left to train"
+            )
+        elif resume_seed_path is not None and resume_start_i > 0:
+            _log(
+                f"[train] Resuming curriculum at stage {resume_start_i + 1}/{len(stages)} "
+                f"from {resume_seed_path.name} — stages 1..{resume_start_i} already complete (skipped)"
+            )
         prev_ckpt: Path | None = None
         for i, stage in enumerate(stages):
             if _shutdown_requested:
                 break
+            if i < resume_start_i:
+                # Completed in a previous run — keep its checkpoint as the
+                # carry-forward source but don't retrain it.
+                prev_ckpt = checkpoint_dir / _checkpoint_basename(config, stage)
+                _log(
+                    f"[train] === Stage {i + 1}/{len(stages)}: {stage.get('name')} "
+                    "— already complete, skipping ==="
+                )
+                continue
             _log(f"[train] === Stage {i + 1}/{len(stages)}: {stage.get('name')} ===")
             cmd = stage.get("command") or {}
             _log(
                 f"[train] Command vel: lin={cmd.get('target_lin_vel_x', 0)} "
                 f"ang={cmd.get('target_ang_vel_z', 0)}"
             )
-            resume = args.resume if i == 0 else None
-            if i > 0 and load_prev and prev_ckpt and prev_ckpt.is_file():
-                resume = str(prev_ckpt)
+            continue_timesteps = False
+            if i == resume_start_i and resume_seed_path is not None:
+                resume = str(resume_seed_path)
+                continue_timesteps = resume_seed_continue
+                # Never wipe the policy on the stage we are resuming into.
+                reset_policy = False if resume_seed_continue else (reset_on_advance and i > 0)
+            else:
+                resume = None
+                if i > 0 and load_prev and prev_ckpt and prev_ckpt.is_file():
+                    resume = str(prev_ckpt)
+                reset_policy = reset_on_advance and i > 0
             if use_sb3:
                 _train_stage_sb3(
                     config,
@@ -733,7 +861,8 @@ def main() -> int:
                     project_dir,
                     curriculum=True,
                     resume_override=resume,
-                    reset_policy=reset_on_advance and i > 0,
+                    reset_policy=reset_policy,
+                    continue_timesteps=continue_timesteps,
                 )
                 prev_ckpt = checkpoint_dir / _checkpoint_basename(config, stage)
             else:

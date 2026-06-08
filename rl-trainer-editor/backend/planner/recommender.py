@@ -90,6 +90,7 @@ def recommend_param_enabled(
     rough: bool,
     reward_terms: list[RewardTerm],
     termination_terms: list[TerminationTerm] | None = None,
+    disturbance: DisturbanceConfig | None = None,
 ) -> dict[str, bool]:
     flags: dict[str, bool] = {}
     is_stand = stage_is_stand_only(stage)
@@ -114,7 +115,12 @@ def recommend_param_enabled(
     if cmd.targetAngVelZ == 0:
         flags["command.target_ang_vel_z"] = False
 
-    flags["disturbance.enabled"] = rough
+    # Mark the disturbance params active when the stage actually has disturbances
+    # enabled, so the editor's per-param checkboxes match the live values. Falling
+    # back to `rough` (the old behavior) left perturbed-but-flat stages showing
+    # unchecked boxes even though training applies the values.
+    dist_on = bool(disturbance.enabled) if disturbance is not None else rough
+    flags["disturbance.enabled"] = dist_on
     for key in (
         "push_force_n",
         "push_interval_steps",
@@ -122,7 +128,7 @@ def recommend_param_enabled(
         "lateral_impulse_n",
         "orientation_noise_rad",
     ):
-        flags[f"disturbance.{key}"] = rough
+        flags[f"disturbance.{key}"] = dist_on
 
     for key in (
         "max_episode_steps",
@@ -194,24 +200,32 @@ def recommend_stage_params(
         gaitSpeedScale=1.0 + stage.order * 0.05,
     )
 
-    disturbance = stage.disturbance.model_copy(deep=True)
-    if rough:
+    # Graduated perturbations teach closed-loop recovery. Stand stays a clean
+    # balance baseline (no pushes); perturbations ramp from Recover (order 1)
+    # through Gallop (order 6) so the policy learns to resist its own action
+    # noise and external shoves instead of memorizing one precise pose. The
+    # wrench engine (training/quadrl_env/disturbances.py) consumes pushForceN /
+    # pushIntervalSteps / lateralImpulseN; terrainRoughness is layered on only for
+    # the rough-terrain curriculum. Forces are absolute N (robot body weight is
+    # ~79 N), so 15→40 N spans ~19%–50% of weight. _build_stage overwrites the
+    # template's placeholder stage.disturbance with this output.
+    is_stand = stage_is_stand_only(stage)
+    # Only the initial balance stage (order 0 / Stand) is a clean baseline.
+    # Recover is also zero-velocity (stage_is_stand_only would be True), but it
+    # is the recovery stage and MUST be perturbed — so gate on order, not is_stand.
+    if stage.order <= 0:
+        disturbance = DisturbanceConfig()
+    else:
+        frac = min(1.0, (stage.order - 1) / 5.0)  # 0 at Recover, 1 at Gallop
         roughness = min(0.85, 0.15 + stage.order * 0.1)
-        # Conservative perturbations tuned for the bent-leg pose (see
-        # PARAMETER_FIXES_SUMMARY.md). This recommender output is the live source:
-        # _build_stage overwrites the template's stage.disturbance with it.
         disturbance = DisturbanceConfig(
             enabled=True,
-            pushForceN=10 + roughness * 25,
-            pushIntervalSteps=max(300, int(800 - roughness * 300)),
-            terrainRoughness=roughness * 0.8,
-            lateralImpulseN=5 + roughness * 12,
-            randomOrientationNoiseRad=0.02 + roughness * 0.05,
+            pushForceN=round(15 + frac * 25, 1),         # 15 → 40 N
+            pushIntervalSteps=int(150 - frac * 70),      # ~every 3.0 s → 1.6 s at 50 Hz
+            lateralImpulseN=round(8 + frac * 14, 1),     # 8 → 22 N
+            terrainRoughness=round(roughness * 0.8, 3) if rough else 0.0,
+            randomOrientationNoiseRad=round(0.02 + frac * 0.04, 3),
         )
-    else:
-        disturbance = DisturbanceConfig()
-
-    is_stand = stage_is_stand_only(stage)
     termination = merge_termination_config(stage.termination)
     termination.maxEpisodeSteps = 800 + stage.order * 200
     termination.fallBaseHeightThreshold = heights.fall_base_height_threshold
@@ -230,7 +244,7 @@ def recommend_stage_params(
     )
     reward_terms = _recommend_reward_terms(stage)
     param_enabled = recommend_param_enabled(
-        stage, rough, reward_terms, termination.terminationTerms
+        stage, rough, reward_terms, termination.terminationTerms, disturbance
     )
     notes = [
         f"Recommended stage '{stage.name}': vel={vel:.2f} m/s, "
