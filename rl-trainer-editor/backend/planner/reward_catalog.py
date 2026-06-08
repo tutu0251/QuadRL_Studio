@@ -72,14 +72,18 @@ REWARD_CATALOG: tuple[RewardCatalogEntry, ...] = (
         "forward_tracking",
         "reward",
         "velocity",
-        1.0,
+        # Dominant locomotion reward. Survival terms (upright+height+posture+...) sum
+        # to ~3 and are earnable while standing still, so a weight of 1.0 let the
+        # policy collapse into a "balance in place" optimum and ignore the velocity
+        # command. Raised so hitting target speed clearly out-earns standing.
+        2.2,
         (_p("sigma", 0.22, 0.08, 0.6),),
     ),
     RewardCatalogEntry(
         "lateral_tracking",
         "reward",
         "velocity",
-        0.4,
+        0.6,
         (_p("sigma", 0.18, 0.06, 0.5),),
     ),
     RewardCatalogEntry(
@@ -170,7 +174,9 @@ REWARD_CATALOG: tuple[RewardCatalogEntry, ...] = (
         "target_posture",
         "penalty",
         "posture",
-        -0.35,
+        # Softened: pinning the body to a static reference posture fights the
+        # leg-cycling needed to walk, reinforcing the stand-in-place optimum.
+        -0.2,
         (_p("sigma", 0.12, 0.04, 0.45),),
     ),
     RewardCatalogEntry(
@@ -201,7 +207,7 @@ REWARD_CATALOG: tuple[RewardCatalogEntry, ...] = (
         "target_like",
         "penalty",
         "tracking",
-        -0.2,
+        -0.1,
         (_p("sigma", 0.18, 0.06, 0.5),),
     ),
     RewardCatalogEntry(
@@ -396,6 +402,11 @@ def recommend_reward_terms_for_stage(
         if t.id == "linear_velocity" and not is_stand and lin_vel_scale > 0.2:
             t.enabled = False
         t = recommend_term_params(t, cmd, lin_vel_scale=lin_vel_scale)
+        # Lower the standing-still reward floor for locomotion stages so the
+        # velocity reward dominates. These terms (shared with Stand) keep their
+        # full weight there — only commanded-motion stages are scaled.
+        if not is_stand and t.id in ("upright", "height", "posture"):
+            t.weight = round(t.weight * 0.7, 4)
         out.append(t)
     return out
 
