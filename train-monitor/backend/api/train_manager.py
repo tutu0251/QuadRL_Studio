@@ -176,6 +176,7 @@ class TrainManager:
         dry_run: bool = False,
         gazebo_headless: bool = True,
         resume_checkpoint: Optional[str] = None,
+        start_stage: Optional[int] = None,
         config_path: Optional[str] = None,
     ) -> TrainStatus:
         if self.is_running():
@@ -216,12 +217,15 @@ class TrainManager:
             cmd.append("--gazebo-gui")
         if resume_checkpoint:
             cmd.extend(["--resume", resume_checkpoint])
+        if start_stage is not None:
+            cmd.extend(["--start-stage", str(start_stage)])
 
         shell_cmd = build_train_command(
             project,
             dry_run=dry_run,
             gazebo_headless=gazebo_headless,
             resume_checkpoint=resume_checkpoint,
+            start_stage=start_stage,
             config_path=config_path,
             controller_apply_delay_s=delay_s,
         )

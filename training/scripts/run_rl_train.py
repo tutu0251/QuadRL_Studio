@@ -491,6 +491,31 @@ def _checkpoint_num_timesteps(path: Path) -> int | None:
         return None
 
 
+def _resolve_start_stage_override(
+    curriculum_enabled: bool,
+    stages: list,
+    resume_ckpt_path: Path | None,
+    start_stage: int,
+) -> tuple[int, Path, bool]:
+    """Validate an explicit ``--start-stage`` request and return the resume plan
+    ``(resume_start_i, resume_seed_path, resume_seed_continue)``.
+
+    The chosen stage is seeded with the resume checkpoint's weights and trained
+    from a fresh budget (``resume_seed_continue=False``), unlike the filename-based
+    auto-detection which may continue an in-progress stage. Raises ``ValueError``
+    with a user-facing message when the request is invalid.
+    """
+    if not curriculum_enabled:
+        raise ValueError("--start-stage requires a curriculum config")
+    if resume_ckpt_path is None:
+        raise ValueError("--start-stage requires a --resume checkpoint to seed the stage")
+    if not (0 <= start_stage < len(stages)):
+        raise ValueError(
+            f"--start-stage {start_stage} out of range (0..{len(stages) - 1})"
+        )
+    return start_stage, resume_ckpt_path, False
+
+
 def _train_stage_sb3(
     config: dict,
     stage: dict | None,
@@ -675,6 +700,16 @@ def main() -> int:
         help="Override resume checkpoint path (relative to project root or absolute)",
     )
     parser.add_argument(
+        "--start-stage",
+        type=int,
+        default=None,
+        help=(
+            "Curriculum stage index (0-based) to restart from, seeding it with the "
+            "--resume checkpoint's weights and a fresh timestep budget. Overrides the "
+            "automatic stage detection. Requires --resume and a curriculum config."
+        ),
+    )
+    parser.add_argument(
         "--sim-backend",
         choices=("auto", "ros"),
         default=None,
@@ -747,7 +782,18 @@ def main() -> int:
     resume_start_i = 0          # index of the first stage to actually run
     resume_seed_path: Path | None = None   # checkpoint to load into that stage
     resume_seed_continue = False           # True => continue that stage's step counter
-    if resume_ckpt_path and curriculum_enabled:
+    if args.start_stage is not None:
+        # Explicit "start from stage" mode: skip stages before the chosen index,
+        # seed the chosen stage with the checkpoint's weights, and train it from a
+        # fresh budget. Overrides the filename-based auto-detection below.
+        try:
+            resume_start_i, resume_seed_path, resume_seed_continue = _resolve_start_stage_override(
+                curriculum_enabled, curriculum_stages, resume_ckpt_path, args.start_stage
+            )
+        except ValueError as exc:
+            _log(f"[error] {exc}")
+            return 1
+    elif resume_ckpt_path and curriculum_enabled:
         matched = _stage_index_for_checkpoint(curriculum_stages, config, resume_ckpt_path)
         if matched is None:
             _log(

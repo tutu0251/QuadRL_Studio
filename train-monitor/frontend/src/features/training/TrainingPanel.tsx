@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react";
 import { formatElapsedSince, formatTimestamp } from "../../utils/format";
 import { ActionButton } from "../../components/ActionButton";
-import type { TrainStatus } from "../../types";
+import { useCommandPreview } from "../../hooks/useCommandPreview";
+import type { StageInfo, TrainStatus } from "../../types";
 
 type Props = {
   project: string | null;
   status: TrainStatus | null;
   ready: boolean;
   selectedCheckpoint: string | null;
-  dryRun: boolean;
+  stages: StageInfo[];
   gazeboHeadless: boolean;
-  recommendedSim: string;
   guiAvailable: boolean;
   resolvedDisplay: string | null;
-  onDryRunChange: (v: boolean) => void;
   onGazeboHeadlessChange: (v: boolean) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
+  onStartFromStage: (stageIndex: number) => void;
   busy: boolean;
   startCommand?: string | null;
   stopCommand?: string | null;
@@ -32,16 +32,15 @@ export function TrainingPanel({
   status,
   ready,
   selectedCheckpoint,
-  dryRun,
+  stages,
   gazeboHeadless,
-  recommendedSim,
   guiAvailable,
   resolvedDisplay,
-  onDryRunChange,
   onGazeboHeadlessChange,
   onStart,
   onStop,
   onResume,
+  onStartFromStage,
   busy,
   startCommand,
   stopCommand,
@@ -53,6 +52,25 @@ export function TrainingPanel({
   const running = status?.state === "running" || status?.state === "starting";
   const stateLabel = status?.state ?? "idle";
   const [now, setNow] = useState(() => Date.now());
+  const hasStages = stages.length > 0;
+  const [stageIndex, setStageIndex] = useState(0);
+
+  // Keep the selected stage in range as the curriculum (project) changes.
+  useEffect(() => {
+    setStageIndex((i) => (i < stages.length ? i : 0));
+  }, [stages.length]);
+
+  const canStartFromStage = Boolean(project && ready && selectedCheckpoint && hasStages);
+  const startStagePreview = useCommandPreview(
+    project,
+    "train_resume",
+    {
+      gazebo_headless: gazeboHeadless,
+      resume_checkpoint: selectedCheckpoint ?? "",
+      start_stage: stageIndex,
+    },
+    canStartFromStage
+  );
 
   useEffect(() => {
     if (!running || !status?.started_at) return;
@@ -63,10 +81,16 @@ export function TrainingPanel({
   const elapsed =
     running && status?.started_at ? formatElapsedSince(status.started_at, now) : null;
 
+  const hasActivity = Boolean(status?.current_stage || status?.progress_message);
+  const hasCounters = status?.rollout_count != null || status?.episode_count != null;
+
   return (
     <section className="panel training-panel">
       <header className="panel-header">
-        <h2>Training</h2>
+        <h2>
+          <span className={`live-dot${running ? " on" : ""}`} aria-hidden="true" />
+          Training
+        </h2>
         <span className={`badge badge-${stateLabel}`}>{stateLabel}</span>
       </header>
 
@@ -88,10 +112,29 @@ export function TrainingPanel({
         </div>
       )}
 
-      <p className="panel-hint">
-        Simulation: ROS/Gazebo ({recommendedSim} when workspace and exports are ready). Metrics via
-        TensorBoard below.
-      </p>
+      {hasActivity && (
+        <div className="train-activity" aria-live="polite">
+          {status?.current_stage && (
+            <span className="train-activity-stage">{status.current_stage}</span>
+          )}
+          {status?.progress_message && (
+            <span className="train-activity-progress mono">{status.progress_message}</span>
+          )}
+        </div>
+      )}
+
+      {hasCounters && (
+        <div className="train-metrics">
+          <div className="train-metric">
+            <span className="train-metric-value mono">{status?.rollout_count ?? "—"}</span>
+            <span className="train-metric-label">Rollouts</span>
+          </div>
+          <div className="train-metric">
+            <span className="train-metric-value mono">{status?.episode_count ?? "—"}</span>
+            <span className="train-metric-label">Episodes</span>
+          </div>
+        </div>
+      )}
 
       <div className="train-controls">
         <fieldset className="gazebo-mode-fieldset" disabled={running}>
@@ -124,11 +167,7 @@ export function TrainingPanel({
         {guiAvailable && resolvedDisplay && (
           <p className="panel-hint">GUI will use DISPLAY={resolvedDisplay}</p>
         )}
-        <label className="checkbox-row">
-          <input type="checkbox" checked={dryRun} onChange={(e) => onDryRunChange(e.target.checked)} />
-          Dry run (no SB3)
-        </label>
-        <div className="btn-row train-action-row">
+        <div className="train-action-grid">
           <ActionButton
             className="btn primary"
             disabled={!project || !ready || running || busy}
@@ -148,16 +187,53 @@ export function TrainingPanel({
             Stop
           </ActionButton>
           <ActionButton
-            className="btn"
+            className="btn ghost train-action-resume"
             disabled={!project || !ready || !selectedCheckpoint || running || busy}
             command={resumeCommand}
             commandLoading={resumeCommandLoading}
             onClick={onResume}
-            title={selectedCheckpoint ? `Resume from ${selectedCheckpoint}` : "Select a checkpoint"}
+            title={selectedCheckpoint ? `Continue from ${selectedCheckpoint}` : "Select a checkpoint"}
           >
-            Resume
+            {selectedCheckpoint ? "Continue from checkpoint" : "Continue (select checkpoint)"}
           </ActionButton>
         </div>
+
+        {hasStages && (
+          <div className="train-stage-resume">
+            <label className="train-stage-label" htmlFor="train-start-stage">
+              Start from stage
+            </label>
+            <div className="train-stage-row">
+              <select
+                id="train-start-stage"
+                className="train-stage-select"
+                value={stageIndex}
+                disabled={running || busy}
+                onChange={(e) => setStageIndex(Number(e.target.value))}
+              >
+                {stages.map((stage, i) => (
+                  <option key={stage.id} value={i}>
+                    {`Stage ${i + 1}: ${stage.name}`}
+                  </option>
+                ))}
+              </select>
+              <ActionButton
+                className="btn ghost"
+                disabled={!canStartFromStage || running || busy}
+                command={startStagePreview.preview?.command}
+                commandLoading={startStagePreview.loading}
+                onClick={() => onStartFromStage(stageIndex)}
+                title={
+                  selectedCheckpoint
+                    ? `Restart ${stages[stageIndex]?.name ?? `stage ${stageIndex + 1}`} seeded with ${selectedCheckpoint}`
+                    : "Select a checkpoint to seed the stage"
+                }
+              >
+                Start from stage
+              </ActionButton>
+            </div>
+          </div>
+        )}
       </div>
 
       {status && (
@@ -166,30 +242,6 @@ export function TrainingPanel({
             <>
               <dt>Run</dt>
               <dd className="mono">{status.run_id}</dd>
-            </>
-          )}
-          {status.current_stage && (
-            <>
-              <dt>Stage</dt>
-              <dd>{status.current_stage}</dd>
-            </>
-          )}
-          {status.progress_message && (
-            <>
-              <dt>Progress</dt>
-              <dd>{status.progress_message}</dd>
-            </>
-          )}
-          {status.rollout_count != null && (
-            <>
-              <dt>Rollouts</dt>
-              <dd>{status.rollout_count}</dd>
-            </>
-          )}
-          {status.episode_count != null && (
-            <>
-              <dt>Episodes</dt>
-              <dd>{status.episode_count}</dd>
             </>
           )}
           {status.last_termination_reason && (

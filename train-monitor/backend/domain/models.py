@@ -61,6 +61,7 @@ class ScalarSeries(BaseModel):
 class TrainStartRequest(BaseModel):
     dry_run: bool = False
     resume_checkpoint: Optional[str] = None
+    resume_start_stage: Optional[int] = None
     config_path: Optional[str] = None
     gazebo_headless: bool = True
 
@@ -235,6 +236,12 @@ class TerminationSummary(BaseModel):
     enabled_term_ids: list[str] = Field(default_factory=list)
 
 
+class StageInfo(BaseModel):
+    id: str
+    name: str
+    order: int
+
+
 class TrainingConfig(BaseModel):
     project: str
     gains_path: str
@@ -242,6 +249,7 @@ class TrainingConfig(BaseModel):
     action_scales: list[ActionScaleEntry] = Field(default_factory=list)
     observation_scales: list[ObservationScaleEntry] = Field(default_factory=list)
     terminations: list[TerminationSummary] = Field(default_factory=list)
+    stages: list[StageInfo] = Field(default_factory=list)
     curriculum_enabled: bool = False
 
 

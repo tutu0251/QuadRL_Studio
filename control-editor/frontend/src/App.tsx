@@ -3,10 +3,10 @@ import { api, wsLogsUrl } from "./api/client";
 import { useEditorStore } from "./stores/editorStore";
 import { MenuBar } from "./features/menu/MenuBar";
 import { Toolbar } from "./features/toolbar/Toolbar";
-import { HierarchyPanel } from "./features/hierarchy/HierarchyPanel";
-import { InspectorPanel } from "./features/inspector/InspectorPanel";
-import { SummaryPanel } from "./features/summary/SummaryPanel";
-import { ConsolePanel } from "./features/console/ConsolePanel";
+import { ModelSummaryBar } from "./features/summary/ModelSummaryBar";
+import { JointsWorkbench } from "./features/workbench/JointsWorkbench";
+import { SettingsRail } from "./features/inspector/SettingsRail";
+import { ConsoleDock } from "./features/console/ConsoleDock";
 import { StatusBar } from "./features/status/StatusBar";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { useClampedSize } from "./hooks/useClampedSize";
@@ -22,10 +22,7 @@ export default function App() {
   >([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [consoleOpen, setConsoleOpen] = useState(true);
-  const [leftWidth, resizeLeft] = useClampedSize(280, 200, 480);
-  const [rightWidth, resizeRight] = useClampedSize(360, 280, 640);
-  const [consoleHeight, resizeConsole] = useClampedSize(130, 80, 400);
+  const [railWidth, resizeRail] = useClampedSize(340, 260, 560);
 
   const reloadModel = useCallback(
     async (name: string) => {
@@ -55,11 +52,6 @@ export default function App() {
         setError("Backend unreachable — start control-editor on port 8002");
       });
   }, [refreshProjects, log]);
-
-  const consoleFocus = useEditorStore((s) => s.consoleFocus);
-  useEffect(() => {
-    if (consoleFocus > 0) setConsoleOpen(true);
-  }, [consoleFocus]);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -103,17 +95,22 @@ export default function App() {
   };
 
   return (
-    <div className="app unity-layout control-app">
-      <div className="top-bar">
-        <MenuBar
-          projects={projects}
-          projectDetails={projectDetails}
-          onLoadProject={loadProject}
-          onImport={importPhy}
-          onReload={() => project && reloadModel(project)}
-        />
-        <Toolbar />
-      </div>
+    <div className="app control-app">
+      <header className="top-bar">
+        <div className="menu-row">
+          <MenuBar
+            projects={projects}
+            projectDetails={projectDetails}
+            onLoadProject={loadProject}
+            onImport={importPhy}
+            onReload={() => project && reloadModel(project)}
+          />
+        </div>
+        <div className="action-row">
+          <Toolbar />
+          <ConsoleDock />
+        </div>
+      </header>
 
       {error && (
         <div className="error-bar" role="alert">
@@ -125,36 +122,15 @@ export default function App() {
       )}
 
       <div className="editor-body">
-        <div className="editor-main">
-          <aside className="left-dock" style={{ width: leftWidth }}>
-            <HierarchyPanel />
-          </aside>
-          <ResizeHandle axis="horizontal" onResize={resizeLeft} />
-          <main className="center-dock">
-            <SummaryPanel />
+        <ModelSummaryBar />
+        <div className="workbench-row">
+          <main className="workbench-main">
+            <JointsWorkbench />
           </main>
-          <ResizeHandle axis="horizontal" onResize={(d) => resizeRight(-d)} />
-          <aside className="right-dock" style={{ width: rightWidth }}>
-            <InspectorPanel />
+          <ResizeHandle axis="horizontal" onResize={(d) => resizeRail(-d)} />
+          <aside className="settings-rail" style={{ width: railWidth }}>
+            <SettingsRail />
           </aside>
-        </div>
-
-        {consoleOpen && <ResizeHandle axis="vertical" onResize={(d) => resizeConsole(-d)} />}
-
-        <div className={`bottom-dock ${consoleOpen ? "open" : "collapsed"}`}>
-          <button
-            type="button"
-            className="console-toggle"
-            onClick={() => setConsoleOpen(!consoleOpen)}
-          >
-            <span>Console</span>
-            <span className="console-toggle-meta">{consoleOpen ? "▼" : "▲"}</span>
-          </button>
-          {consoleOpen && (
-            <div className="console-content" style={{ height: consoleHeight }}>
-              <ConsolePanel />
-            </div>
-          )}
         </div>
       </div>
 

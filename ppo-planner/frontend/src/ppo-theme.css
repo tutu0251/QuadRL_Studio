@@ -1196,3 +1196,15 @@
 .ppo-app .export-hints code {
   color: var(--ppo-accent);
 }
+
+/* ===== QuadRL Studio unified palette (propagated from train-monitor) ===== */
+:root{
+  --ppo-accent:var(--qr-accent); --ppo-accent-dim:var(--qr-accent-strong);
+  --ppo-surface:var(--qr-bg-1); --ppo-surface-raised:var(--qr-bg-2);
+  --ppo-panel:var(--qr-bg-2); --ppo-panel-alt:var(--qr-bg-3);
+  --ppo-border:var(--qr-border); --ppo-border-subtle:var(--qr-border);
+  --ppo-glow:var(--qr-accent-soft); --ppo-text:var(--qr-text); --ppo-text-muted:var(--qr-text-muted);
+  --ppo-success:var(--qr-ok); --ppo-warn:var(--qr-warn); --ppo-error:var(--qr-error);
+  --ppo-radius:var(--qr-radius); --ppo-radius-sm:var(--qr-radius-sm); --text-muted:var(--qr-text-muted);
+}
+body{background:var(--qr-bg-1);color:var(--qr-text);font-family:var(--qr-font);}

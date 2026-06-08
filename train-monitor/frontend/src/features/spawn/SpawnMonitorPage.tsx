@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { ActionButton } from "../../components/ActionButton";
+import { NumericInput } from "../../components/NumericInput";
 import { useCommandPreview } from "../../hooks/useCommandPreview";
 import { useMonitorStore } from "../../stores/monitorStore";
 import type { SpawnConfig, SpawnOffset } from "../../types";
@@ -80,7 +81,10 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
     <div className="page-grid spawn-page">
       <section className="panel">
         <header className="panel-header">
-          <h2>Geometry Spawn Export</h2>
+          <div>
+            <h2>Geometry Spawn Export</h2>
+            <p className="panel-subtitle">Exported spawn pose and joint angles used to place the robot.</p>
+          </div>
           {cfg && (
             <span className={`badge ${cfg.pose_confirmed ? "badge-completed" : "badge-stopped"}`}>
               {cfg.pose_confirmed ? "confirmed" : "unconfirmed"}
@@ -129,19 +133,20 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
 
       <section className="panel">
         <header className="panel-header">
-          <h2>Spawn Offset</h2>
+          <div>
+            <h2>Spawn Offset</h2>
+            <p className="panel-subtitle">Applied on top of base spawn; saved to effective spawn in export YAML.</p>
+          </div>
         </header>
-        <p className="panel-hint">Applied on top of base spawn; saved to effective spawn in export YAML.</p>
         <div className="form-grid">
           {(["dx", "dy", "dz", "droll", "dpitch", "dyaw"] as const).map((key) => (
             <label key={key} className="field-row">
               <span>{key}</span>
-              <input
-                type="number"
-                step="0.01"
+              <NumericInput
+                step={0.01}
                 disabled={disabled}
                 value={offset[key]}
-                onChange={(e) => setOffset((o) => ({ ...o, [key]: parseFloat(e.target.value) || 0 }))}
+                onCommit={(v) => setOffset((o) => ({ ...o, [key]: v ?? 0 }))}
               />
             </label>
           ))}
@@ -159,21 +164,21 @@ export function SpawnMonitorPage({ project, busy, onBusy, onError }: Props) {
 
       <section className="panel">
         <header className="panel-header">
-          <h2>Controller Warmup</h2>
+          <div>
+            <h2>Controller Warmup</h2>
+            <p className="panel-subtitle">
+              Delay after spawn before control applies (controller_apply_delay_s; training uses QUADRL_SIM_WARMUP_S).
+            </p>
+          </div>
         </header>
-        <p className="panel-hint">
-          Delay after spawn finishes before control applies (saved as controller_apply_delay_s; training uses
-          QUADRL_SIM_WARMUP_S).
-        </p>
         <label className="field-row">
           <span>Apply delay (s)</span>
-          <input
-            type="number"
+          <NumericInput
             min={0}
             step={1}
             disabled={disabled}
             value={delay}
-            onChange={(e) => setDelay(parseFloat(e.target.value) || 0)}
+            onCommit={(v) => setDelay(v ?? 0)}
           />
         </label>
         <div className="btn-row">

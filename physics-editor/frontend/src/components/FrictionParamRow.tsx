@@ -1,5 +1,6 @@
 import type { CollisionFriction } from "@robot-model";
 import { FieldLabel } from "./FieldLabel";
+import { NumericInput } from "./NumericInput";
 
 type FrictionFlag = "useMu" | "useMu2" | "useKp" | "useKd";
 type FrictionValue = "mu" | "mu2" | "kp" | "kd";
@@ -48,15 +49,12 @@ export function FrictionParamRow({
       </button>
       <label className="friction-param-field">
         <FieldLabel label={label} hint={hint} />
-        <input
-          type="number"
+        <NumericInput
           step={step}
           min={min}
           disabled={inputDisabled}
           value={friction[valueKey]}
-          onChange={(e) =>
-            onChange({ ...friction, [valueKey]: parseFloat(e.target.value) || 0 })
-          }
+          onCommit={(v) => onChange({ ...friction, [valueKey]: v })}
         />
       </label>
     </div>

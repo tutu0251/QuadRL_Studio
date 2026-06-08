@@ -2,7 +2,6 @@ import type { TrainStatus } from "../../types";
 
 type Props = {
   connected: boolean;
-  project: string | null;
   trainingActive?: boolean;
   trainStatus?: TrainStatus | null;
 };
@@ -20,7 +19,7 @@ function formatTimesteps(progressMessage?: string | null): string | null {
   return `[${done.toLocaleString()}/${total.toLocaleString()}] : ${ratio}%`;
 }
 
-export function StatusBar({ connected, project, trainingActive, trainStatus }: Props) {
+export function StatusBar({ connected, trainingActive, trainStatus }: Props) {
   const timesteps = formatTimesteps(trainStatus?.progress_message);
   const episodes = trainStatus?.episode_count;
   const termCounts = trainStatus?.termination_counts ?? {};
@@ -31,7 +30,6 @@ export function StatusBar({ connected, project, trainingActive, trainStatus }: P
       <span className={connected ? "status-ok" : "status-err"}>
         {connected ? "API connected" : "API disconnected"}
       </span>
-      <span>{project ? `Project · ${project}` : "No project"}</span>
       {trainingActive && <span className="status-training">Training in progress</span>}
       {timesteps != null && (
         <span className="status-train-stat" title="[current/stage timesteps] : overall progress">

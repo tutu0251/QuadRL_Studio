@@ -1,6 +1,7 @@
 """Training run registry — reads runs/ and run_info.yaml manifests."""
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -47,11 +48,28 @@ def _list_stages(run_dir: Path) -> list[RunStageInfo]:
     return stages
 
 
+def _pid_alive(pid: object) -> bool:
+    try:
+        os.kill(int(pid), 0)  # type: ignore[arg-type]
+    except (OSError, ValueError, TypeError):
+        return False
+    return True
+
+
 def _infer_status(run_dir: Path, monitor: dict) -> str:
-    if monitor.get("status"):
-        return str(monitor["status"])
-    if monitor.get("pid"):
-        return "running"
+    status = monitor.get("status")
+    pid = monitor.get("pid")
+    # Terminal statuses recorded by the monitor are authoritative.
+    if status and status not in ("running", "starting"):
+        return str(status)
+    # A "running"/"starting" status (or a bare pid) only means something if the
+    # process is actually alive. Otherwise the run died without recording a
+    # terminal status (crash, kill -9, reboot, monitor restart) and would
+    # otherwise be stuck reporting "running" forever.
+    if status in ("running", "starting") or pid:
+        if _pid_alive(pid):
+            return str(status) if status else "running"
+        return "stopped"
     return "unknown"
 
 
@@ -102,12 +120,19 @@ def latest_run_id(name: str) -> Optional[str]:
     return runs[0].run_id if runs else None
 
 
-def find_event_files(name: str, run_id: Optional[str] = None) -> list[Path]:
+def find_event_files(
+    name: str, run_id: Optional[str] = None, stage: Optional[str] = None
+) -> list[Path]:
     runs_root = project_storage.runs_dir(name)
     if not runs_root.is_dir():
         return []
     targets: list[Path] = []
-    if run_id:
+    if run_id and stage:
+        # Restrict to a single curriculum stage subdir (stage == subdir name).
+        stage_dir = (runs_root / run_id / stage).resolve()
+        if stage_dir.is_dir() and stage_dir.is_relative_to((runs_root / run_id).resolve()):
+            targets = [stage_dir]
+    elif run_id:
         targets = [runs_root / run_id]
     else:
         targets = [p for p in runs_root.iterdir() if p.is_dir()]

@@ -8,6 +8,7 @@ import {
   getRewardParamRange,
 } from "@rl-trainer-model";
 import { Checkbox } from "../../components/Checkbox";
+import { NumericInput } from "../../components/NumericInput";
 
 function RewardParamRow({
   label,
@@ -42,18 +43,14 @@ function RewardParamRow({
           </span>
         ) : null}
       </label>
-      <input
-        type="number"
+      <NumericInput
         className="param-input reward-param-input"
         step={step}
         min={min}
         max={max}
         disabled={disabled}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => {
-          const raw = parseFloat(e.target.value) || 0;
-          onChange(raw);
-        }}
+        value={value}
+        onCommit={onChange}
       />
     </div>
   );

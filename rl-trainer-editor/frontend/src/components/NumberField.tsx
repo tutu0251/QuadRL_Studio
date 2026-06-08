@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 export function NumberField({
   label,
   value,
@@ -17,6 +19,25 @@ export function NumberField({
   disabled?: boolean;
   status?: "ok" | "warn";
 }) {
+  const safe = Number.isFinite(value) ? value : 0;
+  const [draft, setDraft] = useState(String(safe));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(String(safe));
+  }, [safe]);
+
+  const commit = () => {
+    const parsed = parseFloat(draft);
+    if (Number.isFinite(parsed)) {
+      const v = min !== undefined ? Math.max(min, parsed) : parsed;
+      if (v !== value) onChange(v);
+      setDraft(String(v));
+    } else {
+      setDraft(String(safe));
+    }
+  };
+
   return (
     <div className={`param-field ${status ? `param-${status}` : ""}`}>
       <span className="param-label-row">
@@ -35,8 +56,22 @@ export function NumberField({
         step={step}
         min={min}
         disabled={disabled}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        value={draft}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          focused.current = false;
+          commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            setDraft(String(safe));
+            e.currentTarget.blur();
+          }
+        }}
       />
     </div>
   );

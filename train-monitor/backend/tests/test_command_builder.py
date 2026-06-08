@@ -20,6 +20,29 @@ def test_train_start_command_includes_script():
     assert "--dry-run" in cmd
 
 
+def test_train_resume_command_includes_checkpoint():
+    cmd = build_train_command("demo_bot", resume_checkpoint="checkpoints/ppo_walk.zip")
+    assert "--resume checkpoints/ppo_walk.zip" in cmd
+    assert "--start-stage" not in cmd
+
+
+def test_train_resume_command_includes_start_stage():
+    cmd = build_train_command(
+        "demo_bot", resume_checkpoint="checkpoints/ppo_walk.zip", start_stage=2
+    )
+    assert "--resume checkpoints/ppo_walk.zip" in cmd
+    assert "--start-stage 2" in cmd
+
+
+def test_preview_train_resume_with_start_stage():
+    out = preview_command(
+        "train_resume",
+        "mybot",
+        {"resume_checkpoint": "checkpoints/ppo_walk.zip", "start_stage": 1},
+    )
+    assert "--start-stage 1" in out["command"]
+
+
 def test_preview_workspace_setup():
     out = preview_command("workspace_setup", "mybot")
     assert "setup_robot.sh" in out["command"]

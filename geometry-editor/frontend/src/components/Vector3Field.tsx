@@ -1,4 +1,5 @@
 import { FieldLabel } from "./FieldLabel";
+import { NumberField } from "./NumberField";
 
 interface Props {
   label: string;
@@ -20,11 +21,10 @@ export function Vector3Field({ label, x, y, z, onChange, step = 0.01, axisLabels
         {(["x", "y", "z"] as const).map((axis, i) => (
           <label key={axis} className={colors[i]}>
             {axisLabels[i]}
-            <input
-              type="number"
+            <NumberField
               step={step}
               value={Number.isFinite(axis === "x" ? x : axis === "y" ? y : z) ? (axis === "x" ? x : axis === "y" ? y : z) : 0}
-              onChange={(e) => onChange(axis, +e.target.value)}
+              onCommit={(v) => onChange(axis, v)}
             />
           </label>
         ))}

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { Link, Joint, PrimitiveShape } from "@robot-model";
 import { useEditorStore } from "../../stores/editorStore";
 import { api } from "../../api/client";
@@ -82,10 +83,47 @@ function NumInput({
   value: number;
   onChange: (v: number) => void;
 }) {
+  const safe = Number.isFinite(value) ? value : 0;
+  const [draft, setDraft] = useState(String(safe));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(String(safe));
+  }, [safe]);
+
+  const commit = () => {
+    const parsed = parseFloat(draft);
+    if (Number.isFinite(parsed)) {
+      if (parsed !== value) onChange(parsed);
+      setDraft(String(parsed));
+    } else {
+      setDraft(String(safe));
+    }
+  };
+
   return (
     <label>
       {label}
-      <input type="number" step="0.01" value={value} onChange={(e) => onChange(+e.target.value)} />
+      <input
+        type="number"
+        step="0.01"
+        value={draft}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          focused.current = false;
+          commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            setDraft(String(safe));
+            e.currentTarget.blur();
+          }
+        }}
+      />
     </label>
   );
 }

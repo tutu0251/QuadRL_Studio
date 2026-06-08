@@ -284,8 +284,8 @@ def get_run(name: str, run_id: str):
 
 
 @app.get("/api/projects/{name}/runs/{run_id}/scalars")
-def get_run_scalars(name: str, run_id: str):
-    return {"series": [s.model_dump() for s in read_scalars(name, run_id)]}
+def get_run_scalars(name: str, run_id: str, stage: str | None = None):
+    return {"series": [s.model_dump() for s in read_scalars(name, run_id, stage=stage)]}
 
 
 @app.get("/api/projects/{name}/scalars")
@@ -429,6 +429,7 @@ async def train_resume(name: str, body: TrainStartRequest):
             dry_run=body.dry_run,
             gazebo_headless=body.gazebo_headless,
             resume_checkpoint=body.resume_checkpoint,
+            start_stage=body.resume_start_stage,
             config_path=body.config_path,
         )
     except FileNotFoundError as exc:
@@ -445,6 +446,7 @@ async def train_resume(name: str, body: TrainStartRequest):
             "dry_run": body.dry_run,
             "gazebo_headless": body.gazebo_headless,
             "resume_checkpoint": body.resume_checkpoint,
+            "start_stage": body.resume_start_stage,
             "controller_apply_delay_s": controller_apply_delay_for_project(name),
         },
     )["command"]
@@ -559,7 +561,7 @@ async def ws_train_logs(ws: WebSocket):
                 await ws.send_json(msg)
             except asyncio.TimeoutError:
                 status = train_manager.get_status()
-                ws_status = workspace_manager.get_status()
+                ws_status = workspace_manager.get_status(_active_project)
                 await ws.send_json(
                     {
                         "type": "status",

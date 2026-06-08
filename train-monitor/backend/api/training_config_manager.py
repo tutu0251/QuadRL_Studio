@@ -10,6 +10,7 @@ from api.command_builder import build_training_config_patch_command
 from domain.models import (
     ActionScaleEntry,
     ObservationScaleEntry,
+    StageInfo,
     TerminationSummary,
     TrainingConfig,
     TrainingConfigUpdate,
@@ -92,11 +93,19 @@ def get_training_config(name: str) -> TrainingConfig:
         terminations.append(_termination_summary(task["termination"]))
 
     curriculum = rl_doc.get("curriculum") or {}
+    stages: list[StageInfo] = []
     if curriculum.get("enabled") and curriculum.get("stages"):
-        for stage in curriculum["stages"]:
-            if isinstance(stage, dict) and stage.get("termination"):
+        for order, stage in enumerate(curriculum["stages"]):
+            if not isinstance(stage, dict):
+                continue
+            stage_id = str(stage.get("id", stage.get("name", f"stage_{order}")))
+            stage_name = str(stage.get("name", stage_id))
+            # Index here must match the script's iteration over curriculum["stages"]
+            # so the UI's chosen index maps to the right --start-stage.
+            stages.append(StageInfo(id=stage_id, name=stage_name, order=order))
+            if stage.get("termination"):
                 terminations.append(
-                    _termination_summary(stage["termination"], stage_name=str(stage.get("name", stage.get("id", ""))))
+                    _termination_summary(stage["termination"], stage_name=stage_name)
                 )
 
     return TrainingConfig(
@@ -110,6 +119,7 @@ def get_training_config(name: str) -> TrainingConfig:
         action_scales=action_scales,
         observation_scales=observation_scales,
         terminations=terminations,
+        stages=stages,
         curriculum_enabled=bool(curriculum.get("enabled") and curriculum.get("stages")),
     )
 

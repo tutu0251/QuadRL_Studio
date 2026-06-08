@@ -1,0 +1,1 @@
+- [Param input commit-on-blur](param-input-commit-on-blur.md) — all editor frontends commit param inputs on blur/Enter, never per keystroke

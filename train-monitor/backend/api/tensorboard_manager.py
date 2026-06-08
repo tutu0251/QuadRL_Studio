@@ -171,8 +171,14 @@ class TensorBoardManager:
         return self.is_running() and self._project == project
 
 
-def read_scalars(project: str, run_id: Optional[str] = None, *, max_points: int = 500) -> list[ScalarSeries]:
-    events = run_registry.find_event_files(project, run_id)
+def read_scalars(
+    project: str,
+    run_id: Optional[str] = None,
+    *,
+    stage: Optional[str] = None,
+    max_points: int = 500,
+) -> list[ScalarSeries]:
+    events = run_registry.find_event_files(project, run_id, stage)
     if not events:
         return []
 

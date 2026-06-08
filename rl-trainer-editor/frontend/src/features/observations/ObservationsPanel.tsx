@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildObservationVectorBreakdown,
   computeObservationFieldDim,
@@ -81,6 +81,30 @@ function OptionalClipField({
   onChange: (v: number | null) => void;
   disabled?: boolean;
 }) {
+  const display = value === null || value === undefined ? "" : String(value);
+  const [draft, setDraft] = useState(display);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(display);
+  }, [display]);
+
+  const commit = () => {
+    const raw = draft.trim();
+    if (raw === "") {
+      if (value !== null) onChange(null);
+      setDraft("");
+      return;
+    }
+    const n = parseFloat(raw);
+    if (Number.isFinite(n)) {
+      if (n !== value) onChange(n);
+      setDraft(String(n));
+    } else {
+      setDraft(display);
+    }
+  };
+
   return (
     <div className="param-field obs-clip-field">
       <span className="param-label-row">
@@ -99,15 +123,21 @@ function OptionalClipField({
         step={0.1}
         disabled={disabled}
         placeholder="none"
-        value={value === null || value === undefined ? "" : value}
-        onChange={(e) => {
-          const raw = e.target.value.trim();
-          if (raw === "") {
-            onChange(null);
-            return;
+        value={draft}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          focused.current = false;
+          commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            setDraft(display);
+            e.currentTarget.blur();
           }
-          const n = parseFloat(raw);
-          onChange(Number.isFinite(n) ? n : null);
         }}
       />
     </div>

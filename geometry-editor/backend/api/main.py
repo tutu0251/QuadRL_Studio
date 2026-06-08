@@ -141,6 +141,10 @@ class ColorUpdate(BaseModel):
     color: str
 
 
+class ShapeTypeUpdate(BaseModel):
+    shape_type: PrimitiveType
+
+
 class JointUpdate(BaseModel):
     originPosition: Optional[Vec3] = None
     originRotation: Optional[Quat] = None
@@ -384,6 +388,16 @@ def update_transform(name: str, link_id: str, shape_id: str, body: TransformUpda
 def update_shape_color(name: str, link_id: str, shape_id: str, body: ColorUpdate):
     core = _get_core(name)
     shape = core.update_shape_color(link_id, shape_id, body.color)
+    if not shape:
+        raise HTTPException(404, "Shape not found")
+    _save(name, core)
+    return shape
+
+
+@app.put("/api/projects/{name}/links/{link_id}/shapes/{shape_id}/type")
+def update_shape_type(name: str, link_id: str, shape_id: str, body: ShapeTypeUpdate):
+    core = _get_core(name)
+    shape = core.update_shape_type(link_id, shape_id, body.shape_type)
     if not shape:
         raise HTTPException(404, "Shape not found")
     _save(name, core)

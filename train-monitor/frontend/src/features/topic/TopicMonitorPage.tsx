@@ -233,7 +233,10 @@ export function TopicMonitorPage({
     <div className="page-grid topic-page">
       <section className="panel workspace-panel">
         <header className="panel-header">
-          <h2>Workspace</h2>
+          <div>
+            <h2>Workspace</h2>
+            <p className="panel-subtitle">Generate, build, and validate the ROS2 workspace before training.</p>
+          </div>
           {workspaceStatus && (
             <span
               className={`badge ${workspaceStatus.training_ready ? "badge-completed" : workspaceStatus.build_ready ? "badge-running" : "badge-stopped"}`}
@@ -242,9 +245,9 @@ export function TopicMonitorPage({
             </span>
           )}
         </header>
-        <div className="btn-row wrap">
+        <div className="workspace-actions">
           <ActionButton
-            className="btn primary"
+            className="btn primary ws-full"
             disabled={wsDisabled}
             command={setupPreview.preview?.command}
             commandLoading={setupPreview.loading}
@@ -270,8 +273,6 @@ export function TopicMonitorPage({
           >
             Build
           </ActionButton>
-        </div>
-        <div className="btn-row wrap">
           <ActionButton
             className="btn"
             disabled={wsDisabled}
@@ -282,7 +283,7 @@ export function TopicMonitorPage({
             Check exports
           </ActionButton>
           <ActionButton
-            className="btn"
+            className="btn ws-full"
             disabled={wsDisabled}
             command={validatePreview.preview?.command}
             commandLoading={validatePreview.loading}
@@ -326,16 +327,20 @@ export function TopicMonitorPage({
 
       <section className="panel topic-table-panel">
         <header className="panel-header">
-          <h2>Observation Topics</h2>
-          <span className={`badge ${watchState === "running" ? "badge-running" : "badge-stopped"}`}>
-            {watchState === "running" ? "echo live" : "echo idle"}
-          </span>
-          <span className="badge badge-running">{topicsBundle?.topics.length ?? 0} topics</span>
+          <div>
+            <h2>Observation Topics</h2>
+            <p className="panel-subtitle">
+              After test spawn succeeds, echos poll automatically — use live samples to confirm ROS2 / Gazebo sensor
+              and state topics before training.
+            </p>
+          </div>
+          <div className="panel-header-badges">
+            <span className={`badge ${watchState === "running" ? "badge-running" : "badge-stopped"}`}>
+              {watchState === "running" ? "echo live" : "echo idle"}
+            </span>
+            <span className="badge badge-running">{topicsBundle?.topics.length ?? 0} topics</span>
+          </div>
         </header>
-        <p className="panel-hint">
-          After test spawn succeeds, topic echos poll automatically. Use live samples to confirm ROS2 / Gazebo Ignition
-          sensor and state topics before training.
-        </p>
         <div className="filter-row">
           <input
             type="search"
@@ -377,7 +382,7 @@ export function TopicMonitorPage({
             Confirm all OK
           </ActionButton>
         </div>
-        <div className="table-scroll topic-echo-scroll">
+        <div className="topic-echo-scroll">
           <table className="data-table topic-echo-table">
             <thead>
               <tr>

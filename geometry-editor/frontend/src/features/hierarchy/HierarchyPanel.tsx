@@ -10,10 +10,10 @@ function linkIcon(link: Link) {
 
 interface Props {
   onAddChild: (parentLinkId: string) => void;
-  onDeleteLink: (linkId: string) => void;
+  onDeleteSelected: () => void;
 }
 
-export function HierarchyPanel({ onAddChild, onDeleteLink }: Props) {
+export function HierarchyPanel({ onAddChild, onDeleteSelected }: Props) {
   const model = useEditorStore((s) => s.model);
   const selection = useEditorStore((s) => s.selection);
   const setSelection = useEditorStore((s) => s.setSelection);
@@ -141,7 +141,41 @@ export function HierarchyPanel({ onAddChild, onDeleteLink }: Props) {
     );
   };
 
-  const selectedLinkId = selection?.kind === "link" ? selection.id : null;
+  // Resolve the link that "add child" should attach to: a link directly, the link
+  // a shape belongs to, or the child link of a selected joint. Clicking the robot
+  // in the 3D view selects a shape, so without this add-child would stay disabled.
+  const resolveTargetLinkId = (): string | null => {
+    if (!selection) return null;
+    let id: string | null = null;
+    if (selection.kind === "link") id = selection.id;
+    else if (selection.kind === "shape") id = selection.linkId;
+    else if (selection.kind === "joint")
+      id = model.joints.find((j) => j.id === selection.id)?.childLinkId ?? null;
+    // Guard against a stale selection pointing at an already-deleted link.
+    return id && model.links.some((l) => l.id === id) ? id : null;
+  };
+  const targetLinkId = resolveTargetLinkId();
+  const targetLink = targetLinkId ? model.links.find((l) => l.id === targetLinkId) : null;
+
+  // Delete acts on the selected object itself: a shape deletes only that shape, a
+  // joint only that joint, and a link deletes the link together with its subtree.
+  const deleteTitle = (() => {
+    if (selection?.kind === "shape") {
+      const shape = model.links
+        .find((l) => l.id === selection.linkId)
+        ?.shapes.find((s) => s.id === selection.shapeId);
+      return shape ? `Delete ${shape.type}` : null;
+    }
+    if (selection?.kind === "joint") {
+      const joint = model.joints.find((j) => j.id === selection.id);
+      return joint ? `Delete joint ${joint.name}` : null;
+    }
+    if (selection?.kind === "link") {
+      const link = model.links.find((l) => l.id === selection.id);
+      return link ? `Delete ${link.name} and its subtree` : null;
+    }
+    return null;
+  })();
 
   return (
     <div className="unity-panel hierarchy-panel">
@@ -150,17 +184,17 @@ export function HierarchyPanel({ onAddChild, onDeleteLink }: Props) {
         <div className="panel-header-actions">
           <button
             type="button"
-            title="Add child link"
-            disabled={!selectedLinkId}
-            onClick={() => selectedLinkId && onAddChild(selectedLinkId)}
+            title={targetLink ? `Add child link to ${targetLink.name}` : "Add child link"}
+            disabled={!targetLinkId}
+            onClick={() => targetLinkId && onAddChild(targetLinkId)}
           >
             +
           </button>
           <button
             type="button"
-            title="Delete selected"
-            disabled={!selectedLinkId}
-            onClick={() => selectedLinkId && onDeleteLink(selectedLinkId)}
+            title={deleteTitle ?? "Delete selected"}
+            disabled={!deleteTitle}
+            onClick={() => deleteTitle && onDeleteSelected()}
           >
             −
           </button>
