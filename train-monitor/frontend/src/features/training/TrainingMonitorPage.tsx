@@ -18,17 +18,9 @@ type Props = {
 export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onError }: Props) {
   const trainingConfig = useMonitorStore((s) => s.trainingConfig);
   const setTrainingConfig = useMonitorStore((s) => s.setTrainingConfig);
-  const setConsoleFilter = useMonitorStore((s) => s.setConsoleFilter);
 
   const [actionScales, setActionScales] = useState<ActionScaleEntry[]>([]);
   const [obsScales, setObsScales] = useState<ObservationScaleEntry[]>([]);
-
-  useEffect(() => {
-    setConsoleFilter(
-      "[train]|[train-spawn]|Stage |progress |rollout|termination|episode|last_term"
-    );
-    return () => setConsoleFilter(null);
-  }, [setConsoleFilter]);
 
   const saveBody = useMemo(
     () => ({ body: { action_scales: actionScales, observation_scales: obsScales } }),
@@ -75,7 +67,7 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
           <div>
             <h2>Training Progress</h2>
             <p className="panel-subtitle">
-              Live status from the training process — start/stop in Metric Monitor; filtered logs in the console.
+              Live status from the training process — start/stop in Metric Monitor; full logs in the console.
             </p>
           </div>
         </header>

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useCommandPreview } from "../../hooks/useCommandPreview";
 import { CheckpointsPanel } from "../checkpoints/CheckpointsPanel";
 import { RunsPanel } from "../runs/RunsPanel";
@@ -58,15 +57,6 @@ export function MetricMonitorPage({
   onOpenTb,
   onStopTb,
 }: Props) {
-  const setConsoleFilter = useMonitorStore((s) => s.setConsoleFilter);
-
-  useEffect(() => {
-    setConsoleFilter(
-      "[train]|[train-spawn]|Stage |progress |rollout|termination|episode|last_term"
-    );
-    return () => setConsoleFilter(null);
-  }, [setConsoleFilter]);
-
   const startPreview = useCommandPreview(project, "train_start", {
     gazebo_headless: gazeboHeadless,
   });
