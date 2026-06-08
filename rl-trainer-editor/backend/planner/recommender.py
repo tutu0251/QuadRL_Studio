@@ -90,6 +90,7 @@ def recommend_param_enabled(
     rough: bool,
     reward_terms: list[RewardTerm],
     termination_terms: list[TerminationTerm] | None = None,
+    disturbance: DisturbanceConfig | None = None,
 ) -> dict[str, bool]:
     flags: dict[str, bool] = {}
     is_stand = stage_is_stand_only(stage)
@@ -114,7 +115,12 @@ def recommend_param_enabled(
     if cmd.targetAngVelZ == 0:
         flags["command.target_ang_vel_z"] = False
 
-    flags["disturbance.enabled"] = rough
+    # Mark the disturbance params active when the stage actually has disturbances
+    # enabled, so the editor's per-param checkboxes match the live values. Falling
+    # back to `rough` (the old behavior) left perturbed-but-flat stages showing
+    # unchecked boxes even though training applies the values.
+    dist_on = bool(disturbance.enabled) if disturbance is not None else rough
+    flags["disturbance.enabled"] = dist_on
     for key in (
         "push_force_n",
         "push_interval_steps",
@@ -122,7 +128,7 @@ def recommend_param_enabled(
         "lateral_impulse_n",
         "orientation_noise_rad",
     ):
-        flags[f"disturbance.{key}"] = rough
+        flags[f"disturbance.{key}"] = dist_on
 
     for key in (
         "max_episode_steps",
@@ -238,7 +244,7 @@ def recommend_stage_params(
     )
     reward_terms = _recommend_reward_terms(stage)
     param_enabled = recommend_param_enabled(
-        stage, rough, reward_terms, termination.terminationTerms
+        stage, rough, reward_terms, termination.terminationTerms, disturbance
     )
     notes = [
         f"Recommended stage '{stage.name}': vel={vel:.2f} m/s, "
