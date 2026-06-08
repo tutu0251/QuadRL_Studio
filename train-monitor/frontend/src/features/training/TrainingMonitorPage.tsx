@@ -222,7 +222,7 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
       <section className="panel">
         <header className="panel-header">
           <h2>Termination</h2>
-          {cfg?.curriculum_enabled && <span className="badge badge-running">curriculum</span>}
+          {cfg?.curriculum_enabled && <span className="badge badge-curriculum">curriculum</span>}
         </header>
         {(cfg?.terminations ?? []).map((t) => (
           <div key={t.stage_name ?? "base"} className="termination-block">

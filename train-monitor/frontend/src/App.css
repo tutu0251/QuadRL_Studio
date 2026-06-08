@@ -321,6 +321,11 @@
   color: var(--accent-bright);
 }
 
+.badge-curriculum {
+  background: rgba(120, 144, 230, 0.18);
+  color: #b3c0ff;
+}
+
 .badge-failed {
   background: rgba(224, 92, 92, 0.2);
   color: #ffb0b0;

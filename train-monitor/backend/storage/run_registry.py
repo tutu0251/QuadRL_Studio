@@ -1,6 +1,7 @@
 """Training run registry — reads runs/ and run_info.yaml manifests."""
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -47,11 +48,28 @@ def _list_stages(run_dir: Path) -> list[RunStageInfo]:
     return stages
 
 
+def _pid_alive(pid: object) -> bool:
+    try:
+        os.kill(int(pid), 0)  # type: ignore[arg-type]
+    except (OSError, ValueError, TypeError):
+        return False
+    return True
+
+
 def _infer_status(run_dir: Path, monitor: dict) -> str:
-    if monitor.get("status"):
-        return str(monitor["status"])
-    if monitor.get("pid"):
-        return "running"
+    status = monitor.get("status")
+    pid = monitor.get("pid")
+    # Terminal statuses recorded by the monitor are authoritative.
+    if status and status not in ("running", "starting"):
+        return str(status)
+    # A "running"/"starting" status (or a bare pid) only means something if the
+    # process is actually alive. Otherwise the run died without recording a
+    # terminal status (crash, kill -9, reboot, monitor restart) and would
+    # otherwise be stuck reporting "running" forever.
+    if status in ("running", "starting") or pid:
+        if _pid_alive(pid):
+            return str(status) if status else "running"
+        return "stopped"
     return "unknown"
 
 
