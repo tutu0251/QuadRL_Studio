@@ -1,6 +1,7 @@
 import { SENSOR_KIND_LABELS, SENSOR_PARAM_HINTS } from "@sensor-model";
 import { FieldLabel } from "../../components/FieldLabel";
 import { NumberField } from "../../components/NumberField";
+import { TextField } from "../../components/TextField";
 import { api } from "../../api/client";
 import { useEditorStore } from "../../stores/editorStore";
 
@@ -69,20 +70,20 @@ export function InspectorPanel() {
         <h3>ROS topics</h3>
         <div className="inspector-row">
           <FieldLabel label="Prefix" hint={H.topicPrefix} />
-          <input
+          <TextField
             className="field-input"
             value={model.topicPrefix}
             title={H.topicPrefix}
-            onChange={(e) => void patchTopicConfig({ topicPrefix: e.target.value })}
+            onCommit={(v) => void patchTopicConfig({ topicPrefix: v })}
           />
         </div>
         <div className="inspector-row">
           <FieldLabel label="GZ model" hint={H.gzModelName} />
-          <input
+          <TextField
             className="field-input"
             value={model.gzModelName}
             title={H.gzModelName}
-            onChange={(e) => void patchTopicConfig({ gzModelName: e.target.value })}
+            onCommit={(v) => void patchTopicConfig({ gzModelName: v })}
           />
         </div>
         <NumberField
@@ -127,11 +128,11 @@ export function InspectorPanel() {
           </div>
           <div className="inspector-row">
             <FieldLabel label="ROS topic" hint={H.rosTopic} />
-            <input
+            <TextField
               className="field-input"
               value={sensor.rosTopic}
               title={H.rosTopic}
-              onChange={(e) => void patchSensor({ rosTopic: e.target.value })}
+              onCommit={(v) => void patchSensor({ rosTopic: v })}
             />
           </div>
           <NumberField
@@ -181,12 +182,12 @@ export function InspectorPanel() {
           {sensor.kind === "contact" && sensor.contact && (
             <div className="inspector-row">
               <FieldLabel label="Collision" hint={H.collisionName} />
-              <input
+              <TextField
                 className="field-input"
                 value={sensor.contact.collisionName}
                 title={H.collisionName}
-                onChange={(e) =>
-                  void patchSensor({ contact: { ...sensor.contact!, collisionName: e.target.value } })
+                onCommit={(v) =>
+                  void patchSensor({ contact: { ...sensor.contact!, collisionName: v } })
                 }
               />
             </div>
@@ -233,24 +234,24 @@ export function InspectorPanel() {
             <>
               <div className="inspector-row">
                 <FieldLabel label="Odom frame" hint={H.odomFrame} />
-                <input
+                <TextField
                   className="field-input"
                   placeholder={`${model.gzModelName}/odom`}
                   value={sensor.odom.odomFrame}
                   title={H.odomFrame}
-                  onChange={(e) =>
-                    void patchSensor({ odom: { ...sensor.odom!, odomFrame: e.target.value } })
+                  onCommit={(v) =>
+                    void patchSensor({ odom: { ...sensor.odom!, odomFrame: v } })
                   }
                 />
               </div>
               <div className="inspector-row">
                 <FieldLabel label="Base frame" hint={H.robotBaseFrame} />
-                <input
+                <TextField
                   className="field-input"
                   value={sensor.odom.robotBaseFrame || sensor.parentLink}
                   title={H.robotBaseFrame}
-                  onChange={(e) =>
-                    void patchSensor({ odom: { ...sensor.odom!, robotBaseFrame: e.target.value } })
+                  onCommit={(v) =>
+                    void patchSensor({ odom: { ...sensor.odom!, robotBaseFrame: v } })
                   }
                 />
               </div>

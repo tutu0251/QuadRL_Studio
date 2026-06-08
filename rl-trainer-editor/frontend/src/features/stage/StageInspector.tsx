@@ -153,10 +153,16 @@ export function StageInspector({ compact = false }: { compact?: boolean }) {
         <input
           type="text"
           className="inspector-inline-title-input"
-          value={stage.name}
+          key={stage.id}
+          defaultValue={stage.name}
           title={nameTooltip}
           aria-label="Stage name"
-          onChange={(e) => patchStage({ name: e.target.value })}
+          onBlur={(e) => {
+            if (e.target.value !== stage.name) patchStage({ name: e.target.value });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
         />
         <div className="inspector-inline-group" title={hint("identity.gait_type")}>
           <span className="inspector-inline-label">gate</span>

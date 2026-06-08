@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Checkbox } from "./Checkbox";
+import { NumericInput } from "./NumericInput";
 
 function ParamHint({ text }: { text?: string }) {
   if (!text) return null;
@@ -76,14 +77,13 @@ export function ParamNumberField({
       enabled={enabled}
       onEnabledChange={onEnabledChange}
     >
-      <input
-        type="number"
+      <NumericInput
         className={`param-input ${status ? `param-${status}` : ""}`}
         step={step}
         min={min}
         disabled={!enabled}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        value={value}
+        onCommit={onChange}
       />
     </ParamField>
   );

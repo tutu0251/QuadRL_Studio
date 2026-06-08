@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { JointControlConfig } from "@control-model";
 import { PROFILE_IMPLEMENTED, PROFILE_LABELS } from "@control-model";
 import { api } from "../../api/client";
@@ -34,6 +34,25 @@ function NumCell({
   disabled?: boolean;
   onCommit: (v: number) => void;
 }) {
+  const safe = Number.isFinite(value) ? value : 0;
+  const [draft, setDraft] = useState(String(safe));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(String(safe));
+  }, [safe]);
+
+  const commit = () => {
+    const parsed = parseFloat(draft);
+    if (Number.isFinite(parsed)) {
+      const v = min !== undefined ? Math.max(min, parsed) : parsed;
+      if (v !== value) onCommit(v);
+      setDraft(String(v));
+    } else {
+      setDraft(String(safe));
+    }
+  };
+
   return (
     <td className="num-cell">
       <input
@@ -41,8 +60,22 @@ function NumCell({
         step={step}
         min={min}
         disabled={disabled}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onCommit(parseFloat(e.target.value) || 0)}
+        value={draft}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          focused.current = false;
+          commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            setDraft(String(safe));
+            e.currentTarget.blur();
+          }
+        }}
       />
     </td>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { ActionButton } from "../../components/ActionButton";
+import { NumericInput } from "../../components/NumericInput";
 import { ResizableColumns } from "../../components/ResizableColumns";
 import { useCommandPreview } from "../../hooks/useCommandPreview";
 import { useMonitorStore } from "../../stores/monitorStore";
@@ -126,14 +127,12 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
                   <td>{row.joint}</td>
                   <td className="mono">{row.default_position.toFixed(4)}</td>
                   <td>
-                    <input
-                      type="number"
-                      step="0.01"
+                    <NumericInput
+                      step={0.01}
                       disabled={disabled}
                       value={row.action_scale}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value) || 0;
-                        setActionScales((rows) => rows.map((r, j) => (j === i ? { ...r, action_scale: v } : r)));
+                      onCommit={(v) => {
+                        setActionScales((rows) => rows.map((r, j) => (j === i ? { ...r, action_scale: v ?? 0 } : r)));
                       }}
                     />
                   </td>
@@ -168,51 +167,43 @@ export function TrainingMonitorPage({ project, trainStatus, busy, onBusy, onErro
                     <td>{row.key}</td>
                     <td className="mono">{row.topic}</td>
                     <td>
-                      <input
-                        type="number"
-                        step="0.01"
+                      <NumericInput
+                        step={0.01}
                         disabled={disabled}
                         value={row.scale}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value) || 0;
-                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, scale: v } : r)));
+                        onCommit={(v) => {
+                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, scale: v ?? 0 } : r)));
                         }}
                       />
                     </td>
                     <td>
-                      <input
-                        type="number"
-                        step="0.01"
+                      <NumericInput
+                        step={0.01}
                         disabled={disabled}
                         value={row.offset}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value) || 0;
-                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, offset: v } : r)));
+                        onCommit={(v) => {
+                          setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, offset: v ?? 0 } : r)));
                         }}
                       />
                     </td>
                     <td>
-                      <input
-                        type="number"
-                        step="0.01"
+                      <NumericInput
+                        step={0.01}
+                        nullable
                         disabled={disabled}
-                        value={row.clip_min ?? ""}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const v = raw === "" ? null : parseFloat(raw);
+                        value={row.clip_min ?? null}
+                        onCommit={(v) => {
                           setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, clip_min: v } : r)));
                         }}
                       />
                     </td>
                     <td>
-                      <input
-                        type="number"
-                        step="0.01"
+                      <NumericInput
+                        step={0.01}
+                        nullable
                         disabled={disabled}
-                        value={row.clip_max ?? ""}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const v = raw === "" ? null : parseFloat(raw);
+                        value={row.clip_max ?? null}
+                        onCommit={(v) => {
                           setObsScales((rows) => rows.map((r, j) => (j === i ? { ...r, clip_max: v } : r)));
                         }}
                       />

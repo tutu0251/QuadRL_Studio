@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { FieldLabel } from "./FieldLabel";
 
 export function NumberField({
@@ -15,6 +16,25 @@ export function NumberField({
   min?: number;
   hint?: string;
 }) {
+  const safe = Number.isFinite(value) ? value : 0;
+  const [draft, setDraft] = useState(String(safe));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(String(safe));
+  }, [safe]);
+
+  const commit = () => {
+    const parsed = parseFloat(draft);
+    if (Number.isFinite(parsed)) {
+      const v = min !== undefined ? Math.max(min, parsed) : parsed;
+      if (v !== value) onChange(v);
+      setDraft(String(v));
+    } else {
+      setDraft(String(safe));
+    }
+  };
+
   return (
     <div className="inspector-row">
       <FieldLabel label={label} hint={hint} />
@@ -22,8 +42,22 @@ export function NumberField({
         type="number"
         step={step}
         min={min}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        value={draft}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          focused.current = false;
+          commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            setDraft(String(safe));
+            e.currentTarget.blur();
+          }
+        }}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 import type { Vec3 } from "@robot-model";
 import { FieldLabel } from "./FieldLabel";
+import { NumericInput } from "./NumericInput";
 
 export function Vector3Field({
   label,
@@ -26,11 +27,10 @@ export function Vector3Field({
         {axes.map(({ key, cls }) => (
           <label key={key} className={cls}>
             {key.toUpperCase()}
-            <input
-              type="number"
+            <NumericInput
               step={step}
               value={value[key]}
-              onChange={(e) => onChange({ ...value, [key]: parseFloat(e.target.value) || 0 })}
+              onCommit={(v) => onChange({ ...value, [key]: v })}
             />
           </label>
         ))}
