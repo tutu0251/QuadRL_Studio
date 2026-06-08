@@ -110,10 +110,21 @@ export default function App() {
       log("Added child link");
     });
 
-  const deleteLink = (linkId: string) =>
+  const deleteSelected = () =>
     withProject(async () => {
-      await api.removeLink(project!, linkId);
-      log("Removed link subtree");
+      const sel = useEditorStore.getState().selection;
+      if (!sel) return;
+      if (sel.kind === "shape") {
+        await api.removeShape(project!, sel.linkId, sel.shapeId);
+        log("Removed shape");
+      } else if (sel.kind === "joint") {
+        await api.removeJoint(project!, sel.id);
+        log("Removed joint");
+      } else if (sel.kind === "link") {
+        await api.removeLink(project!, sel.id);
+        log("Removed link subtree");
+      }
+      useEditorStore.getState().setSelection(null);
     });
 
   return (
@@ -136,7 +147,7 @@ export default function App() {
         <div className="editor-main">
           <aside className="left-dock" style={{ width: leftWidth }}>
             {editorMode === "model" ? (
-              <HierarchyPanel onAddChild={addChildLink} onDeleteLink={deleteLink} />
+              <HierarchyPanel onAddChild={addChildLink} onDeleteSelected={deleteSelected} />
             ) : (
               <PoseEditorPanel />
             )}

@@ -244,12 +244,6 @@ function LinkInspector({
           </button>
         ))}
       </Foldout>
-      <Foldout title="Inertial" defaultOpen={false}>
-        <div className="inspector-row">
-          <span className="field-label">Mass</span>
-          <span>{link.inertial.mass} kg (placeholder)</span>
-        </div>
-      </Foldout>
     </>
   );
 }
@@ -416,6 +410,22 @@ function ShapeInspector({
         )}
       </Foldout>
       <Foldout title={`${shape.type} (Primitive)`} defaultOpen={false}>
+        <div className="inspector-row">
+          <span className="field-label">Type</span>
+          <select
+            value={shape.type}
+            onChange={async (e) => {
+              await api.updateShapeType(project, link.id, shape.id, e.target.value);
+              await onUpdate();
+            }}
+          >
+            {(["box", "cylinder", "sphere", "capsule"] as const).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="inspector-row">
           <span className="field-label">Color</span>
           <input type="color" value={shape.color} readOnly />

@@ -144,17 +144,20 @@ class GeometryCore:
             joint.name = name
         return joint
 
+    _SHAPE_DEFAULT_DIMENSIONS = {
+        PrimitiveType.BOX: [0.1, 0.1, 0.1],
+        PrimitiveType.CYLINDER: [0.05, 0.1],
+        PrimitiveType.SPHERE: [0.05],
+        PrimitiveType.CAPSULE: [0.03, 0.1],
+    }
+
     def add_shape(self, link_id: str, shape_type: PrimitiveType) -> Optional[PrimitiveShape]:
         link = self.find_link(link_id)
         if not link:
             return None
-        defaults = {
-            PrimitiveType.BOX: [0.1, 0.1, 0.1],
-            PrimitiveType.CYLINDER: [0.05, 0.1],
-            PrimitiveType.SPHERE: [0.05],
-            PrimitiveType.CAPSULE: [0.03, 0.1],
-        }
-        shape = PrimitiveShape(type=shape_type, dimensions=defaults.get(shape_type, [0.1]))
+        shape = PrimitiveShape(
+            type=shape_type, dimensions=self._SHAPE_DEFAULT_DIMENSIONS.get(shape_type, [0.1])
+        )
         link.shapes.append(shape)
         return shape
 
@@ -196,6 +199,52 @@ class GeometryCore:
         for s in link.shapes:
             if s.id == shape_id:
                 s.color = color
+                return s
+        return None
+
+    @staticmethod
+    def _shape_extents(shape_type: PrimitiveType, dims: list[float]) -> tuple[float, float, float]:
+        """Decompose a shape's dimensions into (x, y, z) extents.
+
+        Convention (matching the frontend): radius maps to x/z, length to y.
+        """
+        if shape_type == PrimitiveType.BOX:
+            x = dims[0] if len(dims) > 0 else 0.1
+            y = dims[1] if len(dims) > 1 else 0.1
+            z = dims[2] if len(dims) > 2 else 0.1
+            return x, y, z
+        if shape_type in (PrimitiveType.CYLINDER, PrimitiveType.CAPSULE):
+            r = dims[0] if len(dims) > 0 else 0.05
+            length = dims[1] if len(dims) > 1 else 0.1
+            return r, length, r
+        if shape_type == PrimitiveType.SPHERE:
+            r = dims[0] if len(dims) > 0 else 0.05
+            return r, r, r
+        return 0.1, 0.1, 0.1
+
+    @staticmethod
+    def _dims_from_extents(shape_type: PrimitiveType, ext: tuple[float, float, float]) -> list[float]:
+        x, y, z = ext
+        if shape_type == PrimitiveType.BOX:
+            return [x, y, z]
+        if shape_type in (PrimitiveType.CYLINDER, PrimitiveType.CAPSULE):
+            return [x, y]  # radius = x, length = y
+        if shape_type == PrimitiveType.SPHERE:
+            return [x]
+        return [0.1]
+
+    def update_shape_type(
+        self, link_id: str, shape_id: str, shape_type: PrimitiveType
+    ) -> Optional[PrimitiveShape]:
+        link = self.find_link(link_id)
+        if not link:
+            return None
+        for s in link.shapes:
+            if s.id == shape_id:
+                if s.type != shape_type:
+                    extents = self._shape_extents(s.type, s.dimensions)
+                    s.type = shape_type
+                    s.dimensions = self._dims_from_extents(shape_type, extents)
                 return s
         return None
 

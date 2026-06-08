@@ -65,6 +65,11 @@ export const api = {
     }),
   removeShape: (project: string, linkId: string, shapeId: string) =>
     req(`/api/projects/${project}/links/${linkId}/shapes/${shapeId}`, { method: "DELETE" }),
+  updateShapeType: (project: string, linkId: string, shapeId: string, shape_type: string) =>
+    req(`/api/projects/${project}/links/${linkId}/shapes/${shapeId}/type`, {
+      method: "PUT",
+      body: JSON.stringify({ shape_type }),
+    }),
   updateDimensions: (project: string, linkId: string, shapeId: string, dimensions: number[]) =>
     req(`/api/projects/${project}/links/${linkId}/shapes/${shapeId}/dimensions`, {
       method: "PUT",
