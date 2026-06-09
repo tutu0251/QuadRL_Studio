@@ -88,11 +88,13 @@ REWARD_CATALOG: tuple[RewardCatalogEntry, ...] = (
         "forward_progress",
         "reward",
         "velocity",
-        # Moderated from 1.5 -> 0.8 after the first attempt overshot: combined with
-        # forward_tracking (2.2) the per-step velocity payoff was high enough that a
-        # forward LUNGE out-earned a stable walk even though the episode ended in a
-        # fall. Kept positive so the no-plateau gradient still pulls off standing.
-        0.8,
+        # History: 1.5 (overshot -> forward LUNGE out-earned a stable walk and fell)
+        # -> 0.8 (safe but Walk stalled at ~half target speed, forward_tracking ~0.64).
+        # -> 1.0: a modest bump to deepen the off-standstill gradient without
+        # returning to the lunge regime. Paired with a wider low-speed
+        # forward_tracking sigma floor (recommend_term_params) so the Gaussian
+        # tracking reward also gives gradient near vx=0 instead of a flat plateau.
+        1.0,
         (),
     ),
     RewardCatalogEntry(
@@ -302,7 +304,9 @@ _LOCO_ENABLE_REWARDS = frozenset(
         "yaw_tracking",
         "diagonal_balance",
         "air_time",
-        "foot_clearance",
+        # foot_clearance intentionally omitted: its reward needs swing-foot height,
+        # which the ROS sim does not publish (see rewards.py foot_clearance), so
+        # enabling it would advertise an active reward that always returns 0.
     }
 )
 _LOCO_ENABLE_PENALTIES = frozenset(
@@ -374,9 +378,13 @@ def recommend_term_params(
     if entry.id == "forward_tracking":
         # Tie sigma to the commanded speed at low targets so a slower Walk command
         # doesn't accidentally reward standing still (smaller velocity error). The
-        # 0.52*v term binds only below ~0.5 m/s (e.g. 0.13 at 0.25 m/s); the
-        # original decreasing schedule governs the faster gaits unchanged.
-        t.params["sigma"] = max(0.12, min(0.28 - 0.04 * lin_vel_scale, 0.52 * lin_vel_scale))
+        # 0.52*v term binds only below ~0.5 m/s; the original decreasing schedule
+        # governs the faster gaits unchanged. Floor raised 0.12 -> 0.16: at the Walk
+        # target (0.25 m/s) the old floor gave sigma=0.13, a Gaussian so tight that
+        # the reward was nearly flat (zero gradient) from a standstill, contributing
+        # to the ~0.64 / half-speed plateau. 0.16 restores low-speed gradient while
+        # leaving trot+ untouched (their schedule value already exceeds the floor).
+        t.params["sigma"] = max(0.16, min(0.28 - 0.04 * lin_vel_scale, 0.52 * lin_vel_scale))
     if entry.id == "air_time":
         gait_scale = max(0.5, cmd.gaitSpeedScale)
         t.params["target_air_time"] = _clamp_param(

@@ -99,6 +99,7 @@ class QuadrupedEnv(gym.Env):
         super().reset(seed=seed)
         self._last_action.fill(0.0)
         self._cumulative_reward = 0.0
+        self._reward_engine.reset()
         self._sim.set_stage_context(command=self._command, disturbance=self._disturbance)
         self._state = self._sim.reset(command=self._command)
         obs = self._build_obs()

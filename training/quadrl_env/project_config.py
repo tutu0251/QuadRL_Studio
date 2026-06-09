@@ -207,14 +207,18 @@ def _parse_gains(doc: dict[str, Any], joint_names: list[str]) -> dict[str, Joint
     out: dict[str, JointGains] = {}
     for name in joint_names:
         raw = joints_block.get(name) or {}
+        # Fall back to the JointGains dataclass defaults rather than hardcoded
+        # literals so the two can't drift (the parser previously defaulted kp=20/
+        # kd=0.5 while the dataclass said kp=30/kd=0.9, so unspecified joints
+        # silently got softer gains than intended, weakening velocity tracking).
         out[name] = JointGains(
             name=name,
-            kp=float(raw.get("kp", 20.0)),
-            kd=float(raw.get("kd", 0.5)),
-            default_position=float(raw.get("default_position", 0.0)),
-            action_scale=float(raw.get("action_scale", 0.25)),
-            effort_limit=float(raw.get("effort_limit", 80.0)),
-            velocity_limit=float(raw.get("velocity_limit", 10.0)),
+            kp=float(raw.get("kp", JointGains.kp)),
+            kd=float(raw.get("kd", JointGains.kd)),
+            default_position=float(raw.get("default_position", JointGains.default_position)),
+            action_scale=float(raw.get("action_scale", JointGains.action_scale)),
+            effort_limit=float(raw.get("effort_limit", JointGains.effort_limit)),
+            velocity_limit=float(raw.get("velocity_limit", JointGains.velocity_limit)),
         )
     return out
 

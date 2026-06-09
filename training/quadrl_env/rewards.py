@@ -56,6 +56,17 @@ class RewardEngine:
             if default_joint_pos is not None
             else None
         )
+        # Per-foot contact state from the previous step, for the contact_switch
+        # penalty (how many feet made/broke ground contact since last step).
+        # Reset between episodes via reset() so a cross-episode boundary doesn't
+        # register as a phantom flurry of switches.
+        self._prev_contacts: dict[str, bool] | None = None
+        self._step_contact_switches: int = 0
+
+    def reset(self) -> None:
+        """Clear cross-step history. Call on every episode reset."""
+        self._prev_contacts = None
+        self._step_contact_switches = 0
 
     def _joint_deviation(self, joint_pos: np.ndarray) -> np.ndarray:
         """Joint angles relative to the rest/spawn pose.
@@ -78,6 +89,7 @@ class RewardEngine:
         action: np.ndarray,
         last_action: np.ndarray,
     ) -> tuple[float, dict[str, float]]:
+        self._update_contact_switches(state)
         total = 0.0
         components: dict[str, float] = {}
         for term in self._terms:
@@ -87,6 +99,23 @@ class RewardEngine:
             components[term.get("id", "unknown")] = contrib
             total += contrib
         return float(total), components
+
+    def _update_contact_switches(self, state: SimState) -> None:
+        """Count feet whose contact state flipped since the previous step.
+
+        Contacts are reported per foot as a binary force (~peak or 0), so a foot
+        is "in contact" when its force clears the same 1 N threshold used by
+        ``SimState.num_contacts``. The first step of an episode has no prior state,
+        so it registers zero switches.
+        """
+        cur = {k: (v > 1.0) for k, v in state.contact_forces.items()}
+        if self._prev_contacts is None:
+            self._step_contact_switches = 0
+        else:
+            self._step_contact_switches = sum(
+                1 for k, c in cur.items() if self._prev_contacts.get(k, c) != c
+            )
+        self._prev_contacts = cur
 
     def _term_value(
         self,
@@ -142,6 +171,11 @@ class RewardEngine:
             err = abs(float(np.mean(at)) - target)
             return _gaussian_sq(err, sigma)
         if tid == "foot_clearance":
+            # Needs swing-foot height above ground, which the ROS sim does not
+            # publish (only base odom + binary foot contacts are available). Left
+            # as a no-op and disabled in the catalog's locomotion enable-set until
+            # foot-link world positions are plumbed through SimState; enabling it
+            # would silently contribute nothing. See reward_catalog._LOCO_ENABLE_REWARDS.
             return 0.0
 
         # —— Penalties (0 == no penalty, bounded to 1) ——
@@ -163,7 +197,13 @@ class RewardEngine:
         if tid == "contact_balance":
             return _gaussian_penalty(_contact_force_imbalance(state), sigma)
         if tid == "contact_switch":
-            return 0.0
+            # Penalise foot-contact chattering: feet rapidly making/breaking
+            # ground contact beyond what a clean gait needs. Switches up to
+            # max_switches_per_step are free (a normal step lifts/plants feet);
+            # the penalty rises as the per-step switch count exceeds that budget.
+            max_switches = float(params.get("max_switches_per_step", 2))
+            excess = max(0.0, self._step_contact_switches - max_switches)
+            return _gaussian_penalty(excess, sigma)
         if tid == "target_like":
             vx = float(state.base_lin_vel[0]) - float(command.get("target_lin_vel_x", 0))
             wz = float(state.base_ang_vel[2]) - float(command.get("target_ang_vel_z", 0))

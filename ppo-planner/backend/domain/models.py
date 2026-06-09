@@ -63,7 +63,11 @@ class PpoHyperparams(BaseModel):
     gamma: float = 0.99
     gaeLambda: float = 0.95
     clipRange: float = 0.2
-    entCoef: float = 0.001
+    # 0.0 to match the training launcher's PPO default (run_rl_train.py). On a
+    # balance/locomotion task an entropy bonus inflates the policy log_std, which
+    # adds action noise that topples the robot; exploration is controlled instead
+    # via logStdInit / --reset-log-std. Keep these two defaults in lockstep.
+    entCoef: float = 0.0
     vfCoef: float = 0.5
     maxGradNorm: float = 0.5
     totalTimesteps: int = 1_000_000
