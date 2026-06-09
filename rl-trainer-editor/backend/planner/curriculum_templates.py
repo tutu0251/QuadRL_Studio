@@ -21,7 +21,7 @@ from planner.reward_catalog import locomotion_reward_terms, stand_reward_terms
 _STAGE_DEFS = [
     ("stand", "none", "Stand", "Learn stable balance before any commanded motion.", 400_000, 0.0),
     ("recover", "none", "Recover", "Recover posture after perturbations.", 400_000, 0.0),
-    ("walk", "walk", "Walk", "Comfortable walking with velocity tracking.", 550_000, 0.5),
+    ("walk", "walk", "Walk", "Comfortable walking with velocity tracking.", 550_000, 0.25),
     ("trot", "trot", "Trot", "Diagonal gait at moderate speed.", 600_000, 0.8),
     ("pace", "pace", "Pace / Lateral trot", "Lateral pair gait.", 600_000, 1.0),
     ("bound", "bound", "Bound", "Front/rear pair bounding.", 650_000, 1.2),

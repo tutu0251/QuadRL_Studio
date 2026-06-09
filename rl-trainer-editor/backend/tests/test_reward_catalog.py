@@ -26,6 +26,7 @@ def test_catalog_has_all_terms():
         "posture",
         "contact",
         "forward_tracking",
+        "forward_progress",
         "lateral_tracking",
         "yaw_tracking",
         "diagonal_balance",

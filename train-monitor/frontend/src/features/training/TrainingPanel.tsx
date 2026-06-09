@@ -13,7 +13,9 @@ type Props = {
   gazeboHeadless: boolean;
   guiAvailable: boolean;
   resolvedDisplay: string | null;
+  resetLogStd: boolean;
   onGazeboHeadlessChange: (v: boolean) => void;
+  onResetLogStdChange: (v: boolean) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -36,7 +38,9 @@ export function TrainingPanel({
   gazeboHeadless,
   guiAvailable,
   resolvedDisplay,
+  resetLogStd,
   onGazeboHeadlessChange,
+  onResetLogStdChange,
   onStart,
   onStop,
   onResume,
@@ -68,6 +72,7 @@ export function TrainingPanel({
       gazebo_headless: gazeboHeadless,
       resume_checkpoint: selectedCheckpoint ?? "",
       start_stage: stageIndex,
+      reset_log_std: resetLogStd,
     },
     canStartFromStage
   );
@@ -167,6 +172,18 @@ export function TrainingPanel({
         {guiAvailable && resolvedDisplay && (
           <p className="panel-hint">GUI will use DISPLAY={resolvedDisplay}</p>
         )}
+        <label
+          className="checkbox-row train-reset-logstd"
+          title="On Continue / Start-from-stage, reset the policy's action log_std to the PPO config's log_std_init so exploration is restored. Does not affect a fresh Start."
+        >
+          <input
+            type="checkbox"
+            checked={resetLogStd}
+            disabled={running || busy}
+            onChange={(e) => onResetLogStdChange(e.target.checked)}
+          />
+          Reset exploration (log_std) on resume
+        </label>
         <div className="train-action-grid">
           <ActionButton
             className="btn primary"

@@ -80,6 +80,22 @@ REWARD_CATALOG: tuple[RewardCatalogEntry, ...] = (
         (_p("sigma", 0.22, 0.08, 0.6),),
     ),
     RewardCatalogEntry(
+        # Linear forward-progress reward — complements forward_tracking. The Gaussian
+        # forward_tracking gives a comfortable ~0.16 floor at standstill and saturates,
+        # so a balanced policy can sit at "stand in place"; this linear ramp earns 0
+        # while still and rises with forward speed, supplying the gradient that pushes
+        # the policy off the standing attractor. No params (target comes from command).
+        "forward_progress",
+        "reward",
+        "velocity",
+        # Moderated from 1.5 -> 0.8 after the first attempt overshot: combined with
+        # forward_tracking (2.2) the per-step velocity payoff was high enough that a
+        # forward LUNGE out-earned a stable walk even though the episode ended in a
+        # fall. Kept positive so the no-plateau gradient still pulls off standing.
+        0.8,
+        (),
+    ),
+    RewardCatalogEntry(
         "lateral_tracking",
         "reward",
         "velocity",
@@ -281,6 +297,7 @@ _LOCO_ENABLE_REWARDS = frozenset(
         "posture",
         "contact",
         "forward_tracking",
+        "forward_progress",
         "lateral_tracking",
         "yaw_tracking",
         "diagonal_balance",
@@ -355,7 +372,11 @@ def recommend_term_params(
     if term.id == "height" or (entry.id == "height"):
         t.params["target_height"] = cmd.targetBodyHeight
     if entry.id == "forward_tracking":
-        t.params["sigma"] = max(0.12, 0.28 - 0.04 * lin_vel_scale)
+        # Tie sigma to the commanded speed at low targets so a slower Walk command
+        # doesn't accidentally reward standing still (smaller velocity error). The
+        # 0.52*v term binds only below ~0.5 m/s (e.g. 0.13 at 0.25 m/s); the
+        # original decreasing schedule governs the faster gaits unchanged.
+        t.params["sigma"] = max(0.12, min(0.28 - 0.04 * lin_vel_scale, 0.52 * lin_vel_scale))
     if entry.id == "air_time":
         gait_scale = max(0.5, cmd.gaitSpeedScale)
         t.params["target_air_time"] = _clamp_param(
@@ -406,7 +427,14 @@ def recommend_reward_terms_for_stage(
         # velocity reward dominates. These terms (shared with Stand) keep their
         # full weight there — only commanded-motion stages are scaled.
         if not is_stand and t.id in ("upright", "height", "posture"):
-            t.weight = round(t.weight * 0.7, 4)
+            t.weight = round(t.weight * 0.85, 4)
+        # The flat alive bonus is the other earnable-while-standing reward; trim it on
+        # commanded-motion stages so "stay upright in place" doesn't out-earn the cost
+        # of attempting to walk — but keep enough that a long stable episode beats a
+        # short forward lunge that falls. (Relaxed 0.4 -> 0.8 after the lunge-and-fall
+        # failure; forward_progress already removes the zero-velocity plateau.)
+        if not is_stand and t.id == "alive":
+            t.weight = round(t.weight * 0.8, 4)
         out.append(t)
     return out
 

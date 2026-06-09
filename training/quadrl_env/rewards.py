@@ -119,6 +119,15 @@ class RewardEngine:
         if tid == "forward_tracking":
             target = float(command.get("target_lin_vel_x", 0))
             return _gaussian_sq(float(state.base_lin_vel[0]) - target, sigma)
+        if tid == "forward_progress":
+            # Linear forward-velocity reward: ramps 0 -> 1 as vx goes 0 -> target,
+            # clipped so standing earns 0, moving backward earns 0, and exceeding
+            # target earns no bonus (forward_tracking handles precise matching).
+            # Unlike the Gaussian forward_tracking it has no plateau at vx=0, so it
+            # supplies a constant gradient off the "balance in place" optimum.
+            target = float(command.get("target_lin_vel_x", 0)) or 1.0
+            vx = float(state.base_lin_vel[0])
+            return max(0.0, min(vx, target)) / abs(target)
         if tid == "lateral_tracking":
             target = float(command.get("target_lin_vel_y", 0))
             return _gaussian_sq(float(state.base_lin_vel[1]) - target, sigma)

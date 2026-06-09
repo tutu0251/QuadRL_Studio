@@ -33,6 +33,7 @@ def build_train_command(
     start_stage: Optional[int] = None,
     config_path: Optional[str] = None,
     controller_apply_delay_s: Optional[float] = None,
+    reset_log_std: bool = False,
 ) -> str:
     cmd = [
         _python_executable(),
@@ -51,6 +52,8 @@ def build_train_command(
         cmd.extend(["--resume", resume_checkpoint])
     if start_stage is not None:
         cmd.extend(["--start-stage", str(start_stage)])
+    if reset_log_std:
+        cmd.append("--reset-log-std")
 
     parts = [shlex.quote(p) for p in cmd]
     env_prefix = ""
@@ -202,6 +205,7 @@ def preview_command(action: str, project: str, params: Optional[dict[str, Any]] 
             gazebo_headless=bool(p.get("gazebo_headless", True)),
             resume_checkpoint=str(p.get("resume_checkpoint", "")),
             start_stage=p.get("start_stage"),
+            reset_log_std=bool(p.get("reset_log_std")),
             controller_apply_delay_s=p.get("controller_apply_delay_s"),
         )
     elif action == "tensorboard_start":

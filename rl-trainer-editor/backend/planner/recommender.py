@@ -200,32 +200,43 @@ def recommend_stage_params(
         gaitSpeedScale=1.0 + stage.order * 0.05,
     )
 
-    # Graduated perturbations teach closed-loop recovery. Stand stays a clean
-    # balance baseline (no pushes); perturbations ramp from Recover (order 1)
-    # through Gallop (order 6) so the policy learns to resist its own action
-    # noise and external shoves instead of memorizing one precise pose. The
-    # wrench engine (training/quadrl_env/disturbances.py) consumes pushForceN /
+    # Disturbances harden EXISTING skills — never nascent ones. A stage that is
+    # learning a brand-new skill from scratch can't also be robust to shoves; the
+    # pushes punish every tentative attempt and the skill never emerges. So the
+    # schedule follows the skill timeline, not a flat ramp:
+    #   order 0  Stand   — learn balance            -> CLEAN
+    #   order 1  Recover — balance exists (Stand)   -> push, hardens balance
+    #   order 2  Walk    — the gait is BORN here    -> CLEAN, let stepping emerge
+    #   order 3+ Trot..Gallop — a gait exists       -> graduated pushes harden it
+    # The wrench engine (training/quadrl_env/disturbances.py) consumes pushForceN /
     # pushIntervalSteps / lateralImpulseN; terrainRoughness is layered on only for
-    # the rough-terrain curriculum. Forces are absolute N (robot body weight is
-    # ~79 N), so 15→40 N spans ~19%–50% of weight. _build_stage overwrites the
-    # template's placeholder stage.disturbance with this output.
+    # the rough-terrain curriculum. Forces are absolute N (body weight ~79 N).
     is_stand = stage_is_stand_only(stage)
-    # Only the initial balance stage (order 0 / Stand) is a clean baseline.
-    # Recover is also zero-velocity (stage_is_stand_only would be True), but it
-    # is the recovery stage and MUST be perturbed — so gate on order, not is_stand.
-    if stage.order <= 0:
-        disturbance = DisturbanceConfig()
-    else:
-        frac = min(1.0, (stage.order - 1) / 5.0)  # 0 at Recover, 1 at Gallop
-        roughness = min(0.85, 0.15 + stage.order * 0.1)
+    roughness = min(0.85, 0.15 + stage.order * 0.1)
+    if stage.order == 1:
+        # Recover: shove the already-learned stander to teach push-recovery.
         disturbance = DisturbanceConfig(
             enabled=True,
-            pushForceN=round(15 + frac * 25, 1),         # 15 → 40 N
-            pushIntervalSteps=int(150 - frac * 70),      # ~every 3.0 s → 1.6 s at 50 Hz
-            lateralImpulseN=round(8 + frac * 14, 1),     # 8 → 22 N
+            pushForceN=15.0,
+            pushIntervalSteps=150,
+            lateralImpulseN=8.0,
+            terrainRoughness=round(roughness * 0.8, 3) if rough else 0.0,
+            randomOrientationNoiseRad=0.02,
+        )
+    elif stage.order >= 3:
+        # Trot..Gallop: harden/transfer the existing gait, ramping 15 → 40 N.
+        frac = min(1.0, (stage.order - 3) / 3.0)  # 0 at Trot, 1 at Gallop
+        disturbance = DisturbanceConfig(
+            enabled=True,
+            pushForceN=round(15 + frac * 25, 1),
+            pushIntervalSteps=int(150 - frac * 70),
+            lateralImpulseN=round(8 + frac * 14, 1),
             terrainRoughness=round(roughness * 0.8, 3) if rough else 0.0,
             randomOrientationNoiseRad=round(0.02 + frac * 0.04, 3),
         )
+    else:
+        # Stand (0) learns balance; Walk (2) is where the gait is born — clean.
+        disturbance = DisturbanceConfig()
     termination = merge_termination_config(stage.termination)
     termination.maxEpisodeSteps = 800 + stage.order * 200
     termination.fallBaseHeightThreshold = heights.fall_base_height_threshold

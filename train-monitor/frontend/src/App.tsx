@@ -49,6 +49,9 @@ export default function App() {
       return true;
     }
   });
+  // Reset exploration (policy log_std) when resuming/seeding a stage. One-shot:
+  // defaults off every session so it only resets when explicitly requested.
+  const [resetLogStd, setResetLogStd] = useState(false);
   const [guiAvailable, setGuiAvailable] = useState(true);
   const [resolvedDisplay, setResolvedDisplay] = useState<string | null>(null);
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
@@ -255,9 +258,12 @@ export default function App() {
     setBusy(true);
     try {
       setTrainStatus(
-        await api.trainResume(project, selectedCheckpoint, { gazebo_headless: gazeboHeadless })
+        await api.trainResume(project, selectedCheckpoint, {
+          gazebo_headless: gazeboHeadless,
+          reset_log_std: resetLogStd,
+        })
       );
-      log(`Resuming from ${selectedCheckpoint}`);
+      log(`Resuming from ${selectedCheckpoint}${resetLogStd ? " (log_std reset)" : ""}`);
       await refreshProjectData(project);
     } catch (e) {
       setError(String(e));
@@ -274,10 +280,14 @@ export default function App() {
         await api.trainResume(project, selectedCheckpoint, {
           gazebo_headless: gazeboHeadless,
           resume_start_stage: stageIndex,
+          reset_log_std: resetLogStd,
         })
       );
       const stageName = trainingConfig?.stages[stageIndex]?.name ?? `stage ${stageIndex + 1}`;
-      log(`Starting from ${stageName} seeded with ${selectedCheckpoint}`);
+      log(
+        `Starting from ${stageName} seeded with ${selectedCheckpoint}` +
+          (resetLogStd ? " (log_std reset — exploration restored)" : "")
+      );
       await refreshProjectData(project);
     } catch (e) {
       setError(String(e));
@@ -396,6 +406,7 @@ export default function App() {
               gazeboHeadless={gazeboHeadless}
               guiAvailable={guiAvailable}
               resolvedDisplay={resolvedDisplay}
+              resetLogStd={resetLogStd}
               busy={busy}
               trainingActive={trainingActive}
               onGazeboHeadlessChange={(v) => {
@@ -406,6 +417,7 @@ export default function App() {
                   /* ignore */
                 }
               }}
+              onResetLogStdChange={setResetLogStd}
               onStart={startTraining}
               onStop={stopTraining}
               onResume={resumeTraining}

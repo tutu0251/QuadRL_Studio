@@ -496,23 +496,29 @@ def _resolve_start_stage_override(
     stages: list,
     resume_ckpt_path: Path | None,
     start_stage: int,
-) -> tuple[int, Path, bool]:
+    reset_policy: bool = False,
+) -> tuple[int, Path | None, bool]:
     """Validate an explicit ``--start-stage`` request and return the resume plan
     ``(resume_start_i, resume_seed_path, resume_seed_continue)``.
 
     The chosen stage is seeded with the resume checkpoint's weights and trained
     from a fresh budget (``resume_seed_continue=False``), unlike the filename-based
-    auto-detection which may continue an in-progress stage. Raises ``ValueError``
-    with a user-facing message when the request is invalid.
+    auto-detection which may continue an in-progress stage. When ``reset_policy`` is
+    set the stage is instead started from a fresh policy (``resume_seed_path=None``),
+    so no resume checkpoint is required. Raises ``ValueError`` with a user-facing
+    message when the request is invalid.
     """
     if not curriculum_enabled:
         raise ValueError("--start-stage requires a curriculum config")
-    if resume_ckpt_path is None:
-        raise ValueError("--start-stage requires a --resume checkpoint to seed the stage")
     if not (0 <= start_stage < len(stages)):
         raise ValueError(
             f"--start-stage {start_stage} out of range (0..{len(stages) - 1})"
         )
+    if reset_policy:
+        # Fresh policy at the start stage — nothing to seed from.
+        return start_stage, None, False
+    if resume_ckpt_path is None:
+        raise ValueError("--start-stage requires a --resume checkpoint to seed the stage")
     return start_stage, resume_ckpt_path, False
 
 
@@ -527,6 +533,7 @@ def _train_stage_sb3(
     curriculum: bool,
     resume_override: str | None = None,
     reset_policy: bool = False,
+    reset_log_std: float | None = None,
     continue_timesteps: bool = False,
 ) -> None:
     from stable_baselines3 import PPO
@@ -578,6 +585,22 @@ def _train_stage_sb3(
     if load_path:
         _log(f"[train] Resuming from checkpoint: {load_path}")
         model = PPO.load(str(load_path), env=env, device=device, tensorboard_log=str(tb_dir))
+        if reset_log_std is not None:
+            # The loaded policy's action-std has already decayed to a near-greedy
+            # value, trapping it in a half-speed local optimum that ent_coef can't
+            # escape. Overwrite log_std with a fresh exploration value (keeping the
+            # learned mean/value weights) so the stage explores again without
+            # relearning balance.
+            import math
+
+            import torch
+
+            with torch.no_grad():
+                model.policy.log_std.data.fill_(float(reset_log_std))
+            _log(
+                f"[train] Reset policy log_std to {float(reset_log_std):.3f} "
+                f"(std≈{math.exp(float(reset_log_std)):.3f}) — exploration restored"
+            )
         if continue_timesteps:
             done = int(getattr(model, "num_timesteps", 0))
             remaining = max(0, timesteps - done)
@@ -710,6 +733,33 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--reset-policy",
+        action="store_true",
+        help=(
+            "Start the --start-stage stage with a FRESH policy instead of seeding it "
+            "from a checkpoint. The policy is rebuilt from scratch (random weights, "
+            "log_std_init from the PPO config), restoring full exploration so the stage "
+            "can escape a half-speed local optimum a resumed policy is stuck in. No "
+            "--resume checkpoint is needed. Requires --start-stage and a curriculum config."
+        ),
+    )
+    parser.add_argument(
+        "--reset-log-std",
+        nargs="?",
+        type=str,
+        const="__default__",
+        default=None,
+        metavar="VALUE",
+        help=(
+            "After loading the resume/seed checkpoint, reset ONLY the policy's "
+            "log_std parameter to VALUE (keeping the learned mean/value weights), "
+            "restoring exploration so a converged low-std policy can escape a "
+            "half-speed local optimum without relearning balance. Pass a float to "
+            "set it explicitly, or omit the value to use the PPO config's "
+            "log_std_init. Applies to the stage that loads the checkpoint."
+        ),
+    )
+    parser.add_argument(
         "--sim-backend",
         choices=("auto", "ros"),
         default=None,
@@ -782,17 +832,57 @@ def main() -> int:
     resume_start_i = 0          # index of the first stage to actually run
     resume_seed_path: Path | None = None   # checkpoint to load into that stage
     resume_seed_continue = False           # True => continue that stage's step counter
+    reset_start_policy = False             # True => fresh policy at resume_start_i
+    if args.reset_policy and args.start_stage is None:
+        _log("[error] --reset-policy requires --start-stage")
+        return 1
+    # Resolve --reset-log-std: None => no reset; "__default__" => use the PPO
+    # config's log_std_init; otherwise the explicit float. Reset needs a loaded
+    # checkpoint to act on, so it's meaningless with --reset-policy (a fresh
+    # policy already uses log_std_init).
+    reset_log_std: float | None = None
+    if args.reset_log_std is not None:
+        if args.reset_policy:
+            _log(
+                "[warn] --reset-log-std ignored with --reset-policy "
+                "(a fresh policy already starts at log_std_init)"
+            )
+        else:
+            if args.reset_log_std == "__default__":
+                hp = config.get("hyperparameters") or {}
+                if hp.get("log_std_init") is None:
+                    _log(
+                        "[warn] --reset-log-std given without a value and no "
+                        "log_std_init in config — defaulting to -1.0 (std≈0.37)"
+                    )
+                reset_log_std = float(hp.get("log_std_init", -1.0))
+            else:
+                try:
+                    reset_log_std = float(args.reset_log_std)
+                except ValueError:
+                    _log(
+                        f"[error] --reset-log-std value '{args.reset_log_std}' "
+                        "is not a number"
+                    )
+                    return 1
     if args.start_stage is not None:
         # Explicit "start from stage" mode: skip stages before the chosen index,
         # seed the chosen stage with the checkpoint's weights, and train it from a
-        # fresh budget. Overrides the filename-based auto-detection below.
+        # fresh budget. Overrides the filename-based auto-detection below. With
+        # --reset-policy the chosen stage instead starts from a fresh, high-exploration
+        # policy (no checkpoint seed).
         try:
             resume_start_i, resume_seed_path, resume_seed_continue = _resolve_start_stage_override(
-                curriculum_enabled, curriculum_stages, resume_ckpt_path, args.start_stage
+                curriculum_enabled,
+                curriculum_stages,
+                resume_ckpt_path,
+                args.start_stage,
+                reset_policy=args.reset_policy,
             )
         except ValueError as exc:
             _log(f"[error] {exc}")
             return 1
+        reset_start_policy = args.reset_policy
     elif resume_ckpt_path and curriculum_enabled:
         matched = _stage_index_for_checkpoint(curriculum_stages, config, resume_ckpt_path)
         if matched is None:
@@ -823,7 +913,9 @@ def main() -> int:
         curriculum,
         sim_backend=sim_backend,
         resume_checkpoint=str(resume_ckpt_path) if resume_ckpt_path else None,
-        resume_start_stage=(resume_start_i + 1) if (resume_ckpt_path and curriculum_enabled) else None,
+        resume_start_stage=(resume_start_i + 1)
+        if ((resume_ckpt_path or reset_start_policy) and curriculum_enabled)
+        else None,
     )
 
     _log(f"[train] Project: {project_name}")
@@ -857,7 +949,13 @@ def main() -> int:
         _log("[train] Curriculum enabled — reusing one Gazebo session across stages")
         stages = curriculum_stages
         _log(f"[train] Curriculum: {curriculum.get('name', '')} ({len(stages)} stages)")
-        if resume_seed_path is not None and resume_start_i >= len(stages):
+        if reset_start_policy and resume_start_i > 0:
+            _log(
+                f"[train] Fresh-policy restart at stage {resume_start_i + 1}/{len(stages)} "
+                f"({stages[resume_start_i].get('name')}) — stages 1..{resume_start_i} skipped; "
+                "policy rebuilt from scratch with full exploration (log_std_init from PPO config)"
+            )
+        elif resume_seed_path is not None and resume_start_i >= len(stages):
             _log(
                 f"[train] Resume checkpoint {resume_seed_path.name} completes the final stage "
                 "— nothing left to train"
@@ -887,7 +985,13 @@ def main() -> int:
                 f"ang={cmd.get('target_ang_vel_z', 0)}"
             )
             continue_timesteps = False
-            if i == resume_start_i and resume_seed_path is not None:
+            if i == resume_start_i and reset_start_policy:
+                # Fresh-policy restart: rebuild the policy from scratch at this stage
+                # (full exploration via log_std_init) and ignore any carry-forward
+                # checkpoint, so the resumed low-std weights can't sneak back in.
+                resume = None
+                reset_policy = True
+            elif i == resume_start_i and resume_seed_path is not None:
                 resume = str(resume_seed_path)
                 continue_timesteps = resume_seed_continue
                 # Never wipe the policy on the stage we are resuming into.
@@ -897,6 +1001,13 @@ def main() -> int:
                 if i > 0 and load_prev and prev_ckpt and prev_ckpt.is_file():
                     resume = str(prev_ckpt)
                 reset_policy = reset_on_advance and i > 0
+            # Only reset exploration on the stage that loads the seed checkpoint —
+            # later stages that carry forward a checkpoint should keep their std.
+            stage_reset_log_std = (
+                reset_log_std
+                if (i == resume_start_i and resume_seed_path is not None)
+                else None
+            )
             if use_sb3:
                 _train_stage_sb3(
                     config,
@@ -908,6 +1019,7 @@ def main() -> int:
                     curriculum=True,
                     resume_override=resume,
                     reset_policy=reset_policy,
+                    reset_log_std=stage_reset_log_std,
                     continue_timesteps=continue_timesteps,
                 )
                 prev_ckpt = checkpoint_dir / _checkpoint_basename(config, stage)
@@ -933,6 +1045,7 @@ def main() -> int:
                 project_dir,
                 curriculum=False,
                 resume_override=args.resume,
+                reset_log_std=reset_log_std,
             )
         else:
             _dry_run_stage(config, None, total, checkpoint_dir, run_root, curriculum=False)

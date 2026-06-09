@@ -64,6 +64,10 @@ class TrainStartRequest(BaseModel):
     resume_start_stage: Optional[int] = None
     config_path: Optional[str] = None
     gazebo_headless: bool = True
+    # When resuming/seeding a stage, reset the policy's action log_std back to the
+    # PPO config's log_std_init so exploration is restored (escapes a half-speed
+    # local optimum a converged low-std policy is stuck in). Bare flag, no value.
+    reset_log_std: bool = False
 
 
 class WorkspaceOperationRequest(BaseModel):

@@ -431,6 +431,7 @@ async def train_resume(name: str, body: TrainStartRequest):
             resume_checkpoint=body.resume_checkpoint,
             start_stage=body.resume_start_stage,
             config_path=body.config_path,
+            reset_log_std=body.reset_log_std,
         )
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -447,6 +448,7 @@ async def train_resume(name: str, body: TrainStartRequest):
             "gazebo_headless": body.gazebo_headless,
             "resume_checkpoint": body.resume_checkpoint,
             "start_stage": body.resume_start_stage,
+            "reset_log_std": body.reset_log_std,
             "controller_apply_delay_s": controller_apply_delay_for_project(name),
         },
     )["command"]

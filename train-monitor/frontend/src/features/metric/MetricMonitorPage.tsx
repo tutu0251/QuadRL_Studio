@@ -22,9 +22,11 @@ type Props = {
   gazeboHeadless: boolean;
   guiAvailable: boolean;
   resolvedDisplay: string | null;
+  resetLogStd: boolean;
   busy: boolean;
   trainingActive: boolean;
   onGazeboHeadlessChange: (v: boolean) => void;
+  onResetLogStdChange: (v: boolean) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -49,9 +51,11 @@ export function MetricMonitorPage({
   gazeboHeadless,
   guiAvailable,
   resolvedDisplay,
+  resetLogStd,
   busy,
   trainingActive,
   onGazeboHeadlessChange,
+  onResetLogStdChange,
   onStart,
   onStop,
   onResume,
@@ -68,6 +72,7 @@ export function MetricMonitorPage({
   const resumePreview = useCommandPreview(project, "train_resume", {
     gazebo_headless: gazeboHeadless,
     resume_checkpoint: selectedCheckpoint ?? "",
+    reset_log_std: resetLogStd,
   });
   const tbStartPreview = useCommandPreview(project, "tensorboard_start", { run_id: selectedRunId });
   const tbStopPreview = useCommandPreview(project, "tensorboard_stop");
@@ -86,7 +91,9 @@ export function MetricMonitorPage({
           gazeboHeadless={gazeboHeadless}
           guiAvailable={guiAvailable}
           resolvedDisplay={resolvedDisplay}
+          resetLogStd={resetLogStd}
           onGazeboHeadlessChange={onGazeboHeadlessChange}
+          onResetLogStdChange={onResetLogStdChange}
           onStart={onStart}
           onStop={onStop}
           onResume={onResume}

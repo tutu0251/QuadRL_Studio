@@ -178,6 +178,7 @@ class TrainManager:
         resume_checkpoint: Optional[str] = None,
         start_stage: Optional[int] = None,
         config_path: Optional[str] = None,
+        reset_log_std: bool = False,
     ) -> TrainStatus:
         if self.is_running():
             if self._project == project:
@@ -219,6 +220,8 @@ class TrainManager:
             cmd.extend(["--resume", resume_checkpoint])
         if start_stage is not None:
             cmd.extend(["--start-stage", str(start_stage)])
+        if reset_log_std:
+            cmd.append("--reset-log-std")
 
         shell_cmd = build_train_command(
             project,
@@ -228,6 +231,7 @@ class TrainManager:
             start_stage=start_stage,
             config_path=config_path,
             controller_apply_delay_s=delay_s,
+            reset_log_std=reset_log_std,
         )
         self._state.command = shell_cmd
 
