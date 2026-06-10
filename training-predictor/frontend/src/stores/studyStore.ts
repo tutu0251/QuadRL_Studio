@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { saveActiveRun } from "./runPersistence";
 import type {
   Health,
   LogEntry,
@@ -118,7 +119,11 @@ export const useStudyStore = create<StudyState>((set) => ({
   patchForm: (patch) => set((s) => ({ form: { ...s.form, ...patch } })),
 
   beginRun: (taskId) =>
-    set({ taskId, status: null, trials: [], logs: [], applyResult: null }),
+    set((s) => {
+      // Remember the active task so a page reload can reconnect to the running study.
+      saveActiveRun(taskId, s.form.project);
+      return { taskId, status: null, trials: [], logs: [], applyResult: null };
+    }),
   setStatus: (status) => set({ status }),
   setTrials: (trials) => set({ trials }),
   appendLog: (e) => set((s) => ({ logs: [...s.logs.slice(-500), e] })),

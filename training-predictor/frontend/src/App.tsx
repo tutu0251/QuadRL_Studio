@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { api, streamUrl } from "./api/client";
 import type { LogEntry, StudyStatus } from "./api/types";
 import { useStudyStore } from "./stores/studyStore";
+import { clearActiveRun, loadActiveRun } from "./stores/runPersistence";
 import { TopBar } from "./features/topbar/TopBar";
 import { StudySetupPanel } from "./features/params/StudySetupPanel";
 import { BestPanel } from "./features/prediction/BestPanel";
@@ -96,17 +97,13 @@ export default function App() {
     }
   }, []);
 
-  const onStart = useCallback(async () => {
-    const { form } = useStudyStore.getState();
-    if (!form.project) return;
-    setError(null);
-    try {
-      const { task_id } = await api.start(form);
-      const s = useStudyStore.getState();
-      s.beginRun(task_id);
-
+  // Open the SSE log/status stream and trial polling for a task. Re-opening the
+  // stream replays all logs + status from the start, so this doubles as the
+  // reconnect path after a page reload.
+  const connectStream = useCallback(
+    (taskId: string, project: string) => {
       stopStreaming();
-      const es = new EventSource(streamUrl(task_id));
+      const es = new EventSource(streamUrl(taskId));
       esRef.current = es;
       es.addEventListener("log", (ev) =>
         useStudyStore.getState().appendLog(JSON.parse((ev as MessageEvent).data) as LogEntry)
@@ -115,18 +112,56 @@ export default function App() {
         useStudyStore.getState().setStatus(JSON.parse((ev as MessageEvent).data) as StudyStatus)
       );
       es.addEventListener("done", () => {
-        void refreshTrials(task_id);
-        void refreshStudies(form.project);
+        void refreshTrials(taskId);
+        if (project) void refreshStudies(project);
         stopStreaming();
       });
       es.onerror = () => {
         /* SSE will retry; trial polling + status keep the UI live */
       };
-      trialTimer.current = setInterval(() => void refreshTrials(task_id), 2500);
+      void refreshTrials(taskId);
+      trialTimer.current = setInterval(() => void refreshTrials(taskId), 2500);
+    },
+    [stopStreaming, refreshTrials, refreshStudies]
+  );
+
+  const onStart = useCallback(async () => {
+    const { form } = useStudyStore.getState();
+    if (!form.project) return;
+    setError(null);
+    try {
+      const { task_id } = await api.start(form);
+      useStudyStore.getState().beginRun(task_id);
+      connectStream(task_id, form.project);
     } catch (e) {
       setError(`Could not start the study: ${String(e)}`);
     }
-  }, [setError, stopStreaming, refreshTrials, refreshStudies]);
+  }, [setError, connectStream]);
+
+  // ---- reconnect to an in-flight study after a page reload ----
+  useEffect(() => {
+    const saved = loadActiveRun();
+    if (!saved) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Confirm the backend still has this task (it 404s if the backend restarted).
+        const status = await api.status(saved.taskId);
+        if (cancelled) return;
+        const s = useStudyStore.getState();
+        if (saved.project) s.setProject(saved.project);
+        s.beginRun(saved.taskId);
+        s.setStatus(status);
+        connectStream(saved.taskId, saved.project);
+      } catch {
+        // Task is gone (e.g. backend restarted) — drop the stale pointer.
+        if (!cancelled) clearActiveRun();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connectStream]);
 
   const onStop = useCallback(async () => {
     const { taskId } = useStudyStore.getState();
