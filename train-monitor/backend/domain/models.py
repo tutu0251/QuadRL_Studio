@@ -68,6 +68,11 @@ class TrainStartRequest(BaseModel):
     # PPO config's log_std_init so exploration is restored (escapes a half-speed
     # local optimum a converged low-std policy is stuck in). Bare flag, no value.
     reset_log_std: bool = False
+    # Override the PPO value-function loss coefficient for the run. None => leave
+    # the config/checkpoint value untouched. On a resume this is the ONLY way to
+    # change vf_coef, since PPO.load restores the checkpoint's saved value. Raise it
+    # (e.g. 2.0) when the critic is failing to fit returns (explained_variance ~0).
+    vf_coef: Optional[float] = None
 
 
 class WorkspaceOperationRequest(BaseModel):

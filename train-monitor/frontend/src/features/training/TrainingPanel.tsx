@@ -14,8 +14,10 @@ type Props = {
   guiAvailable: boolean;
   resolvedDisplay: string | null;
   resetLogStd: boolean;
+  vfCoef: number | null;
   onGazeboHeadlessChange: (v: boolean) => void;
   onResetLogStdChange: (v: boolean) => void;
+  onVfCoefChange: (v: number | null) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -39,8 +41,10 @@ export function TrainingPanel({
   guiAvailable,
   resolvedDisplay,
   resetLogStd,
+  vfCoef,
   onGazeboHeadlessChange,
   onResetLogStdChange,
+  onVfCoefChange,
   onStart,
   onStop,
   onResume,
@@ -73,6 +77,7 @@ export function TrainingPanel({
       resume_checkpoint: selectedCheckpoint ?? "",
       start_stage: stageIndex,
       reset_log_std: resetLogStd,
+      vf_coef: vfCoef,
     },
     canStartFromStage
   );
@@ -183,6 +188,24 @@ export function TrainingPanel({
             onChange={(e) => onResetLogStdChange(e.target.checked)}
           />
           Reset exploration (log_std) on resume
+        </label>
+        <label
+          className="field-row train-vf-coef"
+          title="Override the PPO value-function loss coefficient (vf_coef) for Continue / Start-from-stage. Leave blank to keep the config/checkpoint value. On a resume this is the only way to change vf_coef (PPO.load restores the saved one). Raise it (e.g. 2.0) when explained_variance is stuck near 0."
+        >
+          <span>Value-fn boost (vf_coef)</span>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            placeholder="default"
+            value={vfCoef ?? ""}
+            disabled={running || busy}
+            onChange={(e) => {
+              const v = e.target.value;
+              onVfCoefChange(v === "" ? null : Number(v));
+            }}
+          />
         </label>
         <div className="train-action-grid">
           <ActionButton

@@ -179,6 +179,7 @@ class TrainManager:
         start_stage: Optional[int] = None,
         config_path: Optional[str] = None,
         reset_log_std: bool = False,
+        vf_coef: Optional[float] = None,
     ) -> TrainStatus:
         if self.is_running():
             if self._project == project:
@@ -222,6 +223,8 @@ class TrainManager:
             cmd.extend(["--start-stage", str(start_stage)])
         if reset_log_std:
             cmd.append("--reset-log-std")
+        if vf_coef is not None:
+            cmd.extend(["--vf-coef", str(vf_coef)])
 
         shell_cmd = build_train_command(
             project,
@@ -232,6 +235,7 @@ class TrainManager:
             config_path=config_path,
             controller_apply_delay_s=delay_s,
             reset_log_std=reset_log_std,
+            vf_coef=vf_coef,
         )
         self._state.command = shell_cmd
 

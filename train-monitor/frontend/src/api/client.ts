@@ -132,6 +132,7 @@ export const api = {
       gazebo_headless?: boolean;
       resume_start_stage?: number;
       reset_log_std?: boolean;
+      vf_coef?: number;
     } = {}
   ) =>
     req<TrainStatus>(`/api/projects/${name}/train/resume`, {

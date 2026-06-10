@@ -34,6 +34,7 @@ def build_train_command(
     config_path: Optional[str] = None,
     controller_apply_delay_s: Optional[float] = None,
     reset_log_std: bool = False,
+    vf_coef: Optional[float] = None,
 ) -> str:
     cmd = [
         _python_executable(),
@@ -54,6 +55,8 @@ def build_train_command(
         cmd.extend(["--start-stage", str(start_stage)])
     if reset_log_std:
         cmd.append("--reset-log-std")
+    if vf_coef is not None:
+        cmd.extend(["--vf-coef", str(vf_coef)])
 
     parts = [shlex.quote(p) for p in cmd]
     env_prefix = ""
@@ -206,6 +209,7 @@ def preview_command(action: str, project: str, params: Optional[dict[str, Any]] 
             resume_checkpoint=str(p.get("resume_checkpoint", "")),
             start_stage=p.get("start_stage"),
             reset_log_std=bool(p.get("reset_log_std")),
+            vf_coef=p.get("vf_coef"),
             controller_apply_delay_s=p.get("controller_apply_delay_s"),
         )
     elif action == "tensorboard_start":

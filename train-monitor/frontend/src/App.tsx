@@ -52,6 +52,10 @@ export default function App() {
   // Reset exploration (policy log_std) when resuming/seeding a stage. One-shot:
   // defaults off every session so it only resets when explicitly requested.
   const [resetLogStd, setResetLogStd] = useState(false);
+  // Override the PPO value-function loss coefficient on resume/start-from-stage.
+  // null => leave the config/checkpoint value untouched. Defaults off every session
+  // so it only overrides when explicitly set.
+  const [vfCoef, setVfCoef] = useState<number | null>(null);
   const [guiAvailable, setGuiAvailable] = useState(true);
   const [resolvedDisplay, setResolvedDisplay] = useState<string | null>(null);
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
@@ -261,9 +265,13 @@ export default function App() {
         await api.trainResume(project, selectedCheckpoint, {
           gazebo_headless: gazeboHeadless,
           reset_log_std: resetLogStd,
+          vf_coef: vfCoef ?? undefined,
         })
       );
-      log(`Resuming from ${selectedCheckpoint}${resetLogStd ? " (log_std reset)" : ""}`);
+      log(
+        `Resuming from ${selectedCheckpoint}${resetLogStd ? " (log_std reset)" : ""}` +
+          (vfCoef != null ? ` (vf_coef=${vfCoef})` : "")
+      );
       await refreshProjectData(project);
     } catch (e) {
       setError(String(e));
@@ -281,12 +289,14 @@ export default function App() {
           gazebo_headless: gazeboHeadless,
           resume_start_stage: stageIndex,
           reset_log_std: resetLogStd,
+          vf_coef: vfCoef ?? undefined,
         })
       );
       const stageName = trainingConfig?.stages[stageIndex]?.name ?? `stage ${stageIndex + 1}`;
       log(
         `Starting from ${stageName} seeded with ${selectedCheckpoint}` +
-          (resetLogStd ? " (log_std reset — exploration restored)" : "")
+          (resetLogStd ? " (log_std reset — exploration restored)" : "") +
+          (vfCoef != null ? ` (vf_coef=${vfCoef})` : "")
       );
       await refreshProjectData(project);
     } catch (e) {
@@ -407,6 +417,7 @@ export default function App() {
               guiAvailable={guiAvailable}
               resolvedDisplay={resolvedDisplay}
               resetLogStd={resetLogStd}
+              vfCoef={vfCoef}
               busy={busy}
               trainingActive={trainingActive}
               onGazeboHeadlessChange={(v) => {
@@ -418,6 +429,7 @@ export default function App() {
                 }
               }}
               onResetLogStdChange={setResetLogStd}
+              onVfCoefChange={setVfCoef}
               onStart={startTraining}
               onStop={stopTraining}
               onResume={resumeTraining}

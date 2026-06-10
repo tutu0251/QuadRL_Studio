@@ -534,6 +534,7 @@ def _train_stage_sb3(
     resume_override: str | None = None,
     reset_policy: bool = False,
     reset_log_std: float | None = None,
+    vf_coef_override: float | None = None,
     continue_timesteps: bool = False,
 ) -> None:
     from stable_baselines3 import PPO
@@ -601,6 +602,17 @@ def _train_stage_sb3(
                 f"[train] Reset policy log_std to {float(reset_log_std):.3f} "
                 f"(std≈{math.exp(float(reset_log_std)):.3f}) — exploration restored"
             )
+        if vf_coef_override is not None:
+            # PPO.load restores the checkpoint's saved vf_coef, so a config edit
+            # alone never reaches a resumed run. Overwrite it post-load to give the
+            # value loss more share of the shared optimizer's gradient — used when
+            # the critic is failing to fit returns (explained_variance pinned near 0).
+            prev_vf = float(getattr(model, "vf_coef", 0.5))
+            model.vf_coef = float(vf_coef_override)
+            _log(
+                f"[train] Override vf_coef -> {model.vf_coef:.3f} "
+                f"(was {prev_vf:.3f} from checkpoint)"
+            )
         if continue_timesteps:
             done = int(getattr(model, "num_timesteps", 0))
             remaining = max(0, timesteps - done)
@@ -635,7 +647,9 @@ def _train_stage_sb3(
             gae_lambda=float(hp.get("gae_lambda", 0.95)),
             clip_range=float(hp.get("clip_range", 0.2)),
             ent_coef=float(hp.get("ent_coef", 0.0)),
-            vf_coef=float(hp.get("vf_coef", 0.5)),
+            vf_coef=float(
+                vf_coef_override if vf_coef_override is not None else hp.get("vf_coef", 0.5)
+            ),
             max_grad_norm=float(hp.get("max_grad_norm", 0.5)),
             policy_kwargs=policy_kwargs or None,
             verbose=1,
@@ -757,6 +771,19 @@ def main() -> int:
             "half-speed local optimum without relearning balance. Pass a float to "
             "set it explicitly, or omit the value to use the PPO config's "
             "log_std_init. Applies to the stage that loads the checkpoint."
+        ),
+    )
+    parser.add_argument(
+        "--vf-coef",
+        type=float,
+        default=None,
+        metavar="VALUE",
+        help=(
+            "Override the PPO value-function loss coefficient (vf_coef) for this run. "
+            "On a resume, PPO.load restores the checkpoint's saved vf_coef (0.5), so a "
+            "config edit alone has no effect — this flag re-applies VALUE post-load. "
+            "Raise it (e.g. 2.0) when the critic is failing to fit returns "
+            "(explained_variance pinned near 0). Applies to every stage of the run."
         ),
     )
     parser.add_argument(
@@ -1020,6 +1047,7 @@ def main() -> int:
                     resume_override=resume,
                     reset_policy=reset_policy,
                     reset_log_std=stage_reset_log_std,
+                    vf_coef_override=args.vf_coef,
                     continue_timesteps=continue_timesteps,
                 )
                 prev_ckpt = checkpoint_dir / _checkpoint_basename(config, stage)
@@ -1046,6 +1074,7 @@ def main() -> int:
                 curriculum=False,
                 resume_override=args.resume,
                 reset_log_std=reset_log_std,
+                vf_coef_override=args.vf_coef,
             )
         else:
             _dry_run_stage(config, None, total, checkpoint_dir, run_root, curriculum=False)

@@ -23,10 +23,12 @@ type Props = {
   guiAvailable: boolean;
   resolvedDisplay: string | null;
   resetLogStd: boolean;
+  vfCoef: number | null;
   busy: boolean;
   trainingActive: boolean;
   onGazeboHeadlessChange: (v: boolean) => void;
   onResetLogStdChange: (v: boolean) => void;
+  onVfCoefChange: (v: number | null) => void;
   onStart: () => void;
   onStop: () => void;
   onResume: () => void;
@@ -52,10 +54,12 @@ export function MetricMonitorPage({
   guiAvailable,
   resolvedDisplay,
   resetLogStd,
+  vfCoef,
   busy,
   trainingActive,
   onGazeboHeadlessChange,
   onResetLogStdChange,
+  onVfCoefChange,
   onStart,
   onStop,
   onResume,
@@ -73,6 +77,7 @@ export function MetricMonitorPage({
     gazebo_headless: gazeboHeadless,
     resume_checkpoint: selectedCheckpoint ?? "",
     reset_log_std: resetLogStd,
+    vf_coef: vfCoef,
   });
   const tbStartPreview = useCommandPreview(project, "tensorboard_start", { run_id: selectedRunId });
   const tbStopPreview = useCommandPreview(project, "tensorboard_stop");
@@ -92,8 +97,10 @@ export function MetricMonitorPage({
           guiAvailable={guiAvailable}
           resolvedDisplay={resolvedDisplay}
           resetLogStd={resetLogStd}
+          vfCoef={vfCoef}
           onGazeboHeadlessChange={onGazeboHeadlessChange}
           onResetLogStdChange={onResetLogStdChange}
+          onVfCoefChange={onVfCoefChange}
           onStart={onStart}
           onStop={onStop}
           onResume={onResume}
