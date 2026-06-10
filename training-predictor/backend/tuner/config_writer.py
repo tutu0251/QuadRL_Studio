@@ -88,3 +88,60 @@ def apply_params(project: str, params: dict[str, Any], *, stamp: str | None = No
     summary["reward_weights"] = weight_changes
     summary["reward_params"] = param_changes
     return summary
+
+
+def apply_stage_params(
+    project: str,
+    stage_params: dict[int, dict[str, Any]],
+    *,
+    stamp: str | None = None,
+) -> dict[str, Any]:
+    """Persist SEQUENTIAL per-stage tuning results into the project's RL config.
+
+    ``stage_params`` maps a curriculum stage index (0-based, by ``order``) to that stage's
+    winning ``rw.* / rp.*`` overrides. Each is written into ``curriculum.stages[idx].reward_terms``
+    — the per-stage block the trainer reads (``stage_config()``) — with the term's sign preserved.
+    The RL config is backed up once (``.bak-<timestamp>``). Hyperparameters are not touched
+    (curriculum-wide, not tuned per stage in Phase 1). Raises ``FileNotFoundError`` if the RL
+    export is missing.
+    """
+    stamp = stamp or time.strftime("%Y%m%d_%H%M%S")
+    rl, _ = config_io.load_base(project)
+    rl_path = paths.base_rl_config(project)
+
+    cur = rl.get("curriculum") or {}
+    stages = sorted((cur.get("stages") or []), key=lambda s: s.get("order", 0))
+
+    summary: dict[str, Any] = {"project": project, "stages": {}, "files": [], "backups": []}
+    changed = False
+    for idx in sorted(stage_params):
+        params = stage_params[idx] or {}
+        if not (0 <= idx < len(stages)) or not params:
+            continue
+        stage = stages[idx]
+        terms = stage.get("reward_terms") or []
+        config_io.apply_reward_samples(terms, params)  # in place ⇒ mutates rl
+
+        by_id = {t.get("id"): t for t in terms}
+        weights: dict[str, float] = {}
+        rparams: dict[str, dict[str, Any]] = {}
+        for key, value in params.items():
+            if key.startswith("rw.") and key[3:] in by_id:
+                weights[key[3:]] = by_id[key[3:]].get("weight")
+            elif key.startswith("rp."):
+                bits = key.split(".", 2)
+                if len(bits) == 3 and bits[1] in by_id:
+                    rparams.setdefault(bits[1], {})[bits[2]] = value
+        summary["stages"][idx] = {
+            "id": stage.get("id"),
+            "name": stage.get("name") or stage.get("id"),
+            "reward_weights": weights,
+            "reward_params": rparams,
+        }
+        changed = True
+
+    if changed:
+        summary["backups"].append(_backup(rl_path, stamp))
+        _dump(rl_path, rl, "# RL config — per-stage reward terms updated by Training Predictor\n")
+        summary["files"].append(str(rl_path))
+    return summary

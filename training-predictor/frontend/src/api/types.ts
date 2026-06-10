@@ -39,6 +39,21 @@ export interface Decision {
   timestamp: string;
 }
 
+export type TuningMode = "global" | "sequential_stage";
+
+/** One stage's tuning result in sequential mode. */
+export interface StageResult {
+  stage_index: number;
+  stage_id: string;
+  stage_name: string;
+  status: "pending" | "running" | "done" | "stopped" | "failed" | string;
+  n_completed: number;
+  best_value: number | null;
+  best_params: Record<string, ParamValue>;
+  seed_checkpoint: string | null;
+  decisions: Decision[];
+}
+
 export interface StudyStatus {
   status: StudyState;
   error: string | null;
@@ -51,6 +66,21 @@ export interface StudyStatus {
   best: BestTrial | null;
   decisions: Decision[];
   search_space: SearchSpec[];
+  // ---- sequential_stage mode (optional; present only when mode === "sequential_stage") ----
+  mode?: TuningMode;
+  current_stage_index?: number | null;
+  total_stages?: number;
+  stages_to_tune?: number[];
+  trials_per_stage?: number;
+  stages?: StageResult[];
+}
+
+/** Summary of a past per-stage sequence you can resume. */
+export interface SequenceSummary {
+  seq_name: string;
+  stages_tuned: number;
+  stages_done: number;
+  stages_to_tune: number[];
 }
 
 export interface TrialRow {
@@ -95,7 +125,9 @@ export interface Health {
 /** The tuning request — the camel-free wire contract the backend's StartTuningRequest expects. */
 export interface StartRequest {
   project: string;
-  /** Resume this existing study by name; null ⇒ start a fresh study. */
+  /** "global" = one shared param set; "sequential_stage" = a sub-study per curriculum stage. */
+  mode: TuningMode;
+  /** Resume this existing study/sequence by name; null ⇒ start fresh. */
   study_name: string | null;
   n_trials: number;
   advisor_every_n: number;
@@ -108,6 +140,10 @@ export interface StartRequest {
   include_reward_weights: boolean;
   include_reward_params: boolean;
   trial_timeout: number | null;
+  // ---- sequential_stage mode ----
+  trials_per_stage: number;
+  timesteps_per_stage: number;
+  stages_to_tune: number[] | null;
 }
 
 export interface StartResponse {
@@ -115,13 +151,23 @@ export interface StartResponse {
   study_name: string;
 }
 
-export interface ApplyResult {
-  ok: boolean;
-  applied_from_trial: number;
-  project: string;
-  hyperparameters: Record<string, ParamValue>;
+export interface StageApplySummary {
+  id: string;
+  name: string;
   reward_weights: Record<string, number>;
   reward_params: Record<string, Record<string, ParamValue>>;
+}
+
+export interface ApplyResult {
+  ok: boolean;
+  mode?: TuningMode;
+  applied_from_trial?: number;
+  project: string;
+  hyperparameters?: Record<string, ParamValue>;
+  reward_weights?: Record<string, number>;
+  reward_params?: Record<string, Record<string, ParamValue>>;
+  // sequential_stage: per-stage summary keyed by stage index
+  stages?: Record<string, StageApplySummary>;
   files: string[];
   backups: string[];
 }

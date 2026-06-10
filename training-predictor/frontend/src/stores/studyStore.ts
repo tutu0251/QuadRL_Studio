@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   Health,
   LogEntry,
+  SequenceSummary,
   Stage,
   StartRequest,
   StudyStatus,
@@ -13,6 +14,7 @@ import type {
 export function defaultForm(project = ""): StartRequest {
   return {
     project,
+    mode: "global",
     study_name: null,
     n_trials: 20,
     advisor_every_n: 5,
@@ -25,6 +27,9 @@ export function defaultForm(project = ""): StartRequest {
     include_reward_weights: true,
     include_reward_params: true,
     trial_timeout: null,
+    trials_per_stage: 10,
+    timesteps_per_stage: 30_000,
+    stages_to_tune: null,
   };
 }
 
@@ -39,8 +44,9 @@ interface StudyState {
   stages: Stage[];
   curriculumEnabled: boolean;
 
-  // past studies for the selected project (resume candidates)
+  // past studies / sequences for the selected project (resume candidates)
   pastStudies: StudySummary[];
+  pastSequences: SequenceSummary[];
 
   // setup form
   form: StartRequest;
@@ -61,6 +67,7 @@ interface StudyState {
   setProject: (p: string) => void;
   setStages: (enabled: boolean, stages: Stage[]) => void;
   setPastStudies: (studies: StudySummary[]) => void;
+  setPastSequences: (sequences: SequenceSummary[]) => void;
   patchForm: (patch: Partial<StartRequest>) => void;
 
   beginRun: (taskId: string) => void;
@@ -84,6 +91,7 @@ export const useStudyStore = create<StudyState>((set) => ({
   stages: [],
   curriculumEnabled: false,
   pastStudies: [],
+  pastSequences: [],
 
   form: defaultForm(),
 
@@ -99,13 +107,14 @@ export const useStudyStore = create<StudyState>((set) => ({
   setProjects: (p) => set({ projects: p }),
   setError: (e) => set({ error: e }),
 
-  // Switching projects resets per-project choices (stage + study to resume).
+  // Switching projects resets per-project choices (stage + study/sequence to resume).
   setProject: (p) =>
     set((s) => ({ form: { ...s.form, project: p, study_name: null, max_stages: null } })),
   // New stage list ⇒ reset the "train up to stage" choice (stages differ per project).
   setStages: (enabled, stages) =>
     set((s) => ({ curriculumEnabled: enabled, stages, form: { ...s.form, max_stages: null } })),
   setPastStudies: (pastStudies) => set({ pastStudies }),
+  setPastSequences: (pastSequences) => set({ pastSequences }),
   patchForm: (patch) => set((s) => ({ form: { ...s.form, ...patch } })),
 
   beginRun: (taskId) =>

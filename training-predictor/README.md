@@ -212,6 +212,23 @@ exactly what changed and which backups were made. You'll be asked to confirm bef
 
 ---
 
+## Tuning modes: one shared set vs. per-stage
+
+The **Tuning mode** switch at the top of *Study setup* chooses how a curriculum is tuned:
+
+- **Single global study** (default) — one study, one shared parameter set across the whole run.
+  Best when the stages want similar behavior, or for a quick overall pass.
+- **Sequential per-stage** — a separate sub-study **per curriculum stage**, run greedily: tune
+  stage 1, lock its best, freeze its checkpoint, then warm-start and tune stage 2 from it, and so
+  on. Each stage gets **its own reward profile** (e.g. *Stand firmly*, *Recover rapidly*,
+  *Walk softly*), tuned against that stage's own objective. Use **Tune Up To Stage** to choose how
+  many stages to tune. PPO hyperparameters stay curriculum-wide (fixed) in this mode; only each
+  stage's reward weights & shaping are tuned. The *Stages* panel shows per-stage progress, and
+  **Save to project** writes each stage's winning terms into `curriculum.stages[i].reward_terms`.
+
+Sequential runs are resumable too (pick a past sequence from **Resume**), continuing from the
+first un-tuned stage. Details & rationale: [docs/PHASE1_SEQUENTIAL_TUNING.md](docs/PHASE1_SEQUENTIAL_TUNING.md).
+
 ## Resuming a study
 
 Every study is saved under `<project>/tuning/<study_name>/` with its own Optuna database,

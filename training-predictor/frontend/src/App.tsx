@@ -7,6 +7,7 @@ import { StudySetupPanel } from "./features/params/StudySetupPanel";
 import { BestPanel } from "./features/prediction/BestPanel";
 import { InsightsPanel } from "./features/insights/InsightsPanel";
 import { TrialsTable } from "./features/model/TrialsTable";
+import { StageProgressPanel } from "./features/stages/StageProgressPanel";
 import { ConsolePanel } from "./features/console/ConsolePanel";
 
 export default function App() {
@@ -45,6 +46,12 @@ export default function App() {
     } catch {
       useStudyStore.getState().setPastStudies([]);
     }
+    try {
+      const { sequences } = await api.sequences(proj);
+      useStudyStore.getState().setPastSequences(sequences);
+    } catch {
+      useStudyStore.getState().setPastSequences([]);
+    }
   }, []);
 
   // ---- load curriculum stages + resumable studies when the project changes ----
@@ -53,6 +60,7 @@ export default function App() {
     if (!project) {
       useStudyStore.getState().setStages(false, []);
       useStudyStore.getState().setPastStudies([]);
+      useStudyStore.getState().setPastSequences([]);
       return;
     }
     let cancelled = false;
@@ -144,16 +152,30 @@ export default function App() {
     s.setApplyResult("Saving…");
     try {
       const d = await api.applyBest(taskId);
-      const nHp = Object.keys(d.hyperparameters || {}).length;
-      const nW = Object.keys(d.reward_weights || {}).length;
-      const nP = Object.keys(d.reward_params || {}).length;
       const files = (d.files || []).map((f) => f.split("/").pop()).join(", ");
-      useStudyStore
-        .getState()
-        .setApplyResult(
-          `Saved from trial #${d.applied_from_trial}: ${nHp} hyperparameter(s), ${nW} reward weight(s), ${nP} reward shaping value(s). ` +
-            `Files: ${files || "—"} · ${(d.backups || []).length} backup(s) made.`
+      let msg: string;
+      if (d.mode === "sequential_stage") {
+        const stages = d.stages || {};
+        const nStages = Object.keys(stages).length;
+        const nTerms = Object.values(stages).reduce(
+          (n, s) =>
+            n +
+            Object.keys(s.reward_weights || {}).length +
+            Object.values(s.reward_params || {}).reduce((m, p) => m + Object.keys(p).length, 0),
+          0
         );
+        msg =
+          `Saved ${nStages} stage(s), ${nTerms} reward value(s) into per-stage reward terms. ` +
+          `Files: ${files || "—"} · ${(d.backups || []).length} backup(s) made.`;
+      } else {
+        const nHp = Object.keys(d.hyperparameters || {}).length;
+        const nW = Object.keys(d.reward_weights || {}).length;
+        const nP = Object.keys(d.reward_params || {}).length;
+        msg =
+          `Saved from trial #${d.applied_from_trial}: ${nHp} hyperparameter(s), ${nW} reward weight(s), ${nP} reward shaping value(s). ` +
+          `Files: ${files || "—"} · ${(d.backups || []).length} backup(s) made.`;
+      }
+      useStudyStore.getState().setApplyResult(msg);
     } catch (e) {
       useStudyStore.getState().setApplyResult(`Save failed: ${String(e)}`);
     } finally {
@@ -186,6 +208,7 @@ export default function App() {
             <BestPanel onApply={onApply} />
             <InsightsPanel />
           </div>
+          <StageProgressPanel />
           <TrialsTable />
           <ConsolePanel />
         </div>

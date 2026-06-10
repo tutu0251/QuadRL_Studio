@@ -116,22 +116,81 @@ def materialize(
     _apply_timestep_budget(cfg, hp, int(total_timesteps), max_stages)
 
     # ---- reward weights & params ----
-    terms = reward_terms(cfg)
+    apply_reward_samples(reward_terms(cfg), sampled)
+
+    return cfg
+
+
+def apply_reward_samples(terms: list[dict[str, Any]], sampled: dict[str, Any]) -> None:
+    """Write sampled reward overrides into ``terms`` in place.
+
+    ``rw.<id>`` sets the term's weight *magnitude* (the base term's sign — reward vs penalty —
+    is preserved); ``rp.<id>.<param>`` sets a shaping param. Keys for unknown term ids and
+    non-reward keys (e.g. ``hp.*``) are ignored. Shared by :func:`materialize` (global
+    ``task.reward_terms``) and :func:`materialize_stage` (a single stage's ``reward_terms``).
+    """
     by_id = {t.get("id"): t for t in terms}
     for key, value in sampled.items():
         if key.startswith("rw."):
-            tid = key[3:]
-            term = by_id.get(tid)
+            term = by_id.get(key[3:])
             if term is not None:
-                # `value` is a magnitude; keep the base term's sign (penalties are negative).
                 sign = -1.0 if (term.get("type") == "penalty" or float(term.get("weight", 0.0)) < 0) else 1.0
                 term["weight"] = sign * abs(float(value))
         elif key.startswith("rp."):
-            _, tid, param = key.split(".", 2)
-            term = by_id.get(tid)
-            if term is not None:
-                term.setdefault("params", {})[param] = value
+            parts = key.split(".", 2)
+            if len(parts) == 3:
+                term = by_id.get(parts[1])
+                if term is not None:
+                    term.setdefault("params", {})[parts[2]] = value
 
+
+def materialize_stage(
+    rl_config: dict[str, Any],
+    ppo_config: dict[str, Any],
+    sampled: dict[str, Any],
+    *,
+    stage_index: int,
+    budget: int,
+) -> dict[str, Any]:
+    """Per-trial config for SEQUENTIAL per-stage tuning — train ONLY stage ``stage_index``.
+
+    Truncates the curriculum to stages ``0..stage_index`` so that ``--start-stage stage_index``
+    (which skips the earlier stages and trains to the end of the config) trains just the target
+    stage. The sampled ``rw.*/rp.*`` are written into THAT stage's own ``reward_terms`` — the
+    block the trainer reads per stage (``stage_config()``), unlike the global :func:`materialize`.
+
+    PPO hyperparameters are kept from the base config (curriculum-wide, not tuned per stage in
+    Phase 1); any ``hp.*`` samples are still applied for forward-compatibility. Raises
+    ``ValueError`` if the project has no curriculum stages or ``stage_index`` is out of range.
+    """
+    cfg = copy.deepcopy(rl_config)
+    cfg.pop("ppo_config_file", None)  # otherwise _merge_ppo_config clobbers our hyperparameters
+
+    hp = base_hyperparameters(rl_config, ppo_config)
+    for key, value in sampled.items():
+        if key.startswith("hp."):
+            hp[key[3:]] = value
+    hp["total_timesteps"] = int(budget)
+    cfg["hyperparameters"] = hp
+    for key in _PPO_PASSTHROUGH:
+        if key in ppo_config and key not in cfg:
+            cfg[key] = copy.deepcopy(ppo_config[key])
+
+    cur = cfg.get("curriculum") or {}
+    stages = sorted((cur.get("stages") or []), key=lambda s: s.get("order", 0))
+    if not stages:
+        raise ValueError("materialize_stage requires a curriculum with stages")
+    if not (0 <= stage_index < len(stages)):
+        raise ValueError(f"stage_index {stage_index} out of range (0..{len(stages) - 1})")
+
+    truncated = stages[: stage_index + 1]
+    target = truncated[stage_index]
+    target["timesteps"] = int(budget)
+    apply_reward_samples(target.get("reward_terms") or [], sampled)
+
+    cur["enabled"] = True
+    cur["stages"] = truncated
+    cfg["curriculum"] = cur
     return cfg
 
 

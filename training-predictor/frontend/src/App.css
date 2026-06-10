@@ -837,3 +837,127 @@
 .tp-log-info {
   color: var(--qr-text-muted);
 }
+
+/* ---- tuning mode toggle --------------------------------------------------- */
+
+.tp-mode {
+  width: 100%;
+  display: flex;
+}
+
+.tp-mode .qr-segmented-btn {
+  flex: 1;
+  text-align: center;
+}
+
+.tp-modehint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--qr-text-muted);
+}
+
+/* ---- per-stage progress --------------------------------------------------- */
+
+.tp-stagelist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tp-stagerow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 84px minmax(120px, 1.4fr) 64px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--qr-radius-sm);
+  background: var(--qr-bg-3);
+}
+
+.tp-stage-active {
+  background: var(--qr-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--qr-accent);
+}
+
+.tp-stage-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tp-stage-idx {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--qr-bg-0);
+  color: var(--qr-text-muted);
+  font-size: 10px;
+  font-family: var(--qr-font-mono);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tp-stage-id {
+  font-size: 10px;
+  font-family: var(--qr-font-mono);
+  color: var(--qr-text-faint);
+}
+
+.tp-stage-prog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tp-stage-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--qr-bg-0);
+  overflow: hidden;
+}
+
+.tp-stage-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--tp-accent), var(--qr-accent-2));
+  transition: width 0.3s ease;
+}
+
+.tp-stage-count {
+  font-size: 10.5px;
+  font-family: var(--qr-font-mono);
+  color: var(--qr-text-muted);
+  white-space: nowrap;
+}
+
+.tp-stage-best {
+  font-size: 12px;
+  font-family: var(--qr-font-mono);
+  color: var(--tp-score);
+  text-align: right;
+}
+
+/* stage state pills (extends the trial state styles) */
+.tp-state-pending {
+  background: var(--qr-bg-3);
+  color: var(--qr-text-faint);
+}
+.tp-state-done {
+  background: var(--qr-ok-soft);
+  color: var(--qr-ok);
+}
+.tp-state-stopped {
+  background: var(--qr-warn-soft);
+  color: var(--qr-warn);
+}
+.tp-state-failed {
+  background: var(--qr-error-soft);
+  color: var(--qr-error);
+}

@@ -113,6 +113,36 @@ def list_studies(project: str):
     return {"studies": out}
 
 
+@app.get("/api/projects/{project}/sequences")
+def list_sequences(project: str):
+    """Past per-stage sequences for a project (each with a ``sequence.json``), so the UI can
+    resume one. Newest first."""
+    import json as _jsonlib
+
+    if project not in paths.list_projects():
+        raise HTTPException(404, f"Unknown project '{project}'")
+    root = paths.tuning_root(project)
+    out: list[dict] = []
+    if root.exists():
+        for d in sorted(root.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+            f = d / "sequence.json"
+            if not f.is_file():
+                continue
+            try:
+                data = _jsonlib.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            results = data.get("stage_results") or {}
+            done = sum(1 for r in results.values() if r.get("status") == "done")
+            out.append({
+                "seq_name": data.get("seq_name") or d.name,
+                "stages_tuned": len(results),
+                "stages_done": done,
+                "stages_to_tune": data.get("stages_to_tune") or [],
+            })
+    return {"sequences": out}
+
+
 def _session_or_404(task_id: str) -> study_mod.StudySession:
     session = study_mod.get(task_id)
     if session is None:
@@ -125,6 +155,40 @@ def start_tuning(req: StartTuningRequest):
     if req.project not in paths.list_projects():
         raise HTTPException(404, f"Unknown project '{req.project}'")
     task_id = task_manager.create_task()
+
+    if req.mode == "sequential_stage":
+        from tuner import stage_sequence
+
+        rl, _ = config_io.load_base(req.project)
+        cur = rl.get("curriculum") or {}
+        stages = sorted((cur.get("stages") or []), key=lambda s: s.get("order", 0))
+        if not (cur.get("enabled") and stages):
+            raise HTTPException(400, "Sequential per-stage tuning needs a curriculum with stages.")
+        if req.stages_to_tune:
+            stages_to_tune = [k for k in req.stages_to_tune if 0 <= k < len(stages)]
+        elif req.max_stages:
+            stages_to_tune = list(range(min(req.max_stages, len(stages))))
+        else:
+            stages_to_tune = list(range(len(stages)))
+        if not stages_to_tune:
+            raise HTTPException(400, "No valid stages selected to tune.")
+        seq_cfg = stage_sequence.StageSeqConfig(
+            project=req.project,
+            stages_to_tune=stages_to_tune,
+            trials_per_stage=req.trials_per_stage,
+            timesteps_per_stage=req.timesteps_per_stage,
+            advisor_every_n=req.advisor_every_n,
+            gazebo_headless=req.gazebo_headless,
+            trial_timeout=req.trial_timeout,
+            mock_objective=req.mock_objective,
+            monitor_base_url=req.monitor_base_url,
+            seq_name=req.study_name or ("seq_" + time.strftime("%Y%m%d_%H%M%S")),
+        )
+        session = stage_sequence.StageSequenceSession(config=seq_cfg, log=task_manager.bind(task_id))
+        study_mod.register(task_id, session)
+        threading.Thread(target=session.run, name=f"seq-{task_id[:8]}", daemon=True).start()
+        return StartTuningResponse(task_id=task_id, study_name=seq_cfg.seq_name)
+
     cfg = study_mod.StudyConfig(
         project=req.project,
         n_trials=req.n_trials,
@@ -186,13 +250,23 @@ def stop(task_id: str):
 
 @app.post("/api/tuning/{task_id}/apply")
 def apply_best(task_id: str):
-    """Save the study's best (confirmed) params back into the selected project's configs."""
-    from tuner import config_writer
+    """Save the study's best (confirmed) params back into the selected project's configs.
+
+    Global mode writes the one shared param set; sequential mode writes each tuned stage's
+    winning reward terms into ``curriculum.stages[i].reward_terms``.
+    """
+    from tuner import config_writer, stage_sequence
 
     session = _session_or_404(task_id)
-    if not session.best or not session.best.get("params"):
-        raise HTTPException(400, "No best trial to apply yet.")
     try:
+        if isinstance(session, stage_sequence.StageSequenceSession):
+            stage_params = session.best_stage_params()
+            if not stage_params:
+                raise HTTPException(400, "No tuned stages to apply yet.")
+            summary = config_writer.apply_stage_params(session.config.project, stage_params)
+            return {"ok": True, "mode": "sequential_stage", **summary}
+        if not session.best or not session.best.get("params"):
+            raise HTTPException(400, "No best trial to apply yet.")
         summary = config_writer.apply_params(session.config.project, session.best["params"])
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc

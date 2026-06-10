@@ -91,6 +91,8 @@ export function describeParam(key: string): FieldMeta {
 /** Setup-form field keys that carry their own friendly metadata. */
 export type SetupKey =
   | "study_name"
+  | "trials_per_stage"
+  | "timesteps_per_stage"
   | "n_trials"
   | "advisor_every_n"
   | "trial_timesteps"
@@ -109,6 +111,16 @@ export const SETUP_FIELDS: Record<SetupKey, FieldMeta> = {
     label: "Resume Study",
     code: "study_name",
     hint: "Continue a previous study for this project — its trials and best-so-far carry over, and new trials run until the target total is reached. “New study” starts fresh.",
+  },
+  trials_per_stage: {
+    label: "Trials per Stage",
+    code: "trials_per_stage",
+    hint: "How many trials to run for EACH curriculum stage (each stage is tuned separately)",
+  },
+  timesteps_per_stage: {
+    label: "Timesteps per Stage Trial",
+    code: "timesteps_per_stage",
+    hint: "Training budget for each single-stage trial — a fast proxy for fully training that stage",
   },
   n_trials: {
     label: "Trials to Run",

@@ -11,27 +11,36 @@ export function StudySetupPanel() {
   const store = useStudyStore();
   const f = store.form;
   const locked = isRunning(store);
+  const seq = f.mode === "sequential_stage";
 
   // Curriculum stages, chosen by NAME. `max_stages` is a prefix count over the
   // order-sorted stages, so each option's value is its 1-based position in the list.
   const hasCurriculum = store.curriculumEnabled && store.stages.length > 0;
   const stageOptions = hasCurriculum
     ? [
-        { value: "", label: "All stages" },
+        { value: "", label: seq ? "All stages" : "All stages" },
         ...store.stages.map((s, i) => ({ value: String(i + 1), label: s.name })),
       ]
     : [{ value: "", label: "No curriculum in this project" }];
 
-  // Resume a past study (its trials + best carry over) or start fresh.
-  const studyOptions = [
-    { value: "", label: "New study" },
-    ...store.pastStudies.map((s) => ({
-      value: s.study_name,
-      label:
-        `${s.study_name} · ${s.n_trials} trial${s.n_trials === 1 ? "" : "s"}` +
-        (s.best_value !== null ? ` · best ${s.best_value}` : ""),
-    })),
-  ];
+  // Resume a past study (global) or sequence (sequential) — or start fresh.
+  const resumeOptions = seq
+    ? [
+        { value: "", label: "New sequence" },
+        ...store.pastSequences.map((s) => ({
+          value: s.seq_name,
+          label: `${s.seq_name} · ${s.stages_done}/${s.stages_tuned} stages done`,
+        })),
+      ]
+    : [
+        { value: "", label: "New study" },
+        ...store.pastStudies.map((s) => ({
+          value: s.study_name,
+          label:
+            `${s.study_name} · ${s.n_trials} trial${s.n_trials === 1 ? "" : "s"}` +
+            (s.best_value !== null ? ` · best ${s.best_value}` : ""),
+        })),
+      ];
 
   return (
     <SectionCard
@@ -40,50 +49,119 @@ export function StudySetupPanel() {
       className="tp-setup"
     >
       <div className="tp-fieldgroup">
+        <span className="qr-eyebrow">Tuning mode</span>
+        <div className="qr-segmented tp-mode">
+          <button
+            type="button"
+            className={`qr-segmented-btn ${!seq ? "active" : ""}`}
+            disabled={locked}
+            onClick={() => store.patchForm({ mode: "global", study_name: null })}
+          >
+            Single global study
+          </button>
+          <button
+            type="button"
+            className={`qr-segmented-btn ${seq ? "active" : ""}`}
+            disabled={locked}
+            onClick={() => store.patchForm({ mode: "sequential_stage", study_name: null })}
+          >
+            Sequential per-stage
+          </button>
+        </div>
+        <p className="tp-modehint">
+          {seq
+            ? "Tune each curriculum stage separately and greedily — lock one stage, then warm-start the next from its best checkpoint. Each stage gets its own reward profile."
+            : "One study, one shared parameter set across the whole run."}
+        </p>
+      </div>
+
+      <div className="tp-fieldgroup">
         <span className="qr-eyebrow">The run</span>
         <SelectField
           meta={SETUP_FIELDS.study_name}
           value={f.study_name ?? ""}
-          options={studyOptions}
+          options={resumeOptions}
           disabled={locked}
           onChange={(v) => store.patchForm({ study_name: v === "" ? null : v })}
         />
         <div className="tp-grid-2">
-          <NumberField
-            meta={SETUP_FIELDS.n_trials}
-            value={f.n_trials}
-            min={1}
-            max={1000}
-            step={1}
-            disabled={locked}
-            onChange={(v) => store.patchForm({ n_trials: v ?? 1 })}
-          />
-          <NumberField
-            meta={SETUP_FIELDS.advisor_every_n}
-            value={f.advisor_every_n}
-            min={1}
-            step={1}
-            disabled={locked}
-            onChange={(v) => store.patchForm({ advisor_every_n: v ?? 1 })}
-          />
-          <NumberField
-            meta={SETUP_FIELDS.trial_timesteps}
-            value={f.trial_timesteps}
-            min={1000}
-            step={1000}
-            disabled={locked}
-            onChange={(v) => store.patchForm({ trial_timesteps: v ?? 1000 })}
-          />
-          <NumberField
-            meta={SETUP_FIELDS.trial_timeout}
-            value={f.trial_timeout}
-            min={1}
-            step={10}
-            nullable
-            placeholder="no limit"
-            disabled={locked}
-            onChange={(v) => store.patchForm({ trial_timeout: v })}
-          />
+          {seq ? (
+            <>
+              <NumberField
+                meta={SETUP_FIELDS.trials_per_stage}
+                value={f.trials_per_stage}
+                min={1}
+                max={200}
+                step={1}
+                disabled={locked}
+                onChange={(v) => store.patchForm({ trials_per_stage: v ?? 1 })}
+              />
+              <NumberField
+                meta={SETUP_FIELDS.advisor_every_n}
+                value={f.advisor_every_n}
+                min={1}
+                step={1}
+                disabled={locked}
+                onChange={(v) => store.patchForm({ advisor_every_n: v ?? 1 })}
+              />
+              <NumberField
+                meta={SETUP_FIELDS.timesteps_per_stage}
+                value={f.timesteps_per_stage}
+                min={1000}
+                step={1000}
+                disabled={locked}
+                onChange={(v) => store.patchForm({ timesteps_per_stage: v ?? 1000 })}
+              />
+              <NumberField
+                meta={SETUP_FIELDS.trial_timeout}
+                value={f.trial_timeout}
+                min={1}
+                step={10}
+                nullable
+                placeholder="no limit"
+                disabled={locked}
+                onChange={(v) => store.patchForm({ trial_timeout: v })}
+              />
+            </>
+          ) : (
+            <>
+              <NumberField
+                meta={SETUP_FIELDS.n_trials}
+                value={f.n_trials}
+                min={1}
+                max={1000}
+                step={1}
+                disabled={locked}
+                onChange={(v) => store.patchForm({ n_trials: v ?? 1 })}
+              />
+              <NumberField
+                meta={SETUP_FIELDS.advisor_every_n}
+                value={f.advisor_every_n}
+                min={1}
+                step={1}
+                disabled={locked}
+                onChange={(v) => store.patchForm({ advisor_every_n: v ?? 1 })}
+              />
+              <NumberField
+                meta={SETUP_FIELDS.trial_timesteps}
+                value={f.trial_timesteps}
+                min={1000}
+                step={1000}
+                disabled={locked}
+                onChange={(v) => store.patchForm({ trial_timesteps: v ?? 1000 })}
+              />
+              <NumberField
+                meta={SETUP_FIELDS.trial_timeout}
+                value={f.trial_timeout}
+                min={1}
+                step={10}
+                nullable
+                placeholder="no limit"
+                disabled={locked}
+                onChange={(v) => store.patchForm({ trial_timeout: v })}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -103,7 +181,13 @@ export function StudySetupPanel() {
             onChange={(v) => store.patchForm({ mock_objective: v })}
           />
           <SelectField
-            meta={SETUP_FIELDS.max_stages}
+            meta={{
+              ...SETUP_FIELDS.max_stages,
+              label: seq ? "Tune Up To Stage" : SETUP_FIELDS.max_stages.label,
+              hint: seq
+                ? "Sequential mode tunes each stage from the first up to and including this one."
+                : SETUP_FIELDS.max_stages.hint,
+            }}
             value={f.max_stages === null ? "" : String(f.max_stages)}
             options={stageOptions}
             disabled={locked || !hasCurriculum}
@@ -120,34 +204,44 @@ export function StudySetupPanel() {
         </div>
       </div>
 
-      <div className="tp-fieldgroup">
-        <span className="qr-eyebrow">What to tune</span>
-        <div className="tp-grid-1">
-          <Toggle
-            meta={SETUP_FIELDS.include_hyperparams}
-            checked={f.include_hyperparams}
-            disabled={locked}
-            onChange={(v) => store.patchForm({ include_hyperparams: v })}
-          />
-          <Toggle
-            meta={SETUP_FIELDS.include_reward_weights}
-            checked={f.include_reward_weights}
-            disabled={locked}
-            onChange={(v) => store.patchForm({ include_reward_weights: v })}
-          />
-          <Toggle
-            meta={SETUP_FIELDS.include_reward_params}
-            checked={f.include_reward_params}
-            disabled={locked}
-            onChange={(v) => store.patchForm({ include_reward_params: v })}
-          />
+      {seq ? (
+        <p className="tp-note">
+          {hasCurriculum ? (
+            <>
+              Each selected stage's <em>reward weights &amp; shaping</em> are tuned against that
+              stage's own objective; PPO hyperparameters stay fixed. Stages run one after another —
+              "All stages" tunes the whole curriculum.
+            </>
+          ) : (
+            <>This project has no curriculum, so there are no stages to tune sequentially. Pick a
+              curriculum project or switch to a single global study.</>
+          )}
+        </p>
+      ) : (
+        <div className="tp-fieldgroup">
+          <span className="qr-eyebrow">What to tune</span>
+          <div className="tp-grid-1">
+            <Toggle
+              meta={SETUP_FIELDS.include_hyperparams}
+              checked={f.include_hyperparams}
+              disabled={locked}
+              onChange={(v) => store.patchForm({ include_hyperparams: v })}
+            />
+            <Toggle
+              meta={SETUP_FIELDS.include_reward_weights}
+              checked={f.include_reward_weights}
+              disabled={locked}
+              onChange={(v) => store.patchForm({ include_reward_weights: v })}
+            />
+            <Toggle
+              meta={SETUP_FIELDS.include_reward_params}
+              checked={f.include_reward_params}
+              disabled={locked}
+              onChange={(v) => store.patchForm({ include_reward_params: v })}
+            />
+          </div>
         </div>
-      </div>
-
-      <p className="tp-note">
-        Real trials run through the Train Monitor — the single training controller. Turn on{" "}
-        <em>Practice Run</em> to exercise the loop with synthetic scores and no training.
-      </p>
+      )}
     </SectionCard>
   );
 }

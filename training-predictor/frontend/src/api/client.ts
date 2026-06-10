@@ -4,6 +4,7 @@ import type {
   LogEntry,
   StagesResponse,
   StartRequest,
+  SequenceSummary,
   StartResponse,
   StudySummary,
   StudyStatus,
@@ -33,6 +34,8 @@ export const api = {
   listProjects: () => req<{ projects: string[] }>("/api/projects"),
   stages: (project: string) => req<StagesResponse>(`/api/projects/${project}/stages`),
   studies: (project: string) => req<{ studies: StudySummary[] }>(`/api/projects/${project}/studies`),
+  sequences: (project: string) =>
+    req<{ sequences: SequenceSummary[] }>(`/api/projects/${project}/sequences`),
   start: (body: StartRequest) =>
     req<StartResponse>("/api/tuning/start", {
       method: "POST",
