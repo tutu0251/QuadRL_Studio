@@ -101,10 +101,14 @@ class TrainMonitorClient:
         poll_interval: float = 2.0,
         timeout: Optional[float] = None,
         should_stop: Callable[[], bool] = lambda: False,
+        max_status_errors: int = 5,
     ) -> dict[str, Any]:
         """Start a run via the monitor and poll until it finishes; return the final status.
 
-        Raises :class:`MonitorError` if the run fails, is stopped, or times out.
+        Tolerates up to ``max_status_errors`` *consecutive* status-poll failures (e.g. a brief
+        Train Monitor hiccup during a long training) before giving up — a single transient blip
+        no longer aborts the trial. Raises :class:`MonitorError` if the run fails, is stopped,
+        times out, or the monitor stays unreachable past that tolerance.
         """
         st = self.start(project, config_path=config_path, gazebo_headless=gazebo_headless,
                         dry_run=dry_run, resume_checkpoint=resume_checkpoint,
@@ -113,6 +117,7 @@ class TrainMonitorClient:
         started = time.time()
         run_id = st.get("run_id")
         last_progress = None
+        status_errors = 0
 
         while True:
             if should_stop():
@@ -126,7 +131,19 @@ class TrainMonitorClient:
                 raise MonitorError(f"trial exceeded timeout of {timeout}s")
             time.sleep(poll_interval)
 
-            st = self.status(project)
+            try:
+                st = self.status(project)
+                status_errors = 0
+            except MonitorError as exc:
+                status_errors += 1
+                if status_errors >= max_status_errors:
+                    raise MonitorError(
+                        f"Train Monitor unreachable for {status_errors} consecutive polls "
+                        f"(~{status_errors * poll_interval:.0f}s) — giving up: {exc}")
+                self.log("warn", f"monitor status poll failed "
+                                 f"({status_errors}/{max_status_errors}), retrying: {exc}")
+                continue
+
             run_id = st.get("run_id") or run_id
             progress = st.get("progress_message")
             if progress and progress != last_progress:
