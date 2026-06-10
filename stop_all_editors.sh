@@ -23,6 +23,7 @@ declare -A FRONTEND_PORTS=(
   [5177]="PPO Planner frontend"
   [5178]="RL Trainer Editor frontend"
   [5179]="Train Monitor frontend"
+  [5180]="Training Predictor frontend"
 )
 
 stopped=0
@@ -120,5 +121,5 @@ done
 if [[ $stopped -eq 0 ]]; then
   echo "No editor dev servers were running."
 else
-  echo "Done. Backend ports 8000-8006 and frontend ports 5173-5179 should be free."
+  echo "Done. Backend ports 8000-8007 and frontend ports 5173-5180 should be free."
 fi

@@ -1,0 +1,162 @@
+import { useCallback, useEffect, useRef } from "react";
+import { api, streamUrl } from "./api/client";
+import type { LogEntry, StudyStatus } from "./api/types";
+import { useStudyStore } from "./stores/studyStore";
+import { TopBar } from "./features/topbar/TopBar";
+import { StudySetupPanel } from "./features/params/StudySetupPanel";
+import { BestPanel } from "./features/prediction/BestPanel";
+import { InsightsPanel } from "./features/insights/InsightsPanel";
+import { TrialsTable } from "./features/model/TrialsTable";
+import { ConsolePanel } from "./features/console/ConsolePanel";
+
+export default function App() {
+  const store = useStudyStore();
+  const esRef = useRef<EventSource | null>(null);
+  const trialTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const setError = store.setError;
+
+  // ---- initial load: projects + backend health ----
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ projects }, health] = await Promise.all([api.listProjects(), api.health()]);
+        if (cancelled) return;
+        store.setProjects(projects);
+        store.setHealth(health);
+        store.setConnected(true);
+        if (projects.length && !store.form.project) store.setProject(projects[0]);
+      } catch {
+        if (cancelled) return;
+        store.setConnected(false);
+        setError("Backend unreachable — start the Training Predictor API on port 8007 (start_backend.sh).");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const stopStreaming = useCallback(() => {
+    esRef.current?.close();
+    esRef.current = null;
+    if (trialTimer.current) {
+      clearInterval(trialTimer.current);
+      trialTimer.current = null;
+    }
+  }, []);
+
+  const refreshTrials = useCallback(async (taskId: string) => {
+    try {
+      const { trials } = await api.trials(taskId);
+      useStudyStore.getState().setTrials(trials);
+    } catch {
+      /* transient — keep polling */
+    }
+  }, []);
+
+  const onStart = useCallback(async () => {
+    const { form } = useStudyStore.getState();
+    if (!form.project) return;
+    setError(null);
+    try {
+      const { task_id } = await api.start(form);
+      const s = useStudyStore.getState();
+      s.beginRun(task_id);
+
+      stopStreaming();
+      const es = new EventSource(streamUrl(task_id));
+      esRef.current = es;
+      es.addEventListener("log", (ev) =>
+        useStudyStore.getState().appendLog(JSON.parse((ev as MessageEvent).data) as LogEntry)
+      );
+      es.addEventListener("status", (ev) =>
+        useStudyStore.getState().setStatus(JSON.parse((ev as MessageEvent).data) as StudyStatus)
+      );
+      es.addEventListener("done", () => {
+        void refreshTrials(task_id);
+        stopStreaming();
+      });
+      es.onerror = () => {
+        /* SSE will retry; trial polling + status keep the UI live */
+      };
+      trialTimer.current = setInterval(() => void refreshTrials(task_id), 2500);
+    } catch (e) {
+      setError(`Could not start the study: ${String(e)}`);
+    }
+  }, [setError, stopStreaming, refreshTrials]);
+
+  const onStop = useCallback(async () => {
+    const { taskId } = useStudyStore.getState();
+    if (!taskId) return;
+    try {
+      await api.stop(taskId);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [setError]);
+
+  const onApply = useCallback(async () => {
+    const { taskId } = useStudyStore.getState();
+    if (!taskId) return;
+    if (
+      !window.confirm(
+        "Save the best trial's parameters into this project's PPO / RL config files?\n\nThe originals are backed up as .bak-<timestamp>."
+      )
+    )
+      return;
+    const s = useStudyStore.getState();
+    s.setApplying(true);
+    s.setApplyResult("Saving…");
+    try {
+      const d = await api.applyBest(taskId);
+      const nHp = Object.keys(d.hyperparameters || {}).length;
+      const nW = Object.keys(d.reward_weights || {}).length;
+      const nP = Object.keys(d.reward_params || {}).length;
+      const files = (d.files || []).map((f) => f.split("/").pop()).join(", ");
+      useStudyStore
+        .getState()
+        .setApplyResult(
+          `Saved from trial #${d.applied_from_trial}: ${nHp} hyperparameter(s), ${nW} reward weight(s), ${nP} reward shaping value(s). ` +
+            `Files: ${files || "—"} · ${(d.backups || []).length} backup(s) made.`
+        );
+    } catch (e) {
+      useStudyStore.getState().setApplyResult(`Save failed: ${String(e)}`);
+    } finally {
+      useStudyStore.getState().setApplying(false);
+    }
+  }, []);
+
+  useEffect(() => () => stopStreaming(), [stopStreaming]);
+
+  return (
+    <div className="tp-app">
+      <TopBar onStart={onStart} onStop={onStop} />
+
+      {store.error ? (
+        <div className="tp-errorbar" role="alert">
+          <span>{store.error}</span>
+          <button type="button" className="tp-error-dismiss" onClick={() => setError(null)} aria-label="Dismiss">
+            ×
+          </button>
+        </div>
+      ) : null}
+
+      <main className="tp-body">
+        <div className="tp-column tp-column-left">
+          <StudySetupPanel />
+        </div>
+
+        <div className="tp-column tp-column-right">
+          <div className="tp-row-2">
+            <BestPanel onApply={onApply} />
+            <InsightsPanel />
+          </div>
+          <TrialsTable />
+          <ConsolePanel />
+        </div>
+      </main>
+    </div>
+  );
+}

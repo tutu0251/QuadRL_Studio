@@ -21,8 +21,34 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"; set +a
 fi
 
+# Let the Claude advisor work WITHOUT an API key. The advisor's claude_cli backend
+# shells out to the Claude Code CLI, which is authenticated by your Claude Code
+# (Max/Pro) login — no ANTHROPIC_API_KEY required. The CLI usually isn't on the
+# backend's PATH, so resolve it here and export QUADRL_CLAUDE_CLI for find_claude_cli().
+if [[ -z "${QUADRL_CLAUDE_CLI:-}" ]]; then
+  CLI=""
+  for c in "${CLAUDE_CODE_EXECPATH:-}" "$(command -v claude 2>/dev/null || true)" "$HOME/.claude/local/claude"; do
+    if [[ -n "$c" && -x "$c" ]]; then CLI="$c"; break; fi
+  done
+  # Fall back to the VS Code / Cursor extension's bundled binary (newest version).
+  if [[ -z "$CLI" ]]; then
+    CLI="$(ls -1 \
+      "$HOME"/.vscode-server/extensions/anthropic.claude-code-*/resources/native-binary/claude \
+      "$HOME"/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude \
+      "$HOME"/.cursor-server/extensions/anthropic.claude-code-*/resources/native-binary/claude \
+      2>/dev/null | sort -V | tail -1 || true)"
+  fi
+  if [[ -n "$CLI" && -x "$CLI" ]]; then export QUADRL_CLAUDE_CLI="$CLI"; fi
+fi
+
 cd "$BACKEND"
 export PYTHONPATH="$BACKEND${PYTHONPATH:+:$PYTHONPATH}"
 echo "Starting Training Predictor API on 0.0.0.0:$PORT (DEV — no auth)"
-echo "  advisor: $([[ -n "${ANTHROPIC_API_KEY:-}" ]] && echo 'Claude ready' || echo 'disabled (set ANTHROPIC_API_KEY for Claude advice)')"
+if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+  echo "  advisor: Claude via API key"
+elif [[ -n "${QUADRL_CLAUDE_CLI:-}" ]]; then
+  echo "  advisor: Claude via CLI (${QUADRL_CLAUDE_CLI}) — no API key needed"
+else
+  echo "  advisor: disabled (no ANTHROPIC_API_KEY and no Claude CLI found)"
+fi
 exec "$VENV/bin/uvicorn" main:app --host 0.0.0.0 --port "$PORT"

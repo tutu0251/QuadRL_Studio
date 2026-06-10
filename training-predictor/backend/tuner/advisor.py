@@ -198,14 +198,37 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 
 def find_claude_cli() -> Optional[str]:
-    """Locate the headless ``claude`` binary (Max/Pro subscription auth)."""
+    """Locate the headless ``claude`` binary (Max/Pro subscription auth).
+
+    Checks, in order: ``QUADRL_CLAUDE_CLI`` / ``CLAUDE_CODE_EXECPATH`` overrides, the
+    PATH, and finally common install locations — the per-user install and the
+    VS Code / Cursor extension's bundled native binary. The last fallback matters
+    because the API is often launched as a service whose PATH omits ``claude``,
+    which would otherwise disable the advisor even though the CLI is installed.
+    """
+    import glob
+
     env = os.environ.get("QUADRL_CLAUDE_CLI")
     if env and os.path.exists(env):
         return env
     execpath = os.environ.get("CLAUDE_CODE_EXECPATH")
     if execpath and os.path.exists(execpath):
         return execpath
-    return shutil.which("claude")
+    on_path = shutil.which("claude")
+    if on_path:
+        return on_path
+
+    candidates: list[str] = [os.path.expanduser("~/.claude/local/claude")]
+    for pat in (
+        "~/.vscode-server/extensions/anthropic.claude-code-*/resources/native-binary/claude",
+        "~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude",
+        "~/.cursor-server/extensions/anthropic.claude-code-*/resources/native-binary/claude",
+    ):
+        candidates.extend(sorted(glob.glob(os.path.expanduser(pat)), reverse=True))
+    for c in candidates:
+        if c and os.path.exists(c) and os.access(c, os.X_OK):
+            return c
+    return None
 
 
 # --------------------------------------------------------------------------- backends

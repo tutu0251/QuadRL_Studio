@@ -32,6 +32,7 @@ FRONTENDS=(
   "$ROOT/ppo-planner/start_frontend.sh"
   "$ROOT/rl-trainer-editor/start_frontend.sh"
   "$ROOT/train-monitor/start_frontend.sh"
+  "$ROOT/training-predictor/start_frontend.sh"
 )
 
 PIDS=()
@@ -91,6 +92,7 @@ Open from your browser:
   PPO Planner:       http://${QUADRL_HOST}:5177
   RL Trainer Editor: http://${QUADRL_HOST}:5178
   Train Monitor:     http://${QUADRL_HOST}:5179
+  Training Predictor: http://${QUADRL_HOST}:5180
 
 API docs:
   Geometry:   http://${QUADRL_HOST}:8000/docs
@@ -100,6 +102,7 @@ API docs:
   PPO:        http://${QUADRL_HOST}:8004/docs
   RL Trainer: http://${QUADRL_HOST}:8005/docs
   Monitor:    http://${QUADRL_HOST}:8006/docs
+  Predictor:  http://${QUADRL_HOST}:8007/docs
 
 Gazebo (headless, no DISPLAY required):
   Log: /tmp/spawn_gazebo.headless.log
