@@ -21,6 +21,7 @@ BACKENDS=(
   "$ROOT/ppo-planner/start_backend.sh"
   "$ROOT/rl-trainer-editor/start_backend.sh"
   "$ROOT/train-monitor/start_backend.sh"
+  "$ROOT/training-predictor/start_backend.sh"
 )
 
 FRONTENDS=(

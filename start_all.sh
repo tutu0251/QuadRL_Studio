@@ -18,6 +18,7 @@ BACKENDS=(
   "$ROOT/ppo-planner/start_backend.sh"
   "$ROOT/rl-trainer-editor/start_backend.sh"
   "$ROOT/train-monitor/start_backend.sh"
+  "$ROOT/training-predictor/start_backend.sh"
 )
 
 FRONTENDS=(
@@ -83,6 +84,7 @@ Open from your browser:
   PPO Planner:       http://${QUADRL_HOST}:5177
   RL Trainer Editor: http://${QUADRL_HOST}:5178
   Train Monitor:     http://${QUADRL_HOST}:5179
+  Training Predictor: http://${QUADRL_HOST}:8007        (page served by its backend)
 
 API docs:
   Geometry:   http://${QUADRL_HOST}:8000/docs
@@ -92,6 +94,7 @@ API docs:
   PPO:        http://${QUADRL_HOST}:8004/docs
   RL Trainer: http://${QUADRL_HOST}:8005/docs
   Monitor:    http://${QUADRL_HOST}:8006/docs
+  Predictor:  http://${QUADRL_HOST}:8007/docs
 
 Logs:
   /tmp/geometry-editor.backend.log, /tmp/geometry-editor.frontend.log, etc.

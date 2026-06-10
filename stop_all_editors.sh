@@ -13,6 +13,7 @@ declare -A BACKEND_PORTS=(
   [8004]="PPO Planner backend"
   [8005]="RL Trainer Editor backend"
   [8006]="Train Monitor backend"
+  [8007]="Training Predictor backend"
 )
 declare -A FRONTEND_PORTS=(
   [5173]="Geometry Editor frontend"

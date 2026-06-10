@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QuadRL · Training Predictor</title>
+<style>
+  :root {
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --line:#2a3343;
+    --fg:#e6edf3; --muted:#8b98a9; --accent:#4ea1ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .sub { color:var(--muted); font-size:12px; }
+  .badge { padding:2px 9px; border-radius:999px; font-size:12px; border:1px solid var(--line); }
+  .badge.running{ color:var(--accent); border-color:var(--accent); }
+  .badge.complete{ color:var(--good); border-color:var(--good); }
+  .badge.stopped{ color:var(--warn); border-color:var(--warn); }
+  .badge.error{ color:var(--bad); border-color:var(--bad); }
+  main { display:grid; grid-template-columns: 320px 1fr; gap:16px; padding:16px 20px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input, select { width:100%; background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+    border-radius:7px; padding:7px 9px; font:inherit; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  .check { display:flex; align-items:center; gap:8px; margin:6px 0; color:var(--fg); }
+  .check input { width:auto; }
+  button { background:var(--accent); color:#07121f; border:0; border-radius:7px; padding:9px 14px;
+    font:600 13px/1 inherit; cursor:pointer; margin-top:14px; }
+  button.secondary { background:transparent; color:var(--fg); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .right { display:flex; flex-direction:column; gap:16px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .kv { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px dashed var(--line); }
+  .kv span:first-child{ color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th,td { text-align:left; padding:5px 7px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:500; position:sticky; top:0; background:var(--panel); }
+  .scroll { max-height:280px; overflow:auto; }
+  .decision { border-left:3px solid var(--accent); background:var(--panel2); padding:8px 11px; border-radius:0 7px 7px 0; margin-bottom:9px; }
+  .decision .act { font-weight:600; color:var(--accent); }
+  .decision .why { color:var(--fg); margin:3px 0; }
+  .decision .chg { color:var(--muted); font-family:ui-monospace,monospace; font-size:11.5px; }
+  #log { background:#0a0d12; border:1px solid var(--line); border-radius:8px; padding:10px;
+    font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; height:300px; overflow:auto; white-space:pre-wrap; }
+  .lvl-advisor{ color:var(--accent); } .lvl-trial{ color:var(--good); } .lvl-warn{ color:var(--warn); }
+  .lvl-error{ color:var(--bad); } .lvl-train{ color:var(--muted); }
+  .muted{ color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Training Predictor</h1>
+  <span class="sub">Optuna drives the trials · Claude reviews every N and adjusts reward weights, re-centers the search, or stops</span>
+  <span style="flex:1"></span>
+  <span id="advisorState" class="sub"></span>
+  <span id="statusBadge" class="badge">idle</span>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Study</h2>
+    <label>Project</label>
+    <select id="project"></select>
+    <div class="row">
+      <div><label>Trials</label><input id="n_trials" type="number" value="20" min="1"></div>
+      <div><label>Advise every</label><input id="advisor_every_n" type="number" value="5" min="1"></div>
+    </div>
+    <label>Trial timesteps (proxy budget — spread across curriculum stages)</label>
+    <input id="trial_timesteps" type="number" value="30000" min="1000" step="1000">
+    <label>Curriculum: first N stages only (blank = all, scaled to budget)</label>
+    <input id="max_stages" type="number" min="1" placeholder="all stages">
+    <div class="check"><input id="gazebo_headless" type="checkbox" checked><label style="margin:0">Gazebo headless</label></div>
+    <div class="check" title="Off = REAL training, driven through the Train Monitor (start/stop/resume). On = synthetic score, no training (loop test only).">
+      <input id="mock_objective" type="checkbox"><label style="margin:0">Mock objective — skip training (test only)</label></div>
+    <p class="muted" style="font-size:11.5px;margin:8px 0 0">Real trials are launched through the Train Monitor (:8006) — the single training controller.</p>
+    <label>Optuna samples</label>
+    <div class="check"><input id="include_hyperparams" type="checkbox" checked><label style="margin:0">PPO hyperparameters</label></div>
+    <div class="check"><input id="include_reward_weights" type="checkbox" checked><label style="margin:0">Reward weights</label></div>
+    <div class="check"><input id="include_reward_params" type="checkbox" checked><label style="margin:0">Reward params (sigma)</label></div>
+    <button id="startBtn">Start study</button>
+    <button id="stopBtn" class="secondary" disabled>Stop</button>
+  </section>
+
+  <div class="right">
+    <div class="grid2">
+      <section class="panel">
+        <h2>Best so far</h2>
+        <div id="best"><span class="muted">No trials yet.</span></div>
+        <button id="applyBtn" disabled title="Write these params into the project's ppo/rl config files">Save best params to project</button>
+        <div id="applyResult" class="muted" style="font-size:11.5px;margin-top:8px"></div>
+      </section>
+      <section class="panel">
+        <h2>Claude decisions</h2>
+        <div id="decisions" class="scroll"><span class="muted">No decisions yet.</span></div>
+      </section>
+    </div>
+    <section class="panel">
+      <h2>Trials</h2>
+      <div class="scroll"><table id="trials"><thead><tr><th>#</th><th>state</th><th>objective</th><th>params</th></tr></thead><tbody></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h2>Live log</h2>
+      <div id="log"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const API = ""; // same origin
+let currentTask = null, es = null, trialTimer = null;
+
+async function loadProjects() {
+  const r = await fetch(API + "/api/projects");
+  const { projects } = await r.json();
+  const sel = document.getElementById("project");
+  sel.innerHTML = projects.map(p => `<option>${p}</option>`).join("") || `<option value="">(no projects found)</option>`;
+  const h = await (await fetch(API + "/api/health")).json();
+  const mon = h.monitor_reachable ? `monitor: ${h.monitor_url} ✓` : `monitor: ${h.monitor_url} ✗ (start it on :8006)`;
+  document.getElementById("advisorState").textContent = `advisor: ${h.advisor_detail || "unknown"}  ·  ${mon}`;
+}
+
+function setBadge(s){ const b=document.getElementById("statusBadge"); b.textContent=s; b.className="badge "+s; }
+
+function appendLog(e){
+  const log=document.getElementById("log");
+  const atBottom = log.scrollTop+log.clientHeight >= log.scrollHeight-20;
+  const div=document.createElement("div");
+  div.className="lvl-"+(e.level||"info");
+  div.textContent=`${e.level.padEnd(7)} ${e.message}`;
+  log.appendChild(div);
+  if(atBottom) log.scrollTop=log.scrollHeight;
+}
+
+function renderStatus(st){
+  setBadge(st.status);
+  const best=document.getElementById("best");
+  if(st.best){
+    best.innerHTML = `<div class="kv"><span>trial</span><span>#${st.best.number}</span></div>`+
+      `<div class="kv"><span>objective</span><span>${st.best.value}</span></div>`+
+      Object.entries(st.best.params).map(([k,v])=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("");
+    document.getElementById("applyBtn").disabled = false;
+  }
+  const dec=document.getElementById("decisions");
+  if(st.decisions && st.decisions.length){
+    dec.innerHTML = st.decisions.slice().reverse().map(d=>`
+      <div class="decision">
+        <div class="act">${d.action}${d.stop?" · STOP":""} <span class="muted">· after ${d.after_trial} trials</span></div>
+        <div class="why">${d.rationale||""}</div>
+        ${(d.changes||[]).map(c=>`<div class="chg">${c.name}: ${fmtBound(c.before)} → ${fmtBound(c.after)}</div>`).join("")}
+      </div>`).join("");
+  }
+}
+function fmtBound(b){ if(!b) return ""; if(b.fixed!=null) return "fix="+b.fixed; return `${b.low}..${b.high}`; }
+
+async function refreshTrials(){
+  if(!currentTask) return;
+  try{
+    const { trials } = await (await fetch(`${API}/api/tuning/${currentTask}/trials`)).json();
+    const tb=document.querySelector("#trials tbody");
+    tb.innerHTML = trials.slice().reverse().map(t=>`<tr>
+      <td>${t.number}</td><td>${t.state}</td><td>${t.value??"—"}</td>
+      <td class="muted">${Object.entries(t.params).map(([k,v])=>`${k}=${v}`).join(", ")}</td></tr>`).join("");
+  }catch(_){}
+}
+
+async function start(){
+  const body = {
+    project: document.getElementById("project").value,
+    n_trials: +document.getElementById("n_trials").value,
+    advisor_every_n: +document.getElementById("advisor_every_n").value,
+    trial_timesteps: +document.getElementById("trial_timesteps").value,
+    max_stages: document.getElementById("max_stages").value ? +document.getElementById("max_stages").value : null,
+    gazebo_headless: document.getElementById("gazebo_headless").checked,
+    mock_objective: document.getElementById("mock_objective").checked,
+    include_hyperparams: document.getElementById("include_hyperparams").checked,
+    include_reward_weights: document.getElementById("include_reward_weights").checked,
+    include_reward_params: document.getElementById("include_reward_params").checked,
+  };
+  const r = await fetch(API+"/api/tuning/start", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  if(!r.ok){ alert("Start failed: "+(await r.text())); return; }
+  const { task_id } = await r.json();
+  currentTask = task_id;
+  document.getElementById("log").innerHTML="";
+  document.getElementById("startBtn").disabled=true;
+  document.getElementById("stopBtn").disabled=false;
+  setBadge("running");
+  if(es) es.close();
+  es = new EventSource(`${API}/api/tuning/${task_id}/stream`);
+  es.addEventListener("log", ev=>appendLog(JSON.parse(ev.data)));
+  es.addEventListener("status", ev=>renderStatus(JSON.parse(ev.data)));
+  es.addEventListener("done", ()=>{ es.close(); finish(); });
+  es.onerror = ()=>{ /* keep polling status as fallback */ };
+  trialTimer = setInterval(refreshTrials, 2500);
+}
+function finish(){
+  document.getElementById("startBtn").disabled=false;
+  document.getElementById("stopBtn").disabled=true;
+  if(trialTimer) clearInterval(trialTimer);
+  refreshTrials();
+}
+async function stop(){
+  if(!currentTask) return;
+  await fetch(`${API}/api/tuning/${currentTask}/stop`, {method:"POST"});
+}
+
+async function applyBest(){
+  if(!currentTask) return;
+  if(!confirm("Save the best trial's parameters into this project's ppo/rl config files?\n(Originals are backed up as .bak-<timestamp>.)")) return;
+  const res=document.getElementById("applyResult");
+  res.textContent="Saving…";
+  const r=await fetch(`${API}/api/tuning/${currentTask}/apply`, {method:"POST"});
+  if(!r.ok){ res.textContent="Save failed: "+(await r.text()); return; }
+  const d=await r.json();
+  const nHp=Object.keys(d.hyperparameters||{}).length, nW=Object.keys(d.reward_weights||{}).length, nP=Object.keys(d.reward_params||{}).length;
+  res.innerHTML = `Saved from trial #${d.applied_from_trial}: ${nHp} hyperparam(s), ${nW} reward weight(s), ${nP} reward param(s).<br>`+
+    `Files: ${(d.files||[]).map(f=>f.split('/').pop()).join(', ')}<br>Backups: ${(d.backups||[]).length}`;
+}
+
+document.getElementById("startBtn").onclick=start;
+document.getElementById("stopBtn").onclick=stop;
+document.getElementById("applyBtn").onclick=applyBest;
+loadProjects();
+</script>
+</body>
+</html>
