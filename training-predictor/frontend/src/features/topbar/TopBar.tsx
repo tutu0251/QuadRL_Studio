@@ -53,7 +53,7 @@ export function TopBar({ onStart, onStop }: { onStart: () => void; onStop: () =>
             disabled={!project || !store.connected}
             onClick={onStart}
           >
-            Start study
+            {store.form.study_name ? "Resume study" : "Start study"}
           </button>
         )}
       </div>

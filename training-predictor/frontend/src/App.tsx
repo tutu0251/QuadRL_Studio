@@ -38,6 +38,38 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const refreshStudies = useCallback(async (proj: string) => {
+    try {
+      const { studies } = await api.studies(proj);
+      useStudyStore.getState().setPastStudies(studies);
+    } catch {
+      useStudyStore.getState().setPastStudies([]);
+    }
+  }, []);
+
+  // ---- load curriculum stages + resumable studies when the project changes ----
+  const project = store.form.project;
+  useEffect(() => {
+    if (!project) {
+      useStudyStore.getState().setStages(false, []);
+      useStudyStore.getState().setPastStudies([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .stages(project)
+      .then((r) => {
+        if (!cancelled) useStudyStore.getState().setStages(r.enabled, r.stages);
+      })
+      .catch(() => {
+        if (!cancelled) useStudyStore.getState().setStages(false, []);
+      });
+    void refreshStudies(project);
+    return () => {
+      cancelled = true;
+    };
+  }, [project, refreshStudies]);
+
   const stopStreaming = useCallback(() => {
     esRef.current?.close();
     esRef.current = null;
@@ -76,6 +108,7 @@ export default function App() {
       );
       es.addEventListener("done", () => {
         void refreshTrials(task_id);
+        void refreshStudies(form.project);
         stopStreaming();
       });
       es.onerror = () => {
@@ -85,7 +118,7 @@ export default function App() {
     } catch (e) {
       setError(`Could not start the study: ${String(e)}`);
     }
-  }, [setError, stopStreaming, refreshTrials]);
+  }, [setError, stopStreaming, refreshTrials, refreshStudies]);
 
   const onStop = useCallback(async () => {
     const { taskId } = useStudyStore.getState();

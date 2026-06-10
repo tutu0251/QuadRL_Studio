@@ -419,6 +419,22 @@
   border-color: var(--qr-warn);
 }
 
+.tp-select-input {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 28px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--qr-text-muted) 50%),
+    linear-gradient(135deg, var(--qr-text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.tp-select-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* ---- toggle --------------------------------------------------------------- */
 
 .tp-toggle-row {

@@ -116,7 +116,8 @@ All fields are **locked while a study is running.**
 
 | Field | Key | Default | Range | What it does | Guidance |
 |---|---|---|---|---|---|
-| **Trials to Run** | `n_trials` | `20` | 1–1000 | How many trial trainings the study will run in total. | More trials = a better search but more wall-clock time. 20–40 is a reasonable real run; 5–10 for a quick look. |
+| **Resume Study** | `study_name` | *(New study)* | dropdown | Continue a **previous study** for this project instead of starting fresh. Its trials and best-so-far carry over; new trials run until the target total is reached. See [Resuming a study](#resuming-a-study). | Leave on "New study" normally. Use it to finish a study you stopped, or to push a promising one further by raising **Trials to Run**. |
+| **Trials to Run** | `n_trials` | `20` | 1–1000 | The **total** number of trials the study should reach. For a resumed study, only the remaining trials run (e.g. resume a study with 12 trials at a target of 20 → 8 more run). | More trials = a better search but more wall-clock time. 20–40 is a reasonable real run; 5–10 for a quick look. |
 | **Ask Claude Every N Trials** | `advisor_every_n` | `5` | ≥ 1 | How often Claude pauses to review progress and steer the search (re-center ranges, rebalance rewards, or stop early). | Smaller = more frequent steering (and more advisor calls). With few trials, keep this at 3–5 so Claude gets at least a couple of chances. Claude is **not** consulted after the final trial. |
 | **Timesteps per Trial** | `trial_timesteps` | `30000` | ≥ 1 (step 1000) | The **short training budget** for each trial — a fast *proxy* for full training. For curriculum projects it is spread across the stages in proportion to their original lengths (with a one-rollout floor per stage). | This is the main speed↔signal dial. Too small and scores are noisy; too big and each trial is slow. 20k–50k is a good proxy range; raise it if scores look random. |
 | **Per-Trial Time Limit** | `trial_timeout` | *(blank)* | seconds, optional | Give up on a single trial after this many seconds. Blank = no limit. | Use it as a safety net so one stuck trial can't stall the whole study. Set it comfortably above how long a healthy trial takes. |
@@ -127,7 +128,7 @@ All fields are **locked while a study is running.**
 |---|---|---|---|---|
 | **Run Simulator Headless** | `gazebo_headless` | **On** | Trains without opening the Gazebo window. | Leave **on** for tuning — it's faster and lighter, and you don't need to watch each trial. |
 | **Practice Run (no real training)** | `mock_objective` | Off | Scores trials with a cheap **synthetic** function instead of training anything. Lets you exercise the whole loop (Optuna + Claude + the UI) in seconds. | Turn **on** for your first run or after changing settings — it needs **no Train Monitor and no GPU**. Turn **off** for a real study. |
-| **Curriculum Stages to Use** | `max_stages` | *(blank = all)* | For curriculum projects, train only the **first N** stages per trial. Blank uses all stages, scaled to the budget. | Set to `1`–`2` to tune just the early stages quickly; leave blank to tune the full curriculum. Ignored for non-curriculum projects. |
+| **Train Up To Stage** | `max_stages` | *(All stages)* | A dropdown of your project's **curriculum stages by name** (Stand, Recover, Walk, …). Picking a stage trains the curriculum from the start **up to and including** that stage per trial; "All stages" uses the whole curriculum. | Pick an early stage (e.g. *Walk*) to tune quickly on the foundational skills; pick a later one or "All stages" for full-curriculum tuning. The dropdown is disabled for projects without a curriculum. |
 | **Train Monitor Address** | `monitor_base_url` | *(blank = default)* | Where the Train Monitor API lives. Blank uses the default (`http://127.0.0.1:8006`). | Only set this if your Train Monitor runs on another host/port. Not used during a Practice Run. |
 
 ### Group 3 — What to tune
@@ -210,6 +211,27 @@ into the **same files your editors and the Train Monitor read**:
 exactly what changed and which backups were made. You'll be asked to confirm before anything is written.
 
 ---
+
+## Resuming a study
+
+Every study is saved under `<project>/tuning/<study_name>/` with its own Optuna database,
+so a study survives a stop, a browser close, or a backend restart.
+
+To continue one:
+
+1. Pick the **project**, then choose the study from the **Resume Study** dropdown
+   (it lists each past study with its trial count and best score).
+2. Set **Trials to Run** to the **total** you want the study to reach.
+3. Press **Resume study**.
+
+The study reloads its previous trials and best-so-far, replays its advisor decisions into
+*Claude's insights*, and runs only the **remaining** trials (`target − already completed`).
+The just-finished study also appears in the dropdown automatically, so you can always push
+a promising run further by raising the target and resuming again.
+
+> **Note:** this resumes the *search* (the hyperparameter study), not a single training —
+> each trial still trains from scratch, which is what you want for tuning. (Resuming an
+> individual *training run* from a checkpoint is a separate Train Monitor feature.)
 
 ## Recommended recipes
 

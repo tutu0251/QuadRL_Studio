@@ -132,6 +132,18 @@ class StudySession:
         self._tuning_dir.mkdir(parents=True, exist_ok=True)
         decisions_path = self._tuning_dir / "decisions.jsonl"
 
+        # Resuming an existing study: replay its persisted advisor decisions so the UI
+        # shows the full history (trials themselves are restored from the Optuna DB below).
+        if decisions_path.exists():
+            try:
+                self.decisions = [json.loads(line) for line
+                                  in decisions_path.read_text(encoding="utf-8").splitlines()
+                                  if line.strip()]
+                if self.decisions:
+                    self.log("info", f"Loaded {len(self.decisions)} prior advisor decision(s).")
+            except Exception:
+                pass
+
         # Training runs through the Train Monitor — the single training controller.
         monitor = monitor_client.TrainMonitorClient(cfg.monitor_base_url, log=self.log)
 
@@ -221,8 +233,20 @@ class StudySession:
                 self.log("advisor", "Claude requested STOP.")
                 study.stop()
 
+        # cfg.n_trials is the TOTAL target. For a resumed study, only run the remainder
+        # (Optuna's optimize n_trials counts trials for THIS call, not the study total).
+        n_existing = len([t for t in self._study.trials
+                          if t.state == optuna.trial.TrialState.COMPLETE])
+        remaining = cfg.n_trials - n_existing
+        if n_existing:
+            self.log("info", f"Resuming '{cfg.study_name}': {n_existing} completed trial(s) found; "
+                             f"running {max(0, remaining)} more to reach {cfg.n_trials} total.")
+        if remaining <= 0:
+            self.log("info", f"Target of {cfg.n_trials} trials already met — nothing to run.")
+            return
+
         self.status = "running"
-        self._study.optimize(objective, n_trials=cfg.n_trials, callbacks=[callback])
+        self._study.optimize(objective, n_trials=remaining, callbacks=[callback])
 
 
 # ---- session registry (shared with the API layer) ----

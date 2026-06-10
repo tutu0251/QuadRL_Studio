@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from api.models import LogsResponse, StartTuningRequest, StartTuningResponse  # noqa: E402
 from api.task_manager import task_manager  # noqa: E402
-from tuner import paths, study as study_mod  # noqa: E402
+from tuner import config_io, paths, study as study_mod  # noqa: E402
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -58,6 +58,61 @@ def list_projects():
     return {"projects": paths.list_projects()}
 
 
+@app.get("/api/projects/{project}/stages")
+def project_stages(project: str):
+    """Curriculum stages for a project (id + human name + order), so the UI can let the
+    user choose stages by name. Returns enabled=False / empty for non-curriculum projects."""
+    if project not in paths.list_projects():
+        raise HTTPException(404, f"Unknown project '{project}'")
+    rl, _ = config_io.load_base(project)
+    cur = rl.get("curriculum") or {}
+    stages = sorted((cur.get("stages") or []), key=lambda s: s.get("order", 0))
+    return {
+        "enabled": bool(cur.get("enabled")),
+        "stages": [
+            {
+                "id": s.get("id"),
+                "name": s.get("name") or s.get("id") or f"Stage {i + 1}",
+                "order": s.get("order", i),
+                "timesteps": s.get("timesteps"),
+            }
+            for i, s in enumerate(stages)
+        ],
+    }
+
+
+@app.get("/api/projects/{project}/studies")
+def list_studies(project: str):
+    """Past tuning studies for a project (each its own Optuna sqlite DB under tuning/),
+    so the UI can offer to resume one. Newest first."""
+    import optuna
+
+    if project not in paths.list_projects():
+        raise HTTPException(404, f"Unknown project '{project}'")
+    root = paths.tuning_root(project)
+    out: list[dict] = []
+    if root.exists():
+        for d in sorted(root.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+            db = d / "optuna.db"
+            if not db.is_file():
+                continue
+            try:
+                summaries = optuna.get_all_study_summaries(f"sqlite:///{db}")
+            except Exception:
+                continue
+            for s in summaries:
+                best = getattr(s, "best_trial", None)
+                out.append({
+                    "study_name": s.study_name,
+                    "n_trials": s.n_trials,
+                    "best_value": (round(float(best.value), 5)
+                                   if best is not None and best.value is not None else None),
+                    "datetime_start": (s.datetime_start.isoformat()
+                                       if getattr(s, "datetime_start", None) else None),
+                })
+    return {"studies": out}
+
+
 def _session_or_404(task_id: str) -> study_mod.StudySession:
     session = study_mod.get(task_id)
     if session is None:
@@ -82,7 +137,7 @@ def start_tuning(req: StartTuningRequest):
         include_hyperparams=req.include_hyperparams,
         include_reward_weights=req.include_reward_weights,
         include_reward_params=req.include_reward_params,
-        study_name="study_" + time.strftime("%Y%m%d_%H%M%S"),
+        study_name=req.study_name or ("study_" + time.strftime("%Y%m%d_%H%M%S")),
         trial_timeout=req.trial_timeout,
     )
     session = study_mod.StudySession(config=cfg, log=task_manager.bind(task_id))

@@ -60,6 +60,27 @@ export interface TrialRow {
   params: Record<string, ParamValue>;
 }
 
+/** A curriculum stage, named for human selection. */
+export interface Stage {
+  id: string;
+  name: string;
+  order: number;
+  timesteps: number | null;
+}
+
+export interface StagesResponse {
+  enabled: boolean;
+  stages: Stage[];
+}
+
+/** Summary of a past tuning study you can resume. */
+export interface StudySummary {
+  study_name: string;
+  n_trials: number;
+  best_value: number | null;
+  datetime_start: string | null;
+}
+
 export interface Health {
   status: string;
   editor: string;
@@ -74,6 +95,8 @@ export interface Health {
 /** The tuning request — the camel-free wire contract the backend's StartTuningRequest expects. */
 export interface StartRequest {
   project: string;
+  /** Resume this existing study by name; null ⇒ start a fresh study. */
+  study_name: string | null;
   n_trials: number;
   advisor_every_n: number;
   trial_timesteps: number;

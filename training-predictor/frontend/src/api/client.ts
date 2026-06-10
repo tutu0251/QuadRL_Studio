@@ -2,8 +2,10 @@ import type {
   ApplyResult,
   Health,
   LogEntry,
+  StagesResponse,
   StartRequest,
   StartResponse,
+  StudySummary,
   StudyStatus,
   TrialRow,
 } from "./types";
@@ -29,6 +31,8 @@ export const streamUrl = (taskId: string) => `${BASE}/api/tuning/${taskId}/strea
 export const api = {
   health: () => req<Health>("/api/health"),
   listProjects: () => req<{ projects: string[] }>("/api/projects"),
+  stages: (project: string) => req<StagesResponse>(`/api/projects/${project}/stages`),
+  studies: (project: string) => req<{ studies: StudySummary[] }>(`/api/projects/${project}/studies`),
   start: (body: StartRequest) =>
     req<StartResponse>("/api/tuning/start", {
       method: "POST",

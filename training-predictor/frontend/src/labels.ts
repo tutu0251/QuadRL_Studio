@@ -90,6 +90,7 @@ export function describeParam(key: string): FieldMeta {
 
 /** Setup-form field keys that carry their own friendly metadata. */
 export type SetupKey =
+  | "study_name"
   | "n_trials"
   | "advisor_every_n"
   | "trial_timesteps"
@@ -104,6 +105,11 @@ export type SetupKey =
 
 /** Friendly labels + help for the tuning request fields (StartTuningRequest). */
 export const SETUP_FIELDS: Record<SetupKey, FieldMeta> = {
+  study_name: {
+    label: "Resume Study",
+    code: "study_name",
+    hint: "Continue a previous study for this project — its trials and best-so-far carry over, and new trials run until the target total is reached. “New study” starts fresh.",
+  },
   n_trials: {
     label: "Trials to Run",
     code: "n_trials",
@@ -130,9 +136,9 @@ export const SETUP_FIELDS: Record<SetupKey, FieldMeta> = {
     hint: "Train without the Gazebo window — faster and lighter",
   },
   max_stages: {
-    label: "Curriculum Stages to Use",
+    label: "Train Up To Stage",
     code: "max_stages",
-    hint: "Train only the first N curriculum stages (leave blank to use them all)",
+    hint: "Train the curriculum from the start up to and including this stage — a faster proxy than the full curriculum. “All stages” uses the whole curriculum.",
   },
   monitor_base_url: {
     label: "Train Monitor Address",

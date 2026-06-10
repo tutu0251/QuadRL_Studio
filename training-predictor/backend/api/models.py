@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 
 class StartTuningRequest(BaseModel):
     project: str
+    # Resume an existing study by name (continue its Optuna DB); None ⇒ start a fresh study.
+    study_name: Optional[str] = None
     n_trials: int = Field(20, ge=1, le=1000)
     advisor_every_n: int = Field(5, ge=1)
     trial_timesteps: int = Field(30_000, ge=1)
