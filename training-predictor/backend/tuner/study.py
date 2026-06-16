@@ -249,6 +249,46 @@ class StudySession:
         self._study.optimize(objective, n_trials=remaining, callbacks=[callback])
 
 
+# ---- persisted-study readers (no live session needed) ----
+def load_best_from_db(project: str, study_name: str) -> Optional[dict]:
+    """Best trial of a persisted study, read straight from its Optuna sqlite DB.
+
+    Returns ``{number, value, params}`` (params namespaced ``hp.*/rw.*/rp.*``, rounded the same
+    way the live session reports them), or ``None`` if the study has no completed trial yet.
+    Raises ``FileNotFoundError`` if the study's DB is missing.
+    """
+    import optuna
+
+    db = paths.tuning_root(project) / study_name / "optuna.db"
+    if not db.is_file():
+        raise FileNotFoundError(f"No study DB for '{study_name}' in project '{project}'")
+    study = optuna.load_study(study_name=study_name, storage=f"sqlite:///{db}")
+    try:
+        return {
+            "number": study.best_trial.number,
+            "value": round(float(study.best_value), 5),
+            "params": {k: (round(v, 6) if isinstance(v, float) else v)
+                       for k, v in study.best_params.items()},
+        }
+    except Exception:
+        return None  # no completed trial → no best
+
+
+def load_decisions(project: str, study_name: str) -> list[dict]:
+    """Persisted advisor decisions for a study (empty list if none recorded)."""
+    p = paths.tuning_root(project) / study_name / "decisions.jsonl"
+    if not p.is_file():
+        return []
+    out: list[dict] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except Exception:
+                pass
+    return out
+
+
 # ---- session registry (shared with the API layer) ----
 SESSIONS: dict[str, StudySession] = {}
 

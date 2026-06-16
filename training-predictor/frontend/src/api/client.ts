@@ -1,7 +1,10 @@
 import type {
   ApplyResult,
+  BestTrial,
+  Decision,
   Health,
   LogEntry,
+  StageResult,
   StagesResponse,
   StartRequest,
   SequenceSummary,
@@ -49,4 +52,22 @@ export const api = {
     req<{ ok: boolean; status: string }>(`/api/tuning/${taskId}/stop`, { method: "POST" }),
   applyBest: (taskId: string) =>
     req<ApplyResult>(`/api/tuning/${taskId}/apply`, { method: "POST" }),
+
+  // ---- persisted results (read from disk; survive reload + backend restart) ----
+  studyBest: (project: string, name: string) =>
+    req<{ best: BestTrial | null; decisions: Decision[]; study_name: string }>(
+      `/api/projects/${project}/studies/${encodeURIComponent(name)}/best`
+    ),
+  sequenceBest: (project: string, name: string) =>
+    req<{ stages: StageResult[]; seq_name: string }>(
+      `/api/projects/${project}/sequences/${encodeURIComponent(name)}/best`
+    ),
+  applyStudyPersisted: (project: string, name: string) =>
+    req<ApplyResult>(`/api/projects/${project}/studies/${encodeURIComponent(name)}/apply`, {
+      method: "POST",
+    }),
+  applySequencePersisted: (project: string, name: string) =>
+    req<ApplyResult>(`/api/projects/${project}/sequences/${encodeURIComponent(name)}/apply`, {
+      method: "POST",
+    }),
 };

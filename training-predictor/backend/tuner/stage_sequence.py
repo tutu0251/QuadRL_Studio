@@ -30,6 +30,27 @@ from .search_space import SearchSpace
 LogFn = Callable[[str, str], None]
 
 
+def load_sequence_file(project: str, seq_name: str) -> dict[str, Any]:
+    """Read a persisted ``sequence.json`` (no live session needed).
+
+    Raises ``FileNotFoundError`` if the sequence has no saved progress.
+    """
+    p = paths.tuning_root(project) / seq_name / "sequence.json"
+    if not p.is_file():
+        raise FileNotFoundError(f"No sequence.json for '{seq_name}' in project '{project}'")
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def best_stage_params_from_file(data: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    """{stage_index: winning rw.*/rp.* params} from a loaded ``sequence.json`` — only stages
+    that completed with a best (mirrors :meth:`StageSequenceSession.best_stage_params`)."""
+    out: dict[int, dict[str, Any]] = {}
+    for ks, r in (data.get("stage_results") or {}).items():
+        if r.get("status") == "done" and r.get("best_params"):
+            out[int(ks)] = r["best_params"]
+    return out
+
+
 @dataclass
 class StageSeqConfig:
     project: str

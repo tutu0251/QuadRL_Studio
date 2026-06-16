@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef } from "react";
 import { api, streamUrl } from "./api/client";
-import type { LogEntry, StudyStatus } from "./api/types";
+import type { ApplyResult, LogEntry, StudyStatus } from "./api/types";
 import { useStudyStore } from "./stores/studyStore";
-import { clearActiveRun, loadActiveRun } from "./stores/runPersistence";
+import {
+  clearActiveRun,
+  clearPreview as clearSavedPreview,
+  loadActiveRun,
+  loadPreview as loadSavedPreview,
+  savePreview,
+} from "./stores/runPersistence";
 import { TopBar } from "./features/topbar/TopBar";
 import { StudySetupPanel } from "./features/params/StudySetupPanel";
 import { BestPanel } from "./features/prediction/BestPanel";
@@ -78,6 +84,90 @@ export default function App() {
       cancelled = true;
     };
   }, [project, refreshStudies]);
+
+  // ---- load a past study/sequence's best params from disk for viewing + applying ----
+  const loadPreview = useCallback(async (name: string) => {
+    const { form, taskId } = useStudyStore.getState();
+    if (taskId) return; // a live run owns the view
+    const proj = form.project;
+    if (!proj || !name) {
+      useStudyStore.getState().clearPreview();
+      clearSavedPreview();
+      return;
+    }
+    const mode = form.mode;
+    try {
+      let status: StudyStatus;
+      if (mode === "sequential_stage") {
+        const { stages } = await api.sequenceBest(proj, name);
+        status = {
+          status: "complete",
+          error: null,
+          project: proj,
+          study_name: name,
+          n_trials: form.trials_per_stage,
+          n_completed: 0,
+          advisor_every_n: form.advisor_every_n,
+          mock_objective: false,
+          best: null,
+          decisions: [],
+          search_space: [],
+          mode: "sequential_stage",
+          current_stage_index: null,
+          total_stages: stages.length,
+          stages,
+        };
+      } else {
+        const { best, decisions } = await api.studyBest(proj, name);
+        const summary = useStudyStore.getState().pastStudies.find((s) => s.study_name === name);
+        const nTrials = summary?.n_trials ?? (best ? 1 : 0);
+        status = {
+          status: "complete",
+          error: null,
+          project: proj,
+          study_name: name,
+          n_trials: nTrials,
+          n_completed: nTrials,
+          advisor_every_n: form.advisor_every_n,
+          mock_objective: false,
+          best,
+          decisions: decisions ?? [],
+          search_space: [],
+          mode: "global",
+        };
+      }
+      if (useStudyStore.getState().taskId) return; // a run started while we were fetching
+      useStudyStore.getState().showPreview({ mode, project: proj, name }, status);
+      savePreview({ project: proj, mode, name });
+    } catch {
+      useStudyStore.getState().clearPreview();
+    }
+  }, []);
+
+  // Selecting a past run (or restoring one on reload) previews its best params.
+  const studyName = store.form.study_name;
+  const mode = store.form.mode;
+  useEffect(() => {
+    if (useStudyStore.getState().taskId) return; // live run shows its own status
+    if (studyName) void loadPreview(studyName);
+    else {
+      useStudyStore.getState().clearPreview();
+      clearSavedPreview();
+    }
+  }, [studyName, mode, project, loadPreview]);
+
+  // ---- on first load, restore the last previewed run so params are ready to apply ----
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !store.connected || store.projects.length === 0) return;
+    restored.current = true;
+    if (loadActiveRun()) return; // an in-flight run reconnect takes priority
+    const saved = loadSavedPreview();
+    if (!saved) return;
+    const s = useStudyStore.getState();
+    if (saved.project && s.projects.includes(saved.project)) s.setProject(saved.project);
+    s.patchForm({ mode: saved.mode, study_name: saved.name });
+  }, [store.connected, store.projects]);
 
   const stopStreaming = useCallback(() => {
     esRef.current?.close();
@@ -174,8 +264,8 @@ export default function App() {
   }, [setError]);
 
   const onApply = useCallback(async () => {
-    const { taskId } = useStudyStore.getState();
-    if (!taskId) return;
+    const { taskId, previewRef } = useStudyStore.getState();
+    if (!taskId && !previewRef) return;
     if (
       !window.confirm(
         "Save the best trial's parameters into this project's PPO / RL config files?\n\nThe originals are backed up as .bak-<timestamp>."
@@ -186,7 +276,14 @@ export default function App() {
     s.setApplying(true);
     s.setApplyResult("Saving…");
     try {
-      const d = await api.applyBest(taskId);
+      let d: ApplyResult;
+      if (taskId) {
+        d = await api.applyBest(taskId);
+      } else if (previewRef!.mode === "sequential_stage") {
+        d = await api.applySequencePersisted(previewRef!.project, previewRef!.name);
+      } else {
+        d = await api.applyStudyPersisted(previewRef!.project, previewRef!.name);
+      }
       const files = (d.files || []).map((f) => f.split("/").pop()).join(", ");
       let msg: string;
       if (d.mode === "sequential_stage") {

@@ -9,7 +9,15 @@ import type {
   StudyStatus,
   StudySummary,
   TrialRow,
+  TuningMode,
 } from "../api/types";
+
+/** A past study/sequence loaded from disk for viewing + applying (no live run). */
+export interface PreviewRef {
+  mode: TuningMode;
+  project: string;
+  name: string;
+}
 
 /** Sensible defaults mirroring the backend's StartTuningRequest field defaults. */
 export function defaultForm(project = ""): StartRequest {
@@ -60,6 +68,9 @@ interface StudyState {
   applyResult: string | null;
   applying: boolean;
 
+  // a past run loaded from disk for viewing + applying (no live task)
+  previewRef: PreviewRef | null;
+
   setConnected: (v: boolean) => void;
   setHealth: (h: Health | null) => void;
   setProjects: (p: string[]) => void;
@@ -77,6 +88,10 @@ interface StudyState {
   appendLog: (e: LogEntry) => void;
   setApplyResult: (s: string | null) => void;
   setApplying: (v: boolean) => void;
+
+  // load a persisted run for preview (synthetic status + ref); or clear it
+  showPreview: (ref: PreviewRef, status: StudyStatus) => void;
+  clearPreview: () => void;
 }
 
 /** Derived: is a study currently in flight? */
@@ -102,6 +117,7 @@ export const useStudyStore = create<StudyState>((set) => ({
   logs: [],
   applyResult: null,
   applying: false,
+  previewRef: null,
 
   setConnected: (v) => set({ connected: v }),
   setHealth: (h) => set({ health: h }),
@@ -122,11 +138,16 @@ export const useStudyStore = create<StudyState>((set) => ({
     set((s) => {
       // Remember the active task so a page reload can reconnect to the running study.
       saveActiveRun(taskId, s.form.project);
-      return { taskId, status: null, trials: [], logs: [], applyResult: null };
+      // A live run takes over the view from any loaded preview.
+      return { taskId, status: null, trials: [], logs: [], applyResult: null, previewRef: null };
     }),
   setStatus: (status) => set({ status }),
   setTrials: (trials) => set({ trials }),
   appendLog: (e) => set((s) => ({ logs: [...s.logs.slice(-500), e] })),
   setApplyResult: (s2) => set({ applyResult: s2 }),
   setApplying: (v) => set({ applying: v }),
+
+  showPreview: (previewRef, status) => set({ previewRef, status, applyResult: null, trials: [] }),
+  clearPreview: () =>
+    set((s) => (s.previewRef ? { previewRef: null, status: null, applyResult: null, trials: [] } : {})),
 }));

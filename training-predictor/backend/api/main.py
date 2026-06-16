@@ -143,6 +143,82 @@ def list_sequences(project: str):
     return {"sequences": out}
 
 
+@app.get("/api/projects/{project}/studies/{study_name}/best")
+def study_best(project: str, study_name: str):
+    """Best params + advisor decisions of a persisted study, read from disk (no live session).
+
+    Lets the page reload the latest results and apply them anytime, even after a restart."""
+    if project not in paths.list_projects():
+        raise HTTPException(404, f"Unknown project '{project}'")
+    try:
+        best = study_mod.load_best_from_db(project, study_name)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {
+        "mode": "global",
+        "project": project,
+        "study_name": study_name,
+        "best": best,
+        "decisions": study_mod.load_decisions(project, study_name),
+    }
+
+
+@app.post("/api/projects/{project}/studies/{study_name}/apply")
+def study_apply_persisted(project: str, study_name: str):
+    """Apply a persisted study's best params into the project's configs (no live session)."""
+    from tuner import config_writer
+
+    if project not in paths.list_projects():
+        raise HTTPException(404, f"Unknown project '{project}'")
+    try:
+        best = study_mod.load_best_from_db(project, study_name)
+        if not best or not best.get("params"):
+            raise HTTPException(400, "No completed trial to apply yet.")
+        summary = config_writer.apply_params(project, best["params"])
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"ok": True, "applied_from_trial": best.get("number"), **summary}
+
+
+@app.get("/api/projects/{project}/sequences/{seq_name}/best")
+def sequence_best(project: str, seq_name: str):
+    """Per-stage best params of a persisted sequence, read from its ``sequence.json``."""
+    from tuner import stage_sequence
+
+    if project not in paths.list_projects():
+        raise HTTPException(404, f"Unknown project '{project}'")
+    try:
+        data = stage_sequence.load_sequence_file(project, seq_name)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    results = data.get("stage_results") or {}
+    stages = [results[k] for k in sorted(results, key=lambda s: int(s))]
+    return {
+        "mode": "sequential_stage",
+        "project": project,
+        "seq_name": seq_name,
+        "stages": stages,
+    }
+
+
+@app.post("/api/projects/{project}/sequences/{seq_name}/apply")
+def sequence_apply_persisted(project: str, seq_name: str):
+    """Apply a persisted sequence's per-stage best reward terms into the project's RL config."""
+    from tuner import config_writer, stage_sequence
+
+    if project not in paths.list_projects():
+        raise HTTPException(404, f"Unknown project '{project}'")
+    try:
+        data = stage_sequence.load_sequence_file(project, seq_name)
+        stage_params = stage_sequence.best_stage_params_from_file(data)
+        if not stage_params:
+            raise HTTPException(400, "No tuned stages to apply yet.")
+        summary = config_writer.apply_stage_params(project, stage_params)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"ok": True, "mode": "sequential_stage", **summary}
+
+
 def _session_or_404(task_id: str) -> study_mod.StudySession:
     session = study_mod.get(task_id)
     if session is None:

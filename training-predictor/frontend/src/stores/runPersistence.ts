@@ -41,3 +41,45 @@ export function clearActiveRun(): void {
     /* ignore */
   }
 }
+
+/**
+ * Persist which past study/sequence is being *previewed* (so its best params can be
+ * applied), separately from any in-flight run. Restored on reload so the page comes
+ * back showing the same results, ready to "Save to project".
+ */
+const PREVIEW_KEY = "tp.preview";
+
+export interface PreviewSelection {
+  project: string;
+  mode: "global" | "sequential_stage";
+  name: string;
+}
+
+export function savePreview(sel: PreviewSelection): void {
+  try {
+    localStorage.setItem(PREVIEW_KEY, JSON.stringify(sel));
+  } catch {
+    /* storage unavailable — preview just won't survive reload */
+  }
+}
+
+export function loadPreview(): PreviewSelection | null {
+  try {
+    const raw = localStorage.getItem(PREVIEW_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<PreviewSelection>;
+    if (!p || typeof p.name !== "string" || typeof p.project !== "string") return null;
+    if (p.mode !== "global" && p.mode !== "sequential_stage") return null;
+    return { project: p.project, mode: p.mode, name: p.name };
+  } catch {
+    return null;
+  }
+}
+
+export function clearPreview(): void {
+  try {
+    localStorage.removeItem(PREVIEW_KEY);
+  } catch {
+    /* ignore */
+  }
+}

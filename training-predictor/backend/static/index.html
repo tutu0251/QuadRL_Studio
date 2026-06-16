@@ -89,7 +89,9 @@
     <div class="grid2">
       <section class="panel">
         <h2>Best so far</h2>
-        <div id="best"><span class="muted">No trials yet.</span></div>
+        <label style="margin-top:0">Load previous results (apply anytime)</label>
+        <select id="history"></select>
+        <div id="best" style="margin-top:10px"><span class="muted">No trials yet.</span></div>
         <button id="applyBtn" disabled title="Write these params into the project's ppo/rl config files">Save best params to project</button>
         <div id="applyResult" class="muted" style="font-size:11.5px;margin-top:8px"></div>
       </section>
@@ -112,6 +114,7 @@
 <script>
 const API = ""; // same origin
 let currentTask = null, es = null, trialTimer = null;
+let loadedRef = null; // {type:'study'|'sequence', project, name} loaded from disk for apply-after-reload
 
 async function loadProjects() {
   const r = await fetch(API + "/api/projects");
@@ -121,6 +124,49 @@ async function loadProjects() {
   const h = await (await fetch(API + "/api/health")).json();
   const mon = h.monitor_reachable ? `monitor: ${h.monitor_url} ✓` : `monitor: ${h.monitor_url} ✗ (start it on :8006)`;
   document.getElementById("advisorState").textContent = `advisor: ${h.advisor_detail || "unknown"}  ·  ${mon}`;
+  await loadHistory();
+}
+
+// ---- persisted results: populate the dropdown and auto-load the newest ----
+async function loadHistory() {
+  const project = document.getElementById("project").value;
+  const sel = document.getElementById("history");
+  if (!project) { sel.innerHTML = `<option value="">(no project)</option>`; return; }
+  let studies = [], sequences = [];
+  try { studies = (await (await fetch(`${API}/api/projects/${encodeURIComponent(project)}/studies`)).json()).studies || []; } catch(_) {}
+  try { sequences = (await (await fetch(`${API}/api/projects/${encodeURIComponent(project)}/sequences`)).json()).sequences || []; } catch(_) {}
+  const opts = [];
+  for (const s of studies) {
+    const best = s.best_value != null ? ` · best ${s.best_value}` : "";
+    opts.push(`<option value="study:${encodeURIComponent(s.study_name)}">${s.study_name} (${s.n_trials} trials${best})</option>`);
+  }
+  for (const q of sequences) {
+    opts.push(`<option value="sequence:${encodeURIComponent(q.seq_name)}">${q.seq_name} (${q.stages_done}/${q.stages_tuned} stages)</option>`);
+  }
+  sel.innerHTML = opts.length ? opts.join("") : `<option value="">(no saved results yet)</option>`;
+  if (opts.length && !currentTask) { await loadResult(sel.value); } // auto-load newest unless a live run owns the view
+}
+
+async function loadResult(value) {
+  if (!value) return;
+  const project = document.getElementById("project").value;
+  const [type, encName] = value.split(":");
+  const name = decodeURIComponent(encName);
+  try {
+    if (type === "study") {
+      const d = await (await fetch(`${API}/api/projects/${encodeURIComponent(project)}/studies/${encodeURIComponent(name)}/best`)).json();
+      renderBest(d.best);
+      renderDecisions(d.decisions || []);
+    } else {
+      const d = await (await fetch(`${API}/api/projects/${encodeURIComponent(project)}/sequences/${encodeURIComponent(name)}/best`)).json();
+      renderSequenceBest(d.stages || []);
+      renderDecisions([]);
+    }
+    loadedRef = { type, project, name };
+  } catch (_) {
+    document.getElementById("best").innerHTML = `<span class="muted">Could not load saved results.</span>`;
+    document.getElementById("applyBtn").disabled = true;
+  }
 }
 
 function setBadge(s){ const b=document.getElementById("statusBadge"); b.textContent=s; b.className="badge "+s; }
@@ -135,24 +181,53 @@ function appendLog(e){
   if(atBottom) log.scrollTop=log.scrollHeight;
 }
 
-function renderStatus(st){
-  setBadge(st.status);
-  const best=document.getElementById("best");
-  if(st.best){
-    best.innerHTML = `<div class="kv"><span>trial</span><span>#${st.best.number}</span></div>`+
-      `<div class="kv"><span>objective</span><span>${st.best.value}</span></div>`+
-      Object.entries(st.best.params).map(([k,v])=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("");
+function renderBest(best){
+  const el=document.getElementById("best");
+  if(best){
+    el.innerHTML = `<div class="kv"><span>trial</span><span>#${best.number}</span></div>`+
+      `<div class="kv"><span>objective</span><span>${best.value}</span></div>`+
+      Object.entries(best.params).map(([k,v])=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("");
     document.getElementById("applyBtn").disabled = false;
+  } else {
+    el.innerHTML = `<span class="muted">No completed trial yet.</span>`;
+    document.getElementById("applyBtn").disabled = true;
   }
+}
+
+function renderSequenceBest(stages){
+  const el=document.getElementById("best");
+  const tuned=stages.filter(s=>s.best_params && Object.keys(s.best_params).length);
+  if(tuned.length){
+    el.innerHTML = stages.map(s=>{
+      const params=Object.entries(s.best_params||{}).map(([k,v])=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("");
+      return `<div style="margin-bottom:8px"><div class="kv"><span>${s.stage_name||('stage '+s.stage_index)}</span>`+
+        `<span>${s.status==="done"?("best "+(s.best_value??"—")):s.status}</span></div>${params}</div>`;
+    }).join("");
+    document.getElementById("applyBtn").disabled = !stages.some(s=>s.status==="done" && s.best_params && Object.keys(s.best_params).length);
+  } else {
+    el.innerHTML = `<span class="muted">No tuned stages yet.</span>`;
+    document.getElementById("applyBtn").disabled = true;
+  }
+}
+
+function renderDecisions(decisions){
   const dec=document.getElementById("decisions");
-  if(st.decisions && st.decisions.length){
-    dec.innerHTML = st.decisions.slice().reverse().map(d=>`
+  if(decisions && decisions.length){
+    dec.innerHTML = decisions.slice().reverse().map(d=>`
       <div class="decision">
         <div class="act">${d.action}${d.stop?" · STOP":""} <span class="muted">· after ${d.after_trial} trials</span></div>
         <div class="why">${d.rationale||""}</div>
         ${(d.changes||[]).map(c=>`<div class="chg">${c.name}: ${fmtBound(c.before)} → ${fmtBound(c.after)}</div>`).join("")}
       </div>`).join("");
+  } else {
+    dec.innerHTML = `<span class="muted">No decisions yet.</span>`;
   }
+}
+
+function renderStatus(st){
+  setBadge(st.status);
+  if(st.best) renderBest(st.best);
+  if(st.decisions && st.decisions.length) renderDecisions(st.decisions);
 }
 function fmtBound(b){ if(!b) return ""; if(b.fixed!=null) return "fix="+b.fixed; return `${b.low}..${b.high}`; }
 
@@ -184,6 +259,7 @@ async function start(){
   if(!r.ok){ alert("Start failed: "+(await r.text())); return; }
   const { task_id } = await r.json();
   currentTask = task_id;
+  loadedRef = null; // a live run now owns Apply
   document.getElementById("log").innerHTML="";
   document.getElementById("startBtn").disabled=true;
   document.getElementById("stopBtn").disabled=false;
@@ -201,28 +277,48 @@ function finish(){
   document.getElementById("stopBtn").disabled=true;
   if(trialTimer) clearInterval(trialTimer);
   refreshTrials();
+  loadHistory(); // surface the just-finished run in the dropdown so it can be re-applied later
 }
 async function stop(){
   if(!currentTask) return;
   await fetch(`${API}/api/tuning/${currentTask}/stop`, {method:"POST"});
 }
 
+function applyUrl(){
+  if(currentTask) return `${API}/api/tuning/${currentTask}/apply`;       // live run
+  if(loadedRef){
+    const p=encodeURIComponent(loadedRef.project), n=encodeURIComponent(loadedRef.name);
+    return loadedRef.type==="study"
+      ? `${API}/api/projects/${p}/studies/${n}/apply`
+      : `${API}/api/projects/${p}/sequences/${n}/apply`;               // persisted (survives reload/restart)
+  }
+  return null;
+}
+
 async function applyBest(){
-  if(!currentTask) return;
-  if(!confirm("Save the best trial's parameters into this project's ppo/rl config files?\n(Originals are backed up as .bak-<timestamp>.)")) return;
+  const url=applyUrl();
+  if(!url) return;
+  if(!confirm("Save the best parameters into this project's ppo/rl config files?\n(Originals are backed up as .bak-<timestamp>.)")) return;
   const res=document.getElementById("applyResult");
   res.textContent="Saving…";
-  const r=await fetch(`${API}/api/tuning/${currentTask}/apply`, {method:"POST"});
+  const r=await fetch(url, {method:"POST"});
   if(!r.ok){ res.textContent="Save failed: "+(await r.text()); return; }
   const d=await r.json();
-  const nHp=Object.keys(d.hyperparameters||{}).length, nW=Object.keys(d.reward_weights||{}).length, nP=Object.keys(d.reward_params||{}).length;
-  res.innerHTML = `Saved from trial #${d.applied_from_trial}: ${nHp} hyperparam(s), ${nW} reward weight(s), ${nP} reward param(s).<br>`+
-    `Files: ${(d.files||[]).map(f=>f.split('/').pop()).join(', ')}<br>Backups: ${(d.backups||[]).length}`;
+  const files=`Files: ${(d.files||[]).map(f=>f.split('/').pop()).join(', ')||"—"}<br>Backups: ${(d.backups||[]).length}`;
+  if(d.mode==="sequential_stage"){
+    const nStages=Object.keys(d.stages||{}).length;
+    res.innerHTML = `Saved per-stage reward terms for ${nStages} stage(s).<br>${files}`;
+  } else {
+    const nHp=Object.keys(d.hyperparameters||{}).length, nW=Object.keys(d.reward_weights||{}).length, nP=Object.keys(d.reward_params||{}).length;
+    res.innerHTML = `Saved${d.applied_from_trial!=null?(" from trial #"+d.applied_from_trial):""}: ${nHp} hyperparam(s), ${nW} reward weight(s), ${nP} reward param(s).<br>${files}`;
+  }
 }
 
 document.getElementById("startBtn").onclick=start;
 document.getElementById("stopBtn").onclick=stop;
 document.getElementById("applyBtn").onclick=applyBest;
+document.getElementById("project").onchange=()=>{ if(!currentTask) loadHistory(); };
+document.getElementById("history").onchange=(e)=>loadResult(e.target.value);
 loadProjects();
 </script>
 </body>
